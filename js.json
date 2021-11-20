@@ -1,0 +1,19 @@
+{
+  "packageRules": [
+    {
+      "matchDatasources": [
+        "npm"
+      ],
+      "addLabels": [
+        "js"
+      ]
+    },
+    {
+      "matchDatasources": [
+        "npm"
+      ],
+      "updateTypes": ["minor"],
+      "enabled": true
+    }
+  ]
+}
