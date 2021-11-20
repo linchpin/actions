@@ -1,0 +1,37 @@
+{
+  "baseBranches": [
+    "staging"
+  ],
+  "extends": [
+    "config:base",
+    ":preserveSemverRanges",
+    ":disableRateLimiting"
+  ],
+  "dependencyDashboard": true,
+  "separateMajorMinor": true,
+  "separateMinorPatch": true,
+  "separateMultipleMajor": true,
+  "timezone": "America/New_York",
+  "schedule": [
+    "after 6pm and before 6am every weekday",
+    "every weekend"
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"]
+  },
+  "packageRules": [
+    {
+      "matchManagers": [
+        "npm",
+        "composer",
+        "github-actions"
+      ],
+      "groupName": "Managers",
+      "labels": [
+        "composer",
+        "npm",
+        "github-actions"
+      ]
+    }
+  ]
+}
