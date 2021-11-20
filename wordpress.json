@@ -1,0 +1,33 @@
+{
+  "packageRules": [
+    {
+      "labels": [
+        "wordpress",
+        "wordpress-core"
+      ]
+    },
+    {
+      "packageNames": [
+        "wp-cli/wp-cli"
+      ],
+      "labels": [
+        "wordpress",
+        "wp-cli",
+        "tools"
+      ]
+    },
+    {
+      "matchPackagePrefixes": [
+        "wpackagist-plugin/",
+        "wpackagist-theme/",
+        "linchpin/"
+      ],
+      "groupName": "WordPress Plugins and Themes",
+      "addLabels": [
+        "wordpress",
+        "wordpress-theme"
+        "wordpress-plugin"
+      ]
+    }
+  ]
+}
