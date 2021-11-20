@@ -3,4 +3,5 @@ An open source collection of Linchpin's configs. Primarily used for Renovate bot
 
 |file|description|
 |----|-----------|
-| renovate.json | Shared config for renovatebot |
+| global.json | Shared global config for renovatebot | 
+| wordpress.json | Shared config for renovatebot for WordPress installs. |
