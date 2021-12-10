@@ -25,7 +25,7 @@
       "groupName": "WordPress Plugins and Themes",
       "addLabels": [
         "wordpress",
-        "wordpress-theme"
+        "wordpress-theme",
         "wordpress-plugin"
       ]
     }
