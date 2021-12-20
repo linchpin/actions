@@ -126,13 +126,12 @@ jobs:
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
-          tar -xzf ./composer.tar.gz -C ./
+          tar -xzf ./artifact/composer.tar.gz -C ./
 
       - name: Decompress Theme Artifacts
         id: decompress_theme_artifacts
         run: |
-          tar -xvf *.gz
-          tar -xzf ./theme-*.tar.gz -C ./build
+          tar -xzf ./artifact/theme-*.tar.gz -C ./build
 
       - name: Clean Build Files/Folders
         id: clean_build_ff
