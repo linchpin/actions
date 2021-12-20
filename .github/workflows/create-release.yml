@@ -128,18 +128,18 @@ jobs:
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
-          tar -xzf $GITHUB_WORKSPACE/composer.tar.gz -C ./
+          tar -xzf ./composer.tar.gz -C ./
 
       - name: Decompress Theme Artifacts
         id: decompress_theme_artifacts
         run: |
           tar -xvf *.gz
-          tar -xzf $GITHUB_WORKSPACE/theme-*.tar.gz -C $GITHUB_WORKSPACE/build
+          tar -xzf ./theme-*.tar.gz -C ./build
 
       - name: Clean Build Files/Folders
         id: clean_build_ff
         run: |
-          cd $GITHUB_WORKSPACE/build/.deployment
+          cd ./build/.deployment
           chmod +x cleanup.sh
           sh cleanup.sh
 
@@ -155,7 +155,7 @@ jobs:
         with:
           validation_depth: 10
           version: ${GITHUB_REF#refs/tags/v}
-          path: $GITHUB_WORKSPACE/build/CHANGELOG.md
+          path: ./build/CHANGELOG.md
 
 # @todo see how we can cleanup artifacts dynamically
 #      - name: Delete Deployment Artifacts
@@ -169,7 +169,7 @@ jobs:
       - name: Combine Assets for Release
         id: compression
         run: |
-          zip -r ${{ steps.folder.outputs.folder }}.zip $GITHUB_WORKSPACE/temp_archive
+          zip -r ${{ steps.folder.outputs.folder }}.zip ./temp_archive
 
       - name: Create Release
         id: create_release
