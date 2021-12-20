@@ -11,7 +11,7 @@ on:
         default: 7.4
         required: false
       node_version:
-        desciption: 'Node version used during build (Default 16.x)'
+        description: 'Node version used during build (Default 16.x)'
         default: 16
         required: false
     secrets:
