@@ -13,6 +13,7 @@ on:
         desciption: 'Node version used during build (Default 16.x)'
         default: 16
         required: false
+    secrets:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
         required: true
@@ -29,7 +30,7 @@ jobs:
           path: 'build'
 
       - name: Authenticate Packagist
-        run: echo '${{ on.workflow_call.inputs.packagist_auth }}' > ./build/auth.json
+        run: echo '${{ on.workflow_call.secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
         uses: actions/cache@v2
@@ -43,6 +44,9 @@ jobs:
           working_dir: ./build
           dev: no
           php_version: ${{ on.workflow_call.inputs.php_version }}
+
+      - name: Remove Packagist Authentication
+        run: rm -f $GITHUB_WORKSPACE/build/auth.json
 
       - name: Compress Composer Artifact
         id: composer_compression_artifact
