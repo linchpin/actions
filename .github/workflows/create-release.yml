@@ -119,22 +119,24 @@ jobs:
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v2
+        with:
+          path: $GITHUB_WORKSPACE
 
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
-          tar -xzf composer.tar.gz -C ./
+          tar -xzf $GITHUB_WORKSPACE/composer.tar.gz -C ./
 
       - name: Decompress Theme Artifacts
         id: decompress_theme_artifacts
         run: |
           tar -xvf *.gz
-          tar -xzf theme-*.tar.gz -C ./build
+          tar -xzf $GITHUB_WORKSPACE/theme-*.tar.gz -C $GITHUB_WORKSPACE/build
 
       - name: Clean Build Files/Folders
         id: clean_build_ff
         run: |
-          cd ./build/.deployment
+          cd $GITHUB_WORKSPACE/build/.deployment
           chmod +x cleanup.sh
           sh cleanup.sh
 
@@ -142,6 +144,15 @@ jobs:
         id: folder
         run: |
           echo ::set-output name=folder::$(date +'%s')
+
+      # Latest changelog entry is based on version. If not found, fall back to the last version
+      - name: Get Latest CHANGELOG.md Entry
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_depth: 10
+          version: ${GITHUB_REF#refs/tags/v}
+          path: $GITHUB_WORKSPACE/build/CHANGELOG.md
 
 # @todo see how we can cleanup artifacts dynamically
 #      - name: Delete Deployment Artifacts
@@ -155,16 +166,7 @@ jobs:
       - name: Combine Assets for Release
         id: compression
         run: |
-          zip -r ${{ steps.folder.outputs.folder }}.zip ./temp_archive
-
-      # Latest changelog entry is based on version. If not found, fall back to the last version
-      - name: Get Latest CHANGELOG.md Entry
-        id: changelog_reader
-        uses: mindsers/changelog-reader-action@v2
-        with:
-          validation_depth: 10
-          version: ${GITHUB_REF#refs/tags/v}
-          path: ./CHANGELOG.md
+          zip -r ${{ steps.folder.outputs.folder }}.zip $GITHUB_WORKSPACE/temp_archive
 
       - name: Create Release
         id: create_release
