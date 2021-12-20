@@ -145,13 +145,18 @@ jobs:
         run: |
           echo ::set-output name=folder::$(date +'%s')
 
+      - name: Get Current Version
+        id: version
+        run: |
+          echo ::set-output name=tag::${GITHUB_REF#refs/tags/v}
+
       # Latest changelog entry is based on version. If not found, fall back to the last version
       - name: Get Latest CHANGELOG.md Entry
         id: changelog_reader
         uses: mindsers/changelog-reader-action@v2
         with:
           validation_depth: 10
-          version: ${GITHUB_REF#refs/tags/v}
+          version: ${{ steps.version.current }}
           path: ./build/CHANGELOG.md
 
 # @todo see how we can cleanup artifacts dynamically
