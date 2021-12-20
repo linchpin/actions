@@ -33,7 +33,7 @@ jobs:
           path: 'build'
 
       - name: Authenticate Packagist
-        run: echo '${{ on.workflow_call.secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
+        run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
         uses: actions/cache@v2
@@ -46,7 +46,7 @@ jobs:
         with:
           working_dir: ./build
           dev: no
-          php_version: ${{ on.workflow_call.inputs.php_version }}
+          php_version: ${{ inputs.php_version }}
 
       - name: Remove Packagist Authentication
         run: rm -f $GITHUB_WORKSPACE/build/auth.json
@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        theme: ${{ fromJSON( on.workflow_call.input.themes ) }}
+        theme: ${{ fromJSON( input.themes ) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -84,7 +84,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2.5.0
         with:
-          node-version: ${{ on.workflow_call.inputs.node_version }}
+          node-version: ${{ inputs.node_version }}
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
