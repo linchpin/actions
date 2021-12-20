@@ -10,10 +10,12 @@ on:
         description: 'PHP version used during build (Default 7.4.x)'
         default: 7.4
         required: false
+        type: number
       node_version:
         description: 'Node version used during build (Default 16.x)'
         default: 16
         required: false
+        type: number
     secrets:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
