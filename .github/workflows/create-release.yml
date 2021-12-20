@@ -77,7 +77,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Output theme name
-        id: compress_theme_artifact
+        id: theme_name
         run: |
           echo "Build ${{ matrix.theme }}"
 
