@@ -1,4 +1,4 @@
-# Linchpin Global Configs
+# Linchpin Share Project Configs
 An open source collection of Linchpin's configs. Primarily used for Renovate bot and shared workflows. While there are some aspects of this repo that are specific to Linchpin and our build process. I don't see any problem sharing them with any other organizations that want to use them.
 
 ## Renovate Bot
