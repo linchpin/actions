@@ -75,11 +75,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Output theme name
-        id: theme_name
-        run: |
-          echo "Build ${{ matrix.theme }}"
-
       - name: Setup Node.js
         uses: actions/setup-node@v2.5.0
         with:
@@ -101,7 +96,7 @@ jobs:
       - name: Build Theme
         id: build-theme
         run: |
-          cd build/themes/${{ matrix.theme }}
+          cd themes/${{ matrix.theme }}
           yarn install # @todo this should not include dev resources
           yarn build
 
