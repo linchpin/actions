@@ -1,0 +1,170 @@
+name: Create Release
+on:
+  workflow_call:
+    inputs:
+      themes: # And array of theme name we need to build
+        description: 'An array of themes to build even if just one. Example: [ theme-name ]'
+        required: true
+
+jobs:
+
+  dependency_setup:
+    name: Composer Dependency Setup
+    runs-on: ubuntu-latest
+    needs: preflight
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          path: 'build'
+
+      - name: Authenticate Packagist
+        run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > ./build/auth.json
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v2
+        with:
+          path: /tmp/composer-cache
+          key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
+
+      - name: Composer Install
+        uses: php-actions/composer@v6
+        with:
+          working_dir: ./build
+          dev: no
+          php_version: 7.4
+
+      - name: Compress Composer Artifact
+        id: composer_compression_artifact
+        run: |
+          tar -zcf composer.tar.gz ./build
+
+      # Upload single tar instead of multiple files
+      - name: Upload Dependencies
+        uses: actions/upload-artifact@v2
+        with:
+          name: composer_dependencies
+          path: composer.tar.gz
+
+  # This scaffold only has one theme to build.
+  # If you have multiple themes you will need utilize a differnt workflow
+  # instead of using this shared worklow
+  theme_setup:
+    name: Theme Setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        theme: ${{ on.workflow_call.input.themes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Output theme name
+        id: compress_theme_artifact
+        run: |
+          echo "Trying to build ${{ matrix.theme }}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2.5.0
+        with:
+          node-version: '16'
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+
+      - name: Cache Yarn Dependencies
+        uses: actions/cache@v2
+        id: cache-yarn-cache
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Build Theme
+        id: build-theme
+        run: |
+          cd build/themes/${{ matrix.theme }}
+          yarn install # @todo this should not include dev resources
+          yarn build
+
+      - name: Compress Theme Artifact
+        id: compress_theme_artifact
+        run: |
+          tar -zcf theme-${{ matrix.theme }}.tar.gz --exclude "node_modules" themes/${{ matrix.theme }}
+
+      - name: Upload Theme
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.theme }}-theme
+          path: theme-${{ matrix.theme }}.tar.gz
+
+  build:
+    name: Build Release Zip
+    runs-on: ubuntu-latest
+    needs: [ preflight, dependency_setup, theme_setup ]
+    steps:
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v2
+
+      - name: Decompress Composer Artifacts
+        id: decompress_composer_artifacts
+        run: |
+          tar -xzf composer.tar.gz -C ./
+
+      - name: Decompress Theme Artifacts
+        id: decompress_theme_artifacts
+        run: |
+          tar -xvf *.gz
+          tar -xzf theme-*.tar.gz -C ./build
+
+      - name: Clean Build Files/Folders
+        id: clean_build_ff
+        run: |
+          cd ./build/.deployment
+          chmod +x cleanup.sh
+          sh cleanup.sh
+
+      - name: Generate release folder name
+        id: folder
+        run: |
+          echo ::set-output name=folder::$(date +'%s')
+
+# @todo see how we can cleanup artifacts dynamically
+#      - name: Delete Deployment Artifacts
+#        uses: GeekyEggo/delete-artifact@v1.0.0
+#        with:
+#          name: |
+#            theme
+#            composer_dependencies
+
+      # temp_archive comes from the cleanup_build_ff step
+      - name: Combine Assets for Release
+        id: compression
+        run: |
+          zip -r ${{ steps.folder.outputs.folder }}.zip ./temp_archive
+
+      # Latest changelog entry is based on version. If not found, fall back to the last version
+      - name: Get Latest CHANGELOG.md Entry
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_depth: 10
+          version: ${GITHUB_REF#refs/tags/v}
+          path: ./CHANGELOG.md
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ github.ref }}
+          name: Release ${{ github.ref }}
+          generate_release_notes: true
+          body: |
+            ${{ steps.changelog_reader.outputs.changes }}
+          draft: false
+          prerelease: false
+          files: ${{ steps.folder.outputs.folder }}.zip
