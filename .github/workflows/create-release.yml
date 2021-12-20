@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        theme: ${{ on.workflow_call.input.themes }}
+        theme: ${{ fromJSON( on.workflow_call.input.themes ) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
