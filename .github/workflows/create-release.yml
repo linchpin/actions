@@ -12,8 +12,8 @@ on:
         required: false
         type: number
       node_version:
-        description: 'Node version used during build (Default 16.x)'
-        default: 16
+        description: 'Node version used during build (Default 14.x)'
+        default: 14
         required: false
         type: number
     secrets:
