@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        theme: ${{ fromJSON( input.themes ) }}
+        theme: ${{ fromJSON( inputs.themes ) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
