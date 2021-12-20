@@ -120,7 +120,10 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v2
         with:
-          path: $GITHUB_WORKSPACE
+          path: ./
+
+      - name: Display structure of downloaded files
+        run: ls -R
 
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
