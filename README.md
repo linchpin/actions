@@ -1,19 +1,46 @@
 # Linchpin Shared Project Configs
-An open source collection of Linchpin's configs. Primarily used for Renovate bot and shared workflows. While there are some aspects of this repo that are specific to Linchpin and our build process. I don't see any problem sharing them with any other organizations that want to use them.
+An open source collection of Linchpin's configs. Primarily used for [Renovate bot](https://github.com/marketplace/renovate) and shared workflows. While there are some aspects of this repo that are specific to [Linchpin](https://linchpin.com) and our build process. Other organizations can take advantage of them want to use them.
 
-## Renovate Bot
+![license](https://img.shields.io/github/license/linchpin/actions)
 
-|File| description |
-|----|-----------|
-| global.json | Shared global config for renovatebot | 
-| wordpress.json | Shared config for renovatebot for WordPress installs. |
+## Github Reusable Workflows
 
-## Github Workflow Actions
+Below are resuable/shared workflows. In the coming weeks we will be adding some examples on how to utilize these workflows. They are relative straight forward so if you are used to actions and workflows you can use these as a starting point
 
-|File| description |
-|----| -----------|
-| .github/workflows/create-release.yml | Create release workflow. Downloads all assets, and runs through the build process creating a single zip. Typically used during a tagged release |
-| .github/workflows/deploy-develop.yml | Deploy to a dev environment |
-| .github/workflows/deploy-staging.yml | Deploy to a staging environment |
-| .github/workflows/deploy-production.yml | Deploy to a production environment |
-| .github/workflows/phpcs.yml | scan for WordPress Coding standards based on the phpcs.xml config of the project |
+| File                                                               | description                                                                                                                                     |
+|--------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| [create-release.yml](.github/workflows/create-release.yml)         | Create release workflow. Downloads all assets, and runs through the build process creating a single zip. Typically used during a tagged release |
+| [deploy-**wpengine**.yml](.github/workflows/deploy-wpengine.yml)   | Deploy to a [WP Engine](https://wpengine.com) platform based environment                                                                        |
+| [deploy-**cloudways**.yml](.github/workflows/deploy-cloudways.yml) | Deploy to a Cloudways platform  environment                                                                                                     |
+| [phpcs.yml](.github/workflows/phpcs.yml)                           | Scan for WordPress Coding standards based on the phpcs.xml config of the project                                                                |
+
+## Example Shared Workflow Usage
+
+Within your projects **.github/workflows** folder
+
+``` yaml
+name: Create Release
+on:
+  push:
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+jobs:
+  create_release:
+    name: Create Release
+    uses: linchpin/actions/.github/workflows/create-release.yml@main
+    with:
+      themes: '["my-wordpress-theme"]'
+    secrets:
+      packagist_auth: ${{ secrets.custom_packagist_auth_key }}
+```
+
+## Renovate Bot Scanning Configurations
+
+|File| description                                                |
+|----|------------------------------------------------------------|
+| global.json | Shared global config for renovatebot                       | 
+| wordpress.json | Shared config for renovatebot for WordPress installs.      |
+| js.json | Shared config for javascript projects (gulp builds, etc )  |
+
+![Linchpin](https://raw.githubusercontent.com/linchpin/brand-assets/master/github-opensource-banner.png)

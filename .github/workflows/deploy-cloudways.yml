@@ -1,0 +1,154 @@
+name: Deploy to WP Engine
+on:
+  workflow_call:
+    inputs:
+      host_ip:
+        description: 'IP Address of the host server'
+        required: true
+        type: string
+      site_url:
+        description: 'The site url we are deploying to (full url)'
+        required: true
+        type: string
+      environment:
+        description: 'The environment we are deploying to (production, staging, dev)'
+        required: false,
+        default: 'staging'
+        type: string
+      deployment:
+        description: 'The deployment ID from previous jobs'
+        required: true
+        type: string
+      deployment_path:
+        description: 'Provide if the deployment path is non standard'
+        required: false
+        type: string
+    secrets:
+      deployment_ssh_user:
+        description: 'Cloudways SSH User needed for deployment'
+        required: true
+      deployment_ssh_key:
+        description: 'Cloudways SSH Key needed for deployment'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deployment to WP Engine
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ inputs.site_url }}
+    steps:
+      - name: Set Deployment Status to In Progress
+        id: in_progress_deployment
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repo}/deployments/{deployment}/statuses
+          repo: ${{ github.repository }}
+          deployment: ${{ inputs.deployment }}
+          environment: ${{ inputs.environment }}
+          environment_url: ${{ inputs.site_url }}
+          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          state: in_progress
+          mediaType: '{"previews": ["flash", "ant-man"]}'
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: ./
+
+      - name: Decompress Composer Artifacts
+        id: decompress_composer_artifacts
+        run: |
+          tar -xzf ./artifact/composer.tar.gz -C ./
+
+      - name: Decompress Theme Artifacts
+        id: decompress_theme_artifacts
+        run: |
+          tar -xzf ./artifact/theme-*.tar.gz -C ./build
+
+      - name: Clean Build Files/Folders
+        id: clean_build_ff
+        run: |
+          cd ./build/.deployment
+          chmod +x cleanup.sh
+          sh cleanup.sh
+
+      - name: Generate release folder name
+        id: folder
+        run: |
+          echo ::set-output name=folder::$(date +'%s')
+
+      - name: Compress the files to be deployed
+        id: compression
+        run: |
+          mv temp_archive ${{ steps.folder.outputs.folder }}
+          tar -czf ${{ steps.folder.outputs.folder }}.tar.gz ./${{ steps.folder.outputs.folder }}
+
+      - name: Configure SSH Connection with Cloudways
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/deploy.key
+          chmod 600 ~/.ssh/deploy.key
+          cat >>~/.ssh/config <<END
+          Host cloudways
+            HostName $SSH_HOST
+            User $SSH_USER
+            IdentityFile ~/.ssh/deploy.key
+            StrictHostKeyChecking no
+          END
+        env:
+          SSH_USER: ${{ secrets.deployment_ssh_user }}
+          SSH_KEY: ${{ secrets.deployment_key }}
+          SSH_HOST: ${{ inputs.host_ip }}
+
+      - name: Upload Assets
+        id: upload_assets
+        run: |
+          ssh cloudways "mkdir -p ${{ inputs.deployment_path }}"
+          rsync --rsh="ssh -v -p 22 -i ${SSH_KEY} -o StrictHostKeyChecking=no" -zrxc --delete "./${{ steps.folder.outputs.folder }}.tar.gz" "${{ inputs.deployment_path }}"
+
+      - name: Execute bash scripts on server
+        id: execute_bash
+        run: |
+          ssh cloudways "tar -xf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.tar.gz"
+          ssh cloudways "cd ${{ steps.folder.outputs.folder }}/.deployment"
+          ssh cloudways "chmod +x entrypoint.sh && sh ./entrypoint.sh"
+          
+      - name: Deploy Cleanup
+        run: |
+          ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}/.deployment"
+          ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.tar.gz
+
+      - name: Set Deployment Status as Successful
+        if: ${{ success() }}
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repo}/deployments/{deployment}/statuses
+          repo: ${{ github.repository }}
+          deployment: ${{ inputs.deployment }}
+          environment: ${{ inputs.environment }}
+          environment_url: ${{ inputs.site_url }}
+          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          state: success
+          mediaType: '{"previews": ["flash", "ant-man"]}'
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Set Deployment Status as Failboat
+        if: ${{ failure() }}
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repo}/deployments/{deployment}/statuses
+          repo: ${{ github.repository }}
+          deployment: ${{ inputs.deployment }}
+          environment: ${{ inputs.environment }}
+          environment_url: ${{ needs.preflight.outputs.site_url }}
+          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          state: failure
+          mediaType: '{"previews": ["flash", "ant-man"]}'
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
