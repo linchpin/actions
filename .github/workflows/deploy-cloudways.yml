@@ -32,7 +32,7 @@ on:
       workflow_run_id:
         description: 'Workflow Run ID to get artifacts from'
         required: true
-        type: number
+        type: string
     secrets:
       deployment_ssh_user:
         description: 'Cloudways SSH User needed for deployment'

@@ -26,6 +26,7 @@ on:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
         required: true
+        type: string
 
 jobs:
   dependency_setup:

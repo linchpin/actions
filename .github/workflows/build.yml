@@ -6,6 +6,7 @@ on:
       theme: # And array of theme name we need to build
         description: 'The theme foldername to build. Example: linchpin-mmxxii'
         required: true
+        type: string
       site_url:
         description: 'The site url we are deploying to (full url)'
         required: true
@@ -44,6 +45,7 @@ on:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
         required: true
+        type: string
 
 jobs:
   preflight:
