@@ -38,7 +38,7 @@ jobs:
           path: 'build'
 
       - name: Authenticate Packagist
-        run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
+        run: echo '${{ secrets.packagist_auth }}' > ./build/auth.json
 
       - name: Cache Composer dependencies
         uses: actions/cache@v2
@@ -54,7 +54,7 @@ jobs:
           php_version: ${{ inputs.php_version }}
 
       - name: Remove Packagist Authentication
-        run: rm -f $GITHUB_WORKSPACE/build/auth.json
+        run: rm -f ./build/auth.json
 
       - name: Compress Composer Artifact
         id: composer_compression_artifact

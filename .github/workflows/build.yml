@@ -241,10 +241,11 @@ jobs:
         id: compression
         run: |
           mv temp_archive ${{ steps.folder.outputs.folder }}
-          tar -czf ${{ steps.folder.outputs.folder }}.tar.gz ./${{ steps.folder.outputs.folder }}
+          zip ${{ steps.folder.outputs.folder }}.zip ./${{ steps.folder.outputs.folder }}
 
-      - name: Upload Dependencies
+      - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
           name: release
-          path: {{ steps.folder.outputs.folder }}.tar.gz
+          path: ${{ steps.folder.outputs.folder }}.zip
+          retention-days: 1
