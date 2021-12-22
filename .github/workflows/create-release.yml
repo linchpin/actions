@@ -16,6 +16,11 @@ on:
         default: 14
         required: false
         type: number
+      skip_create_release:
+        description: 'If we only need our release built for staging, we can skip creating an official github release'
+        default: false
+        required: false
+        type: boolean
     secrets:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
@@ -121,9 +126,6 @@ jobs:
         with:
           path: ./
 
-      - name: Display structure of downloaded files
-        run: ls -R
-
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
@@ -165,8 +167,16 @@ jobs:
         run: |
           zip -r ${{ steps.folder.outputs.folder }}.zip ./temp_archive
 
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: release
+          path: ${{ steps.folder.outputs.folder }}.zip
+          retention-days: 1 # since we keep a release we do not need to store an artifact too long
+
       - name: Create Release
         id: create_release
+        if: ${{ ! inputs.skip_github_release }}
         uses: softprops/action-gh-release@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

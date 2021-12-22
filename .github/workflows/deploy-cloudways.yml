@@ -15,6 +15,11 @@ on:
         required: false,
         default: 'staging'
         type: string
+      branch:
+        description: 'The branch we are deploying to'
+        required: true,
+        default: 'staging'
+        type: string
       deployment:
         description: 'The deployment ID from previous jobs'
         required: true
@@ -55,38 +60,19 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v2
+      # Download the artifact
+      - name: Download artifact
+        uses: dawidd6/action-download-artifact@v2
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: build.yml
+          workflow_conclusion: success
+          commit: ${{ github.event.pull_request.head.sha }}
+          branch: ${{ inputs.branch }}
+          event: push
+          run_id: $${{ inputs.workflow_run_id }}
+          name: release
           path: ./
-
-      - name: Decompress Composer Artifacts
-        id: decompress_composer_artifacts
-        run: |
-          tar -xzf ./artifact/composer.tar.gz -C ./
-
-      - name: Decompress Theme Artifacts
-        id: decompress_theme_artifacts
-        run: |
-          tar -xzf ./artifact/theme-*.tar.gz -C ./build
-
-      - name: Clean Build Files/Folders
-        id: clean_build_ff
-        run: |
-          cd ./build/.deployment
-          chmod +x cleanup.sh
-          sh cleanup.sh
-
-      - name: Generate release folder name
-        id: folder
-        run: |
-          echo ::set-output name=folder::$(date +'%s')
-
-      - name: Compress the files to be deployed
-        id: compression
-        run: |
-          mv temp_archive ${{ steps.folder.outputs.folder }}
-          tar -czf ${{ steps.folder.outputs.folder }}.tar.gz ./${{ steps.folder.outputs.folder }}
 
       - name: Configure SSH Connection with Cloudways
         run: |
