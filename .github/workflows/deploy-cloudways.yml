@@ -1,4 +1,4 @@
-name: Deploy to WP Engine
+name: Deploy to Cloudways
 on:
   workflow_call:
     inputs:
@@ -28,6 +28,10 @@ on:
         description: 'Provide if the deployment path is non standard'
         required: false
         type: string
+      workflow_run_id:
+        description: 'Workflow Run ID to get artifacts from'
+        required: true
+        type: number
     secrets:
       deployment_ssh_user:
         description: 'Cloudways SSH User needed for deployment'
@@ -62,6 +66,7 @@ jobs:
 
       # Download the artifact
       - name: Download artifact
+        id: download_artifact
         uses: dawidd6/action-download-artifact@v2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -69,7 +74,6 @@ jobs:
           workflow_conclusion: success
           commit: ${{ github.event.pull_request.head.sha }}
           branch: ${{ inputs.branch }}
-          event: push
           run_id: $${{ inputs.workflow_run_id }}
           name: release
           path: ./
@@ -91,23 +95,29 @@ jobs:
           SSH_KEY: ${{ secrets.deployment_key }}
           SSH_HOST: ${{ inputs.host_ip }}
 
+      - name: Generate release folder name
+        id: folder
+        run: |
+          echo ::set-output name=folder::$(date +'%s')
+
       - name: Upload Assets
         id: upload_assets
         run: |
+          mv release.zip ${{ steps.folder.outputs.folder }}.zip
           ssh cloudways "mkdir -p ${{ inputs.deployment_path }}"
-          rsync --rsh="ssh -v -p 22 -i ${SSH_KEY} -o StrictHostKeyChecking=no" -zrxc --delete "./${{ steps.folder.outputs.folder }}.tar.gz" "${{ inputs.deployment_path }}"
+          rsync --rsh="ssh -v -p 22 -i ${SSH_KEY} -o StrictHostKeyChecking=no" -zrxc --delete "./${{ steps.folder.outputs.folder }}.zip" "${{ inputs.deployment_path }}"
 
       - name: Execute bash scripts on server
         id: execute_bash
         run: |
-          ssh cloudways "tar -xf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.tar.gz"
+          ssh cloudways "unzip ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
           ssh cloudways "cd ${{ steps.folder.outputs.folder }}/.deployment"
           ssh cloudways "chmod +x entrypoint.sh && sh ./entrypoint.sh"
-          
+
       - name: Deploy Cleanup
         run: |
           ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}/.deployment"
-          ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.tar.gz
+          ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}

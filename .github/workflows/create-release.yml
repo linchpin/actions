@@ -143,11 +143,6 @@ jobs:
           chmod +x cleanup.sh
           sh cleanup.sh
 
-      - name: Generate release folder name
-        id: folder
-        run: |
-          echo ::set-output name=folder::$(date +'%s')
-
       - name: Get Current Version
         id: version
         run: |
@@ -165,13 +160,13 @@ jobs:
       - name: Combine Assets for Release
         id: compression
         run: |
-          zip -r ${{ steps.folder.outputs.folder }}.zip ./temp_archive
+          zip -r release.zip ./temp_archive
 
       - name: Upload Release Artifact
         uses: actions/upload-artifact@v2
         with:
           name: release
-          path: ${{ steps.folder.outputs.folder }}.zip
+          path: release.zip
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
 
       - name: Create Release
@@ -187,4 +182,4 @@ jobs:
             ${{ steps.changelog_reader.outputs.changes }}
           draft: false
           prerelease: false
-          files: ${{ steps.folder.outputs.folder }}.zip
+          files: release.zip
