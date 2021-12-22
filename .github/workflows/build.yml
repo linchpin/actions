@@ -214,9 +214,6 @@ jobs:
         with:
           path: ./
 
-      - name: Display structure of downloaded files
-        run: ls -R
-
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
@@ -238,15 +235,6 @@ jobs:
         id: folder
         run: |
           echo ::set-output name=folder::$(date +'%s')
-
-      # Latest changelog entry is based on version. If not found, fall back to the last version
-      - name: Get Latest CHANGELOG.md Entry
-        id: changelog_reader
-        uses: mindsers/changelog-reader-action@v2
-        with:
-          validation_depth: 10
-          version: ${{ needs.steps.version.current }}
-          path: ./build/CHANGELOG.md
 
       # temp_archive comes from the cleanup_build_ff step
       - name: Combine Assets for Release

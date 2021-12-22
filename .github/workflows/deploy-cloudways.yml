@@ -37,7 +37,7 @@ on:
       deployment_ssh_user:
         description: 'Cloudways SSH User needed for deployment'
         required: true
-        type:string
+        type: string
       deployment_ssh_key:
         description: 'Cloudways SSH Key needed for deployment'
         required: true
