@@ -1,0 +1,22 @@
+on:
+  workflow_call:
+    secrets:
+      bot_token:
+        description: 'Github Bot Token'
+        required: true
+
+name: WordPress Coding Standards Inspections
+
+jobs:
+  runPHPCSInspection:
+    name: Run PHPCS inspection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run PHPCS inspection
+        uses: rtCamp/action-phpcs-code-review@v2.1.0
+        env:
+          GH_BOT_TOKEN: ${{ secrets.bot_token }}

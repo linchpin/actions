@@ -1,0 +1,43 @@
+on:
+  workflow_call:
+    inputs:
+      php_version:
+        description: 'PHP version used during build (Default 7.4.x)'
+        required: false
+        type: number
+        default: 7.4
+    secrets:
+      packagist_auth:
+        description: 'Authentication for private satis/packagist'
+        required: true
+      bot_token:
+        description: 'Github Bot Token'
+        required: true
+
+name: PHP Lint
+
+jobs:
+  phpcbf-fixer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Install PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php_version }}
+          coverage: none
+          tools: cs2pr, composer
+
+      - name: Authenticate packagist.linchpin.com
+        run: echo '${{ secrets.packagist_auth }}' > ./auth.json
+
+      - name: Install Composer Dependencies
+        run: |
+          composer update
+          rm -f ./auth.json
+
+      - name: PHP Lint
+        uses: overtrue/phplint@7.4
