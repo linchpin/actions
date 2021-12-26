@@ -1,0 +1,24 @@
+name: Reusable workflow example
+
+on:
+  workflow_call:
+    inputs:
+      username:
+        required: true
+        type: string
+    secrets:
+      token:
+        required: true
+
+jobs:
+  example_job:
+    name: Debug step
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Get Current Version
+        id: version
+        run: |
+          echo ::set-output name=current::${GITHUB_REF#refs/tags/v}
