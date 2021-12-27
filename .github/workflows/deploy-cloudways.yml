@@ -11,28 +11,28 @@ on:
         description: 'The site url we are deploying to (full url)'
         required: true
         type: string
-      environment:
-        description: 'The environment we are deploying to (production, staging, dev)'
-        required: false,
-        default: 'staging'
-        type: string
+#      environment:
+#        description: 'The environment we are deploying to (production, staging, dev)'
+#        required: false,
+#        default: 'staging'
+#        type: string
       branch:
         description: 'The branch we are deploying to'
         required: true,
         default: 'staging'
         type: string
-#      deployment:
-#        description: 'The deployment ID from previous jobs'
-#        required: true
-#        type: string
-#      deployment_path:
-#        description: 'Provide if the deployment path is non standard'
-#        required: false
-#        type: string
-#      workflow_run_id:
-#        description: 'Workflow Run ID to get artifacts from'
-#        required: true
-#        type: string
+      deployment:
+        description: 'The deployment ID from previous jobs'
+        required: true
+        type: string
+      deployment_path:
+        description: 'Provide if the deployment path is non standard'
+        required: false
+        type: string
+      workflow_run_id:
+        description: 'Workflow Run ID to get artifacts from'
+        required: true
+        type: string
     secrets:
       deployment_ssh_user:
         description: 'Cloudways SSH User needed for deployment'

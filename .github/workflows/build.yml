@@ -16,11 +16,11 @@ on:
         description: 'The name of the install we are deploying to'
         required: false
         type: string
-      environment:
-        description: 'The environment we are deploying to (production, staging, dev)'
-        default: 'staging'
-        required: false
-        type: string
+#      environment:
+#        description: 'The environment we are deploying to (production, staging, dev)'
+#        default: 'staging'
+#        required: false
+#        type: string
       branch:
         description: 'The branch we are working out of'
         required: false
@@ -35,17 +35,17 @@ on:
         default: 14
         required: false
         type: number
-#    outputs:
-#      deployment_id:
-#        description: 'The ID of our deployment'
-#        value: ${{ jobs.preflight.outputs.deployment_id }}
-#      workflow_run_id:
-#        description: 'The ID of the workflow run (used by other shared workflows)'
-#        value: ${{ jobs.preflight.outputs.run_id }}
-#    secrets:
-#      packagist_auth:
-#        description: 'Authentication for private satis/packagist'
-#        required: true
+    outputs:
+      deployment_id:
+        description: 'The ID of our deployment'
+        value: ${{ jobs.preflight.outputs.deployment_id }}
+      workflow_run_id:
+        description: 'The ID of the workflow run (used by other shared workflows)'
+        value: ${{ jobs.preflight.outputs.run_id }}
+    secrets:
+      packagist_auth:
+        description: 'Authentication for private satis/packagist'
+        required: true
 
 jobs:
   preflight:
