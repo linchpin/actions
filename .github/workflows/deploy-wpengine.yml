@@ -16,12 +16,15 @@ on:
 #        required: false,
 #        default: 'staging'
 #        type: string
-#      deployment:
-#        description: 'The deployment ID from previous jobs'
-#      deployment_ssh_key:
-#        description: 'WP Engine SSH Key needed for deployment'
-#        required: true
-#        type: string
+      deployment:
+        description: 'The deployment ID from previous jobs'
+        required: true
+        type: string
+    secrets:
+      deployment_ssh_key:
+        description: 'WP Engine SSH Key needed for deployment'
+        required: true
+        type: string
 
 jobs:
   deploy:
