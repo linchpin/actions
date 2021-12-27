@@ -3,7 +3,7 @@ name: Build Project
 on:
   workflow_call:
     inputs:
-      theme: # And array of theme name we need to build
+      themes: # And array of theme name we need to build
         description: 'The theme foldername to build. Example: linchpin-mmxxii'
         default: 'none'
         required: false
