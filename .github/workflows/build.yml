@@ -75,9 +75,13 @@ jobs:
         run: |
           echo ::set-output name=current::${GITHUB_REF#refs/tags/v}
 
+      - name: Get branch name
+          id: branch
+          uses: tj-actions/branch-names@v5.1
+
       # Get our changelog if we are a tag and we have a version
       - name: Get Newest Changelog Entry
-        if: ${{ steps.output_data.outputs.branch.is_tag != 'false' && startsWith( steps.version.outputs.current, 'v' ) }}
+        if: ${{ steps.branch.outputs.branch.is_tag != 'false' && startsWith( steps.branch.outputs.current, 'v' ) }}
         id: changelog_reader
         uses: mindsers/changelog-reader-action@v2
         with:
@@ -99,7 +103,7 @@ jobs:
         with:
           route: POST /repos/{repo}/deployments
           repo: ${{ github.repository }}
-          ref: ${{ steps.output_data.outputs.branch }}
+          ref: ${{ steps.branch.outputs.branch }}
           environment: ${{ steps.output_data.outputs.environment }}
           payload: "{\"post_id\":\"${{ fromJson( steps.send_to_mantle.outputs.data ).post_id }}\", \"version\":\"${{ steps.version.outputs.current }}\",\"committer\":\"${{ github.actor }}\",\"changelog\":\"${{ steps.changelog_reader.outputs.changes }}\"}"
           mediaType: '{"previews": ["flash", "ant-man"]}'
