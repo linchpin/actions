@@ -9,11 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: yaml-lint
+      - name: lint
         uses: ibiqlik/action-yamllint@v3
         with:
           file_or_dir: .github/workflows/
           config_file: .ymllint.yml
 
       - run: |
-          echo ${{ steps.yamllint.outputs.logfile }}
+          echo ${{ steps.lint.outputs.logfile }}
