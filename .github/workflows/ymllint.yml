@@ -12,8 +12,7 @@ jobs:
       - name: yaml-lint
         uses: ibiqlik/action-yamllint@v3
         with:
-          file_or_dir: .github/workflows/*.yaml
-          config_file: .yamllint.yml
+          file_or_dir: .github/workflows/
 
       - run: echo ${{ steps.yaml-lint.outputs.logfile }}
 
