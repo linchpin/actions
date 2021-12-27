@@ -9,22 +9,19 @@ on:
         type: string
       install_name:
         description: 'The name of the install we are deploying to'
-        required: false
-        type: string
-      environment:
-        description: 'The environment we are deploying to (production, staging, dev)'
-        required: false,
-        default: 'staging'
-        type: string
-      deployment:
-        description: 'The deployment ID from previous jobs'
         required: true
         type: string
-    secrets:
-      deployment_ssh_key:
-        description: 'WP Engine SSH Key needed for deployment'
-        required: true
-        type: string
+#      environment:
+#        description: 'The environment we are deploying to (production, staging, dev)'
+#        required: false,
+#        default: 'staging'
+#        type: string
+#      deployment:
+#        description: 'The deployment ID from previous jobs'
+#      deployment_ssh_key:
+#        description: 'WP Engine SSH Key needed for deployment'
+#        required: true
+#        type: string
 
 jobs:
   deploy:

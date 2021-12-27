@@ -2,6 +2,50 @@ name: Build Project
 
 on:
   workflow_call:
+    inputs:
+      theme: # And array of theme name we need to build
+        description: 'The theme foldername to build. Example: linchpin-mmxxii'
+        default: 'none'
+        required: false
+        type: string
+#      site_url:
+#        description: 'The site url we are deploying to (full url)'
+#        required: true
+#        type: string
+#      install_name:
+#        description: 'The name of the install we are deploying to'
+#        required: false
+#        type: string
+#      environment:
+#        description: 'The environment we are deploying to (production, staging, dev)'
+#        default: 'staging'
+#        required: false,
+#        type: string
+#      branch:
+#        description: 'The branch we are working out of'
+#        required: false
+#        type: string
+#      php_version:
+#        description: 'PHP version used during build (Default 7.4.x)'
+#        default: 7.4
+#        required: false
+#        type: number
+#      node_version:
+#        desciption: 'Node version used during build (Default 16.x)'
+#        default: 14
+#        required: false
+#        type: number
+#    outputs:
+#      deployment_id:
+#        description: 'The ID of our deployment'
+#        value: ${{ jobs.preflight.outputs.deployment_id }}
+#      workflow_run_id:
+#        description: 'The ID of the workflow run (used by other shared workflows)'
+#        value: ${{ jobs.preflight.outputs.run_id }}
+#    secrets:
+#      packagist_auth:
+#        description: 'Authentication for private satis/packagist'
+#        required: true
 
 jobs:
   preflight:
