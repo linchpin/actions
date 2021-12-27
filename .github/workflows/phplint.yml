@@ -1,3 +1,5 @@
+name: PHP Lint
+
 on:
   workflow_call:
     inputs:
@@ -13,8 +15,6 @@ on:
       bot_token:
         description: 'Github Bot Token'
         required: true
-
-name: PHP Lint
 
 jobs:
   phpcbf-fixer:
@@ -41,3 +41,4 @@ jobs:
 
       - name: PHP Lint
         uses: overtrue/phplint@7.4
+        path: .
