@@ -1,3 +1,5 @@
+name: WordPress Autofixer
+
 on:
   workflow_call:
     inputs:
@@ -18,8 +20,6 @@ on:
       bot_token:
         description: 'Github Bot Token'
         required: true
-
-name: WordPress Autofixer
 
 jobs:
   phpcbf-fixer:
