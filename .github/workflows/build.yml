@@ -77,7 +77,7 @@ jobs:
 
       # Get our changelog if we are a tag and we have a version
       - name: Get Newest Changelog Entry
-        if: ${{ steps.output_data.outputs.branch.is_tag != 'false' && steps.version.outputs.current }}
+        if: ${{ steps.output_data.outputs.branch.is_tag != 'false' && startsWith( steps.version.outputs.current, 'v' ) }}
         id: changelog_reader
         uses: mindsers/changelog-reader-action@v2
         with:
