@@ -1,5 +1,4 @@
 name: Build Project
-
 on:
   workflow_call:
     inputs:
