@@ -6,7 +6,7 @@ on:
       themes: # And array of theme name we need to build
         description: 'An array of themes to build even if just one. Example: [ theme-name ]'
         required: false
-        default: none
+        default: 'none'
         type: string
       php_version:
         description: 'PHP version used during build (Default 7.4.x)'
