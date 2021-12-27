@@ -5,9 +5,9 @@ on:
     inputs:
       php_version:
         description: 'PHP version used during build (Default 7.4.x)'
+        default: '7.4'
         required: false
-        type: number
-        default: 7.4
+        type: string
     secrets:
       packagist_auth:
         description: 'Authentication for private satis/packagist'

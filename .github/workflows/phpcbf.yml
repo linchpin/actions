@@ -6,8 +6,8 @@ on:
       php_version:
         description: 'PHP version used during build (Default 7.4.x)'
         required: false
-        type: number
-        default: 7.4
+        type: string
+        default: '7.4'
       node_version:
         desciption: 'Node version used during build (Default 14.x)'
         required: false

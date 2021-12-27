@@ -7,20 +7,20 @@ on:
         description: 'IP Address of the host server'
         required: true
         type: string
-#      site_url:
-#        description: 'The site url we are deploying to (full url)'
-#        required: true
-#        type: string
-#      environment:
-#        description: 'The environment we are deploying to (production, staging, dev)'
-#        required: false,
-#        default: 'staging'
-#        type: string
-#      branch:
-#        description: 'The branch we are deploying to'
-#        required: true,
-#        default: 'staging'
-#        type: string
+      site_url:
+        description: 'The site url we are deploying to (full url)'
+        required: true
+        type: string
+      environment:
+        description: 'The environment we are deploying to (production, staging, dev)'
+        required: false,
+        default: 'staging'
+        type: string
+      branch:
+        description: 'The branch we are deploying to'
+        required: true,
+        default: 'staging'
+        type: string
 #      deployment:
 #        description: 'The deployment ID from previous jobs'
 #        required: true
