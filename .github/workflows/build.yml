@@ -75,11 +75,13 @@ jobs:
         run: |
           echo ::set-output name=current::${GITHUB_REF#refs/tags/v}
 
+      # Get our changelog if we are a tag and we have a version
       - name: Get Newest Changelog Entry
+        if: ${{ steps.output_data.outputs.branch.is_tag != 'false' && steps.version.outputs.current }}
         id: changelog_reader
         uses: mindsers/changelog-reader-action@v2
         with:
-          validation_depth: 10
+          validation_depth: 1
           version: ${{ steps.version.outputs.current }}
           path: ./CHANGELOG.md
 
