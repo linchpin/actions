@@ -5,7 +5,8 @@ on:
     inputs:
       themes: # And array of theme name we need to build
         description: 'An array of themes to build even if just one. Example: [ theme-name ]'
-        required: true
+        required: false
+        default: none
         type: string
       php_version:
         description: 'PHP version used during build (Default 7.4.x)'
@@ -72,6 +73,7 @@ jobs:
   # instead of using this shared worklow
   theme_setup:
     name: Theme Setup
+    if: ${{ input.themes !== 'none' }} # skip this job if no themes are included.
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -133,6 +135,7 @@ jobs:
           tar -xzf ./artifact/composer.tar.gz -C ./
 
       - name: Decompress Theme Artifacts
+        if: ${{ input.themes !== 'none' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
           tar -xzf ./artifact/theme-*.tar.gz -C ./build
