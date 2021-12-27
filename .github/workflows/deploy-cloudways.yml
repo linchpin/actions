@@ -16,11 +16,11 @@ on:
 #        required: false,
 #        default: 'staging'
 #        type: string
-      branch:
-        description: 'The branch we are deploying to'
-        required: true,
-        default: 'staging'
-        type: string
+#      branch:
+#        description: 'The branch we are deploying to'
+#        required: true,
+#        default: 'staging'
+#        type: string
       deployment:
         description: 'The deployment ID from previous jobs'
         required: true
