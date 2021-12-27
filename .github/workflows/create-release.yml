@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       themes: # And array of theme name we need to build
-        description: 'An array of themes to build even if just one. Example: [ theme-name ]'
+        description: 'An array of themes to build even if just one. Example: [theme-name]'
         required: false
         default: 'none'
         type: string
@@ -121,7 +121,7 @@ jobs:
   build:
     name: Build Release Zip
     runs-on: ubuntu-latest
-    needs: [ dependency_setup, theme_setup ]
+    needs: [dependency_setup,theme_setup]
     steps:
 
       - name: Download All Artifacts
