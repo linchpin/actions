@@ -16,13 +16,14 @@ on:
         description: 'The name of the install we are deploying to'
         required: false
         type: string
-#      environment:
-#        description: 'The environment we are deploying to (production, staging, dev)'
-#        default: 'staging'
-#        required: false
-#        type: string
+      environment:
+        description: 'The environment we are deploying to (production, staging, dev)'
+        default: 'staging'
+        required: false
+        type: string
       branch:
         description: 'The branch we are working out of'
+        default: 'staging'
         required: false
         type: string
       php_version:

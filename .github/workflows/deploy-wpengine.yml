@@ -11,11 +11,11 @@ on:
         description: 'The name of the install we are deploying to'
         required: true
         type: string
-#      environment:
-#        description: 'The environment we are deploying to (production, staging, dev)'
-#        required: false,
-#        default: 'staging'
-#        type: string
+      environment:
+        description: 'The environment we are deploying to (production, staging, dev)'
+        required: false
+        default: 'staging'
+        type: string
       deployment:
         description: 'The deployment ID from previous jobs'
         required: true
