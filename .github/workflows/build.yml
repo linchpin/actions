@@ -76,7 +76,7 @@ jobs:
           echo ::set-output name=current::${GITHUB_REF#refs/tags/v}
 
       - name: Get branch name
-          id: branch
+        id: branch
           uses: tj-actions/branch-names@v5.1
 
       # Get our changelog if we are a tag and we have a version
