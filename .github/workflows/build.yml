@@ -81,7 +81,7 @@ jobs:
 
       # Get our changelog if we are a tag and we have a version
       - name: Get Newest Changelog Entry
-        if: ${{ steps.branch.outputs.branch.is_tag != 'false' && startsWith( steps.branch.outputs.current, 'v' ) }}
+        if: ${{ steps.branch.outputs.branch.is_tag != 'false' && startsWith( steps.branch.outputs.current_branch, 'v' ) }}
         id: changelog_reader
         uses: mindsers/changelog-reader-action@v2
         with:
@@ -103,8 +103,8 @@ jobs:
         with:
           route: POST /repos/{repo}/deployments
           repo: ${{ github.repository }}
-          ref: ${{ steps.branch.outputs.branch }}
-          environment: ${{ steps.output_data.outputs.environment }}
+          ref: ${{ inputs.branch }}
+          environment: ${{ inputs.environment }}
           payload: "{\"post_id\":\"${{ fromJson( steps.send_to_mantle.outputs.data ).post_id }}\", \"version\":\"${{ steps.version.outputs.current }}\",\"committer\":\"${{ github.actor }}\",\"changelog\":\"${{ steps.changelog_reader.outputs.changes }}\"}"
           mediaType: '{"previews": ["flash", "ant-man"]}'
           required_contexts: '[]'
