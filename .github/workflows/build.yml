@@ -32,7 +32,7 @@ on:
         required: false
         type: string
       node_version:
-        desciption: 'Node version used during build (Default 16.x)'
+        description: 'Node version used during build (Default 16.x)'
         default: 14
         required: false
         type: number
@@ -161,7 +161,7 @@ jobs:
 
   # Loop through all of the themes passed from inputs.themes
   theme_setup:
-    if: ${{ input.themes !== 'none' }} # skip this job if no themes are included.
+    if: ${{ inputs.themes !== 'none' }} # skip this job if no themes are included.
     name: Setup Theme(s)
     runs-on: ubuntu-latest
     needs: preflight
