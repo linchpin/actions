@@ -38,4 +38,5 @@ jobs:
 
       - name: PHP Lint
         uses: overtrue/phplint@7.4
-        path: .
+        with:
+          path: .
