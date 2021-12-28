@@ -24,17 +24,19 @@ on:
       deployment_ssh_key:
         description: 'WP Engine SSH Key needed for deployment'
         required: true
-        type: string
+      gh_bot_token:
+        description: 'Bot Access to Private repo'
+        required: true
 
 jobs:
   deploy:
-    name: Deployment to WP Engine
+    name: To WP Engine
     runs-on: ubuntu-latest
     environment:
       name: ${{ inputs.environment }}
       url: ${{ inputs.site_url }}
     steps:
-      - name: Set Deployment Status to In Progress
+      - name: Deployment In Progress
         id: in_progress_deployment
         uses: octokit/request-action@v2.x
         with:

@@ -229,7 +229,7 @@ jobs:
           path: theme-${{ matrix.theme }}.tar.gz
 
   build:
-    name: Build Deployment Zip
+    name: Zip
     runs-on: ubuntu-latest
     needs: [preflight,dependency_setup,theme_setup]
     steps:

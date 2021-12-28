@@ -1,4 +1,4 @@
-name: Deploy to Cloudways
+name: Cloudways
 
 on:
   workflow_call:
@@ -40,16 +40,19 @@ on:
       deployment_ssh_key:
         description: 'Cloudways SSH Key needed for deployment'
         required: true
+      gh_bot_token:
+        description: 'Bot Access to Private repo'
+        required: true
 
 jobs:
   deploy:
-    name: Deployment to Cloudways
+    name: To Cloudways
     runs-on: ubuntu-latest
     environment:
       name: ${{ inputs.environment }}
       url: ${{ inputs.site_url }}
     steps:
-      - name: Set Deployment Status to In Progress
+      - name: Deployment In Progress
         id: in_progress_deployment
         uses: octokit/request-action@v2.x
         with:
@@ -65,12 +68,12 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
       # Download the artifact
-      - name: Download artifact
+      - name: Download Release
         id: download_artifact
         uses: dawidd6/action-download-artifact@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: build.yml
+          github_token: ${{ secrets.gh_bot_token }}
+          workflow: deploy-${{ inputs.environment }}.yml
           run_id: ${{ inputs.workflow_run_id }}
           name: release
           path: ./
