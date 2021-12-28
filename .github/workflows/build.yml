@@ -217,13 +217,13 @@ jobs:
           yarn build
 
       - name: Compress Theme Artifact
-        if: ${{ inputs.themes != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         id: compress_theme_artifact
         run: |
           tar -zcf theme-${{ matrix.theme }}.tar.gz --exclude "node_modules" themes/${{ matrix.theme }}
 
       - name: Upload Theme
-        if: ${{ inputs.themes != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         uses: actions/upload-artifact@v2
         with:
           path: theme-${{ matrix.theme }}.tar.gz
