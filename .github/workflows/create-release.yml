@@ -79,7 +79,7 @@ jobs:
         id: individal_theme
         if: ${{ matrix.theme == 'none' }}
         run: |
-          echo 'Skipping Theme Build'
+          echo "::warning::Skipping Theme Build"
 
       - name: Checkout code
         uses: actions/checkout@v2

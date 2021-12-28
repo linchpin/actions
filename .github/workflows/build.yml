@@ -181,7 +181,7 @@ jobs:
         id: individual_theme
         if: ${{ matrix.theme == 'none' }}
         run: |
-          echo 'Skipping Theme Build'
+          echo "::warning::Skipping Theme Build"
 
       - name: Checkout code
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
