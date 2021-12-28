@@ -143,7 +143,7 @@ jobs:
           repo: ${{ github.repository }}
           deployment: ${{ inputs.deployment }}
           environment: ${{ inputs.environment }}
-          environment_url: ${{ needs.preflight.outputs.site_url }}
+          environment_url: ${{ inputs.site_url }}
           log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           state: failure
           mediaType: '{"previews": ["flash", "ant-man"]}'
