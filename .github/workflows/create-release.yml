@@ -79,7 +79,7 @@ jobs:
         id: individal_theme
         if: ${{ matrix.theme == 'none' }}
         run: |
-          print('\u001b[32mSkipping Theme Buildn\u001b[0m')
+          echo 'Skipping Theme Build'
 
       - name: Checkout code
         uses: actions/checkout@v2
