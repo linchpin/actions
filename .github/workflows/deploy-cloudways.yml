@@ -67,11 +67,14 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: output debug
-          id: output_debug
-          run: |
-            echo "Run ID: ${{ github.run_id }}"
-            echo "Passed Run :  ${{ inputs.workflow_run_id }}"
+
+      - name: Debug Output
+        id: debug_output
+        if: ${{ matrix.theme == 'none' }}
+        run: |
+          echo "::warning::debug"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Passed Run :  ${{ inputs.workflow_run_id }}"
 
       # Download the artifact
       - name: Download Release
