@@ -67,11 +67,11 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-      name: output debug
-      id: output_debug
-      run: |
-        echo "Run ID: ${{ github.run_id }}"
-        echo "Passed Run :  ${{ inputs.workflow_run_id }}"
+      - name: output debug
+          id: output_debug
+          run: |
+            echo "Run ID: ${{ github.run_id }}"
+            echo "Passed Run :  ${{ inputs.workflow_run_id }}"
 
       # Download the artifact
       - name: Download Release
