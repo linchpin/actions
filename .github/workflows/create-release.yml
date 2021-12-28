@@ -73,12 +73,15 @@ jobs:
   # instead of using this shared worklow
   theme_setup:
     name: Theme Setup
-    if: ${{ input.themes !== 'none' }} # skip this job if no themes are included.
     runs-on: ubuntu-latest
     strategy:
       matrix:
         theme: ${{ fromJSON( inputs.themes ) }}
     steps:
+        if: ${{ matrix.theme == 'none' }}
+        run: |
+          print('\u001b[32mSkipping Theme Buildn\u001b[0m')
+
       - name: Checkout code
         uses: actions/checkout@v2
 
