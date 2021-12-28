@@ -253,9 +253,8 @@ jobs:
       - name: Clean Build Files/Folders
         id: clean_build_ff
         run: |
-          cd ./build/.deployment
-          chmod +x cleanup.sh
-          sh cleanup.sh
+          chmod +x ./build/.deployment/cleanup.sh
+          sh ./build/.deployment/cleanup.sh
 
       - name: Generate release folder name
         id: folder
@@ -263,13 +262,13 @@ jobs:
           echo ::set-output name=folder::$(date +'%s')
 
       # temp_archive comes from the cleanup_build_ff step
-      - name: Combine Assets for Release
+      - name: Create Release Zip
         id: compression
         run: |
           mv temp_archive ${{ steps.folder.outputs.folder }}
-          zip ${{ steps.folder.outputs.folder }}.zip ./${{ steps.folder.outputs.folder }}
+          zip -r ${{ steps.folder.outputs.folder }}.zip ${{ steps.folder.outputs.folder }}
 
-      - name: Upload Artifact
+      - name: Upload Release Artifact
         uses: actions/upload-artifact@v2
         with:
           name: release
