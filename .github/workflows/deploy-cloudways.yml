@@ -43,7 +43,7 @@ on:
 
 jobs:
   deploy:
-    name: Deployment to WP Engine
+    name: Deployment to Cloudways
     runs-on: ubuntu-latest
     environment:
       name: ${{ inputs.environment }}
@@ -74,7 +74,7 @@ jobs:
           workflow_conclusion: success
           commit: ${{ github.event.pull_request.head.sha }}
           branch: ${{ inputs.branch }}
-          run_id: $${{ inputs.workflow_run_id }}
+          run_id: ${{ inputs.workflow_run_id }}
           name: release
           path: ./
 
