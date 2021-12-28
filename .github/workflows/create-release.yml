@@ -68,16 +68,15 @@ jobs:
           path: composer.tar.gz
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
 
-  # This scaffold only has one theme to build.
-  # If you have multiple themes you will need utilize a differnt workflow
-  # instead of using this shared worklow
   theme_setup:
-    name: Theme Setup
+    name: Build WordPress Theme(s)
     runs-on: ubuntu-latest
     strategy:
       matrix:
         theme: ${{ fromJSON( inputs.themes ) }}
     steps:
+      - name: Theme Setup
+        id: individal_theme
         if: ${{ matrix.theme == 'none' }}
         run: |
           print('\u001b[32mSkipping Theme Buildn\u001b[0m')

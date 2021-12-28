@@ -181,7 +181,9 @@ jobs:
         theme: ${{ fromJSON( inputs.themes ) }}
     steps:
         # check if we have a theme to build. If None output and skip the rest of the steps.
-        if: ${{ matrix.theme != 'none' }}
+      - name: Theme Setup
+        id: individal_theme
+        if: ${{ matrix.theme == 'none' }}
         run: |
           print('\u001b[32mSkipping Theme Buildn\u001b[0m')
 
