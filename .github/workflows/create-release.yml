@@ -5,7 +5,7 @@ on:
     inputs:
       themes: # And array of theme name we need to build
         description: 'An array of themes to build even if just one. Example: [theme-name]'
-        default: 'none'
+        default: '["none"]'
         required: false
         type: string
       php_version:
