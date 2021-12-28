@@ -66,6 +66,7 @@ jobs:
       deployment_post: ${{ steps.deployment_data.outputs.deployment_post }}
       changelog: ${{ steps.changelog_reader.outputs.changes }}
       run_id: ${{ github.run_id }}
+      dependencies:  ${{ steps.theme_or_not.outputs.dependencies }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -78,6 +79,18 @@ jobs:
       - name: Get branch name
         id: branch
         uses: tj-actions/branch-names@v5.1
+
+      - name: Build Theme or Not
+        id: theme_or_not
+        run: |
+          if [$THEME == 'none']
+          then
+              echo "::set-output name=dependencies::[preflight,dependency_setup]"
+          else
+              echo "::set-output name=dependencies::[preflight,dependency_setup,theme_setup]"
+          fi
+        env:
+          THEME: ${{ inputs.themes }}
 
       # Get our changelog if we are a tag and we have a version
       - name: Get Newest Changelog Entry
@@ -222,7 +235,7 @@ jobs:
   build:
     name: Build Deployment Zip
     runs-on: ubuntu-latest
-    needs: [preflight,dependency_setup,theme_setup]
+    needs: ${{ fromJSON( needs.preflight.outputs.dependencies ) }}
     steps:
 
       - name: Download All Artifacts
