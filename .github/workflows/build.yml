@@ -181,7 +181,6 @@ jobs:
         theme: ${{ fromJSON( inputs.themes ) }}
     steps:
       - name: Checkout code
-        if: ${{ inputs.themes != 'none' }} # skip this step if no themes are included.
         uses: actions/checkout@v2
 
       - name: Setup Node.js
