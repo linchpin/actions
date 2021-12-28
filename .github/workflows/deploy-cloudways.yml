@@ -70,7 +70,6 @@ jobs:
 
       - name: Debug Output
         id: debug_output
-        if: ${{ matrix.theme == 'none' }}
         run: |
           echo "::warning::debug"
           echo "Run ID: ${{ github.run_id }}"
