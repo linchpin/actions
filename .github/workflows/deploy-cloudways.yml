@@ -67,23 +67,10 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-
-      - name: Debug Output
-        id: debug_output
-        run: |
-          echo "::warning::debug"
-          echo "Run ID: ${{ github.run_id }}"
-          echo "Passed Run :  ${{ inputs.workflow_run_id }}"
-
-      # Download the artifact
-      - name: Download Release
-        id: download_artifact
-        uses: dawidd6/action-download-artifact@v2
+      - uses: actions/download-artifact@v2
+        id: download
         with:
-          github_token: ${{ secrets.gh_bot_token }}
-          workflow: deploy-${{ inputs.environment }}.yml
-          run_id: ${{ github.run_id }}
-          name: release
+          name: 'release'
           path: ./
 
       - name: Configure SSH Connection with Cloudways
