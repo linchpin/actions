@@ -110,19 +110,14 @@ jobs:
         run: |
           mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
           ssh cloudways "mkdir -p ${{ inputs.deployment_path }}"
-          rsync --rsh="ssh -v -p 22 -i $SSH_KEY -o StrictHostKeyChecking=no" -zrxc --delete ./${{ steps.folder.outputs.folder }}.zip ${{ inputs.deployment_path }}
-        env:
-          SSH_KEY: ${{ secrets.deployment_ssh_key }}
+          rsync --rsh="ssh -v -p 22 -i ${{ secrets.deployment_ssh_key }} -o StrictHostKeyChecking=no" -zrxc --delete ${{ steps.folder.outputs.folder }}.zip ${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }}${{ inputs.deployment_path }}
 
-      - name: Execute bash scripts on server
+      - name: Remote - Run Scripts
         id: execute_bash
         run: |
           ssh cloudways "unzip ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
           ssh cloudways "cd ${{ steps.folder.outputs.folder }}/.deployment"
           ssh cloudways "chmod +x entrypoint.sh && sh ./entrypoint.sh"
-
-      - name: Deploy Cleanup
-        run: |
           ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}/.deployment"
           ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip
 
