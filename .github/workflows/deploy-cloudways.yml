@@ -122,7 +122,7 @@ jobs:
           ssh cloudways "mv ${{ inputs.deployment_path }}/release ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}"
           ssh cloudways "cd ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}/.deployment"
           ssh cloudways "pwd"
-          ssh cloudways "chmod +x entrypoint.sh && sh ./entrypoint.sh"
+          ssh cloudways "chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
           ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}/.deployment"
           ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip
 
