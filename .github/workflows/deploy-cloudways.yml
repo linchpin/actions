@@ -118,7 +118,7 @@ jobs:
       - name: Remote - Run Scripts
         id: execute_bash
         run: |
-          ssh cloudways "unzip ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
+          ssh cloudways "unzip -o ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
           ssh cloudways "chmod +x ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}/.deployment/entrypoint.sh"
           ssh cloudways "sh ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}/.deployment/entrypoint.sh"
           ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}/.deployment"

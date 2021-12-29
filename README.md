@@ -7,12 +7,12 @@ An open source collection of Linchpin's configs. Primarily used for [Renovate bo
 
 Below are resuable/shared workflows. In the coming weeks we will be adding some examples on how to utilize these workflows. They are relative straight forward so if you are used to actions and workflows you can use these as a starting point
 
-| File                                                               | description                                                                                                                                     |
-|--------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| [create-release.yml](.github/workflows/create-release.yml)         | Create release workflow. Downloads all assets, and runs through the build process creating a single zip. Typically used during a tagged release |
-| [deploy-**wpengine**.yml](.github/workflows/deploy-wpengine.yml)   | Deploy to a [WP Engine](https://wpengine.com) platform based environment                                                                        |
-| [deploy-**cloudways**.yml](.github/workflows/deploy-cloudways.yml) | Deploy to a Cloudways platform  environment                                                                                                     |
-| [phpcs.yml](.github/workflows/phpcs.yml)                           | Scan for WordPress Coding standards based on the phpcs.xml config of the project                                                                |
+| File                                                               | Status | Requirements         | description                                                                                                                                     |
+|--------------------------------------------------------------------|--------|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| [create-release.yml](.github/workflows/create-release.yml)         |        |                      | Create release workflow. Downloads all assets, and runs through the build process creating a single zip. Typically used during a tagged release |
+| [deploy-**wpengine**.yml](.github/workflows/deploy-wpengine.yml)   |        | SSH Access, SSH Key Pair | Deploy to a [WP Engine](https://wpengine.com) platform based environment                                                                        |
+| [deploy-**cloudways**.yml](.github/workflows/deploy-cloudways.yml) |        | SSH Access, SSH Key Pair | Deploy to a Cloudways platform  environment                                                                                                     |
+| [phpcs.yml](.github/workflows/phpcs.yml)                           |        |                      | Scan for WordPress Coding standards based on the phpcs.xml config of the project                                                                |
 
 ## Example Shared Workflow Usage
 
