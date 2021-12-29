@@ -76,7 +76,10 @@ jobs:
       - name: Generate release folder name
         id: folder
         run: |
-          echo ::set-output name=folder::$(date +'%s')
+          echo "::set-output name=folder::$(date +'%s')"
+          
+      - name: Display structure of downloaded files
+        run: ls -R
 
       - name: Configure SSH Connection with Cloudways
         run: |
@@ -98,7 +101,7 @@ jobs:
       - name: Upload Assets
         id: upload_assets
         run: |
-          mv ./release/release.zip ./${{ steps.folder.outputs.folder }}.zip
+          mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
           ssh cloudways "mkdir -p ${{ inputs.deployment_path }}"
           rsync --rsh="ssh -v -p 22 -i ${SSH_KEY} -o StrictHostKeyChecking=no" -zrxc --delete "./${{ steps.folder.outputs.folder }}.zip" "${{ inputs.deployment_path }}"
 
