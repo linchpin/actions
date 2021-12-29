@@ -119,8 +119,8 @@ jobs:
         id: execute_bash
         run: |
           ssh cloudways "unzip -o ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
-          ssh cloudways "mv ${{ inputs.deployment_path }}/release ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}"
           ssh cloudways "chmod +x ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}/entrypoint.sh && sh ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}/entrypoint.sh"
+          ssh cloudways "mv ${{ inputs.deployment_path }}/release ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}"
           ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}/.deployment"
           ssh cloudways "rm -rf ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip
 
