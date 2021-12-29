@@ -73,13 +73,10 @@ jobs:
           name: 'release'
           path: ./
 
-      - name: Generate release folder name
+      - name: Generate release zip
         id: folder
         run: |
-          echo "::set-output name=folder::$(date +'%s')"
-          
-      - name: Display structure of downloaded files
-        run: ls -R
+          echo ::set-output name=folder::$(date +'%s')
 
       - name: Configure SSH Connection with Cloudways
         run: |

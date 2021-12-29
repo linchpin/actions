@@ -256,21 +256,16 @@ jobs:
           chmod +x ./build/.deployment/cleanup.sh
           sh ./build/.deployment/cleanup.sh
 
-      - name: Generate release folder name
-        id: folder
-        run: |
-          echo ::set-output name=folder::$(date +'%s')
-
       # temp_archive comes from the cleanup_build_ff step
       - name: Create Release Zip
         id: compression
         run: |
-          mv temp_archive ${{ steps.folder.outputs.folder }}
-          zip -r ${{ steps.folder.outputs.folder }}.zip ${{ steps.folder.outputs.folder }}
+          mv temp_archive release
+          zip -r release.zip release
 
       - name: Upload Release Artifact
         uses: actions/upload-artifact@v2
         with:
           name: release
-          path: ${{ steps.folder.outputs.folder }}.zip
+          path: release.zip
           retention-days: 1
