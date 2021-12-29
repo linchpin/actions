@@ -108,9 +108,12 @@ jobs:
       - name: Upload Assets
         id: upload_assets
         run: |
+          SSH_PATH="$HOME/.ssh"
+          KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
+          SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
           mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
           ssh cloudways "mkdir -p ${{ inputs.deployment_path }}"
-          rsync --rsh="ssh -v -p 22 -i ${{ secrets.deployment_ssh_key }} -o StrictHostKeyChecking=no" -zrxc --delete ${{ steps.folder.outputs.folder }}.zip ${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }}${{ inputs.deployment_path }}
+          rsync --rsh="ssh -v -p 22 -i $SSH_KEY_PRIVATE_PATH -o StrictHostKeyChecking=no" -zrxc --delete "${{ steps.folder.outputs.folder }}.zip" "${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }}:${{ inputs.deployment_path }}"
 
       - name: Remote - Run Scripts
         id: execute_bash
