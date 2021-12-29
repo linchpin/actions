@@ -92,7 +92,7 @@ jobs:
           END
         env:
           SSH_USER: ${{ secrets.deployment_ssh_user }}
-          SSH_KEY: ${{ secrets.deployment_key }}
+          SSH_KEY: ${{ secrets.deployment_ssh_key }}
           SSH_HOST: ${{ inputs.host_ip }}
 
       - name: Upload Assets
