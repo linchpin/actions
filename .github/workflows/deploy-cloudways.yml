@@ -80,14 +80,23 @@ jobs:
 
       - name: Configure SSH Connection with Cloudways
         run: |
-          mkdir -p ~/.ssh/
-          echo "$SSH_KEY" > ~/.ssh/deploy.key
-          chmod 600 ~/.ssh/deploy.key
+          SSH_PATH="$HOME/.ssh"
+          KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
+          SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
+          mkdir "$SSH_PATH"
+          ssh-keyscan -t rsa "$SSH_HOST" >> "$KNOWN_HOSTS_PATH"
+          #Copy Secret Keys to container
+          echo "$SSH_KEY" > "$SSH_KEY_PRIVATE_PATH"
+
+          chmod 700 "$SSH_PATH"
+          chmod 644 "$KNOWN_HOSTS_PATH"
+          chmod 600 "$SSH_KEY_PRIVATE_PATH"
+
           cat >>~/.ssh/config <<END
           Host cloudways
             HostName $SSH_HOST
             User $SSH_USER
-            IdentityFile ~/.ssh/deploy.key
+            IdentityFile $SSH_KEY_PRIVATE_PATH
             StrictHostKeyChecking no
           END
         env:
