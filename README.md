@@ -37,10 +37,17 @@ jobs:
 
 ## Renovate Bot Scanning Configurations
 
-|File| description                                                |
-|----|------------------------------------------------------------|
-| global.json | Shared global config for renovatebot                       | 
-| wordpress.json | Shared config for renovatebot for WordPress installs.      |
-| js.json | Shared config for javascript projects (gulp builds, etc )  |
+| File                             | description                                                |
+|----------------------------------|------------------------------------------------------------|
+| [global.json](global.json)       | Shared global config for renovatebot                       | 
+| [wordpress.json](wordpress.json) | Shared config for renovatebot for WordPress installs.      |
+| [js.json](js.json)               | Shared config for javascript projects (gulp builds, etc )  |
+
+
+## More Useful Configs
+
+| File                                     | Description                                                                                                                    |
+|------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| [default.distignore](default.distignore) | Default .distignore be loaded during deployment (and renamed to .distignore) if no .distignore is provided within your proejct |
 
 ![Linchpin](https://raw.githubusercontent.com/linchpin/brand-assets/master/github-opensource-banner.png)
