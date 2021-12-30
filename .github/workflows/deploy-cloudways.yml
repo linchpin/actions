@@ -120,6 +120,7 @@ jobs:
         run: |
           ssh cloudways "unzip -o ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
           ssh cloudways "chmod +x ${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh && sh ${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh"
+          ssh cloudways "rm -rf ${{ inputs.deployment_path }}/release/"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
