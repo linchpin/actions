@@ -77,7 +77,7 @@ jobs:
     steps:
       - name: Theme Setup
         id: individal_theme
-        if: ${{ matrix.theme == 'none' }}
+        if: ${{ matrix.theme == '["none"]' }}
         run: |
           echo "::warning::Skipping Theme Build"
 
@@ -137,7 +137,7 @@ jobs:
           tar -xzf ./artifact/composer.tar.gz -C ./
 
       - name: Decompress Theme Artifacts
-        if: ${{ input.themes !== 'none' }} # skip this step if no themes are included.
+        if: ${{ input.themes !== '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
           tar -xzf ./artifact/theme-*.tar.gz -C ./build
