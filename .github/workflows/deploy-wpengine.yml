@@ -123,7 +123,7 @@ jobs:
       - name: Clear Page and Object Cache
         if: ${{ always() }}
         run: |
-          ssh wpengine 'wp cache flush --path="~/sites/${{ inputs.install_name }}" && wp page-cache flush --path="~/sites/${{ inputs.install_name }}"'
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }} && wp cache flush && wp page-cache flush"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
