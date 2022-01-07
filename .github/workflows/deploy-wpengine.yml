@@ -116,9 +116,9 @@ jobs:
       - name: Execute bash scripts on server
         id: execute_bash
         run: |
-          ssh wpengine "unzip -o ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip"
-          ssh wpengine "chmod +x ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh"
-          ssh wpengine "sh ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh"
+          ssh wpengine "unzip -o ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
+          ssh wpengine "chmod +x ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh && sh ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh"
+          ssh wpengine "rm -rf ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/"
 
       - name: Clear Page and Object Cache
         if: ${{ always() }}
