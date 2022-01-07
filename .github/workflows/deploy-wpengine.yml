@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       install_name:
-        description: 'The name of the install on WP Engien we are deploying to'
+        description: 'The name of the install on WP Engine we are deploying to'
         required: true
         type: string
       site_url:
@@ -117,8 +117,8 @@ jobs:
         id: execute_bash
         run: |
           ssh wpengine "unzip -o ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip"
-          ssh wpengine "chmod +x ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh && sh ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh"
-          ssh wpengine "rm -rf ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/"
+          ssh wpengine "chmod +x ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh"
+          ssh wpengine "sh ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh"
 
       - name: Clear Page and Object Cache
         if: ${{ always() }}
