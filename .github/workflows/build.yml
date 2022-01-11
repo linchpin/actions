@@ -84,13 +84,19 @@ jobs:
           version: ${{ steps.version.outputs.current }}
           path: ./CHANGELOG.md
 
+      - name: Escape changelog
+        id: changelog
+        uses: linchpin/escape-markdown-for-json
+        with:
+          markdown: ${{ steps.changelog_reader.outputs.changes }}
+
       - name: Create Mantle Deployment
         uses: linchpin/send-to-mantle@main
         id: send_to_mantle
         with:
           mantle-uri: "${{ inputs.site_url }}/wp-json/mantle/v1/deployment"
           mantle-secret: "${{ secrets.mantle }}"
-          mantle-payload: "{\"action\":\"created\",\"deployment\":{\"task\":\"deploy\",\"payload\":{\"version\":\"${{ steps.version.outputs.current }}\",\"committer\":\"${{ github.actor }}\",\"changelog\":\"${{ steps.changelog_reader.outputs.changes }}\"}}}"
+          mantle-payload: "{\"action\":\"created\",\"deployment\":{\"task\":\"deploy\",\"payload\":{\"version\":\"${{ steps.version.outputs.current }}\",\"committer\":\"${{ github.actor }}\",\"changelog\":\"${{ steps.changelog.outputs.escaped_markdown }}\"}}}"
           soft-fail: true
 
       - name: Create GitHub Deployment
@@ -101,7 +107,7 @@ jobs:
           repo: ${{ github.repository }}
           ref: ${{ inputs.branch }}
           environment: ${{ inputs.environment }}
-          payload: "{\"post_id\":\"${{ fromJson( steps.send_to_mantle.outputs.data ).post_id }}\", \"version\":\"${{ steps.version.outputs.current }}\",\"committer\":\"${{ github.actor }}\",\"changelog\":\"${{ steps.changelog_reader.outputs.changes }}\"}"
+          payload: "{\"post_id\":\"${{ fromJson( steps.send_to_mantle.outputs.data ).post_id }}\", \"version\":\"${{ steps.version.outputs.current }}\",\"committer\":\"${{ github.actor }}\",\"changelog\":\"${{ steps.changelog.outputs.escaped_markdown }}\"}"
           mediaType: '{"previews": ["flash", "ant-man"]}'
           required_contexts: '[]'
         env:
