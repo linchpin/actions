@@ -86,7 +86,7 @@ jobs:
 
       - name: Escape changelog
         id: changelog
-        uses: linchpin/escape-markdown-for-json@v1
+        uses: linchpin/escape-markdown-for-json@main
         with:
           markdown: ${{ steps.changelog_reader.outputs.changes }}
 
