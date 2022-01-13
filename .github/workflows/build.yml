@@ -292,7 +292,7 @@ jobs:
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         id: compress_plugin_artifact
         run: |
-          tar -zcf plugin-${{ matrix.plugin }}.tar.gz --exclude "node_modules" plugin/${{ matrix.plugin }}
+          tar -zcf plugin-${{ matrix.plugin }}.tar.gz --exclude "node_modules" plugins/${{ matrix.plugin }}
 
       - name: Upload Plugin
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
