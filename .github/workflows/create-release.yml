@@ -90,7 +90,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v2.5.0
+        uses: actions/setup-node@v3.0.0
         with:
           node-version: ${{ inputs.node_version }}
 
@@ -147,7 +147,7 @@ jobs:
 
       - name: Setup Node.js
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
-        uses: actions/setup-node@v2.5.0
+        uses: actions/setup-node@v3.0.0
         with:
           node-version: ${{ inputs.node_version }}
 
