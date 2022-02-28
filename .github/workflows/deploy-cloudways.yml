@@ -28,7 +28,7 @@ on:
       deployment_path:
         description: 'Provide if the deployment path is non standard'
         required: false
-        default: '~/public_html/releases'
+        default: '~/private_html/releases'
         type: string
       workflow_run_id:
         description: 'Workflow Run ID to get artifacts from'
