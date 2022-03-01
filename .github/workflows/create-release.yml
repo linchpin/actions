@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           path: 'build'
 
@@ -90,7 +90,7 @@ jobs:
           echo "::warning::Skipping Theme Build"
 
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v2.5.0
@@ -146,7 +146,7 @@ jobs:
 
       - name: Checkout code
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.

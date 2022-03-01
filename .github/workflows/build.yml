@@ -69,7 +69,7 @@ jobs:
       run_id: ${{ github.run_id }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Get Current Version
         id: version
@@ -145,7 +145,7 @@ jobs:
     needs: preflight
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           path: 'build'
 
@@ -196,7 +196,7 @@ jobs:
 
       - name: Checkout code
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
@@ -257,7 +257,7 @@ jobs:
 
       - name: Checkout code
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
