@@ -32,6 +32,9 @@ on:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
         required: true
+      bot_token:
+        description: 'Override Bot Token'
+        required: false
 
 jobs:
   dependency_setup:
@@ -125,11 +128,11 @@ jobs:
           path: theme-${{ matrix.theme }}.tar.gz
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
 
-  # Loop through all plugins passed from input.plugins
+  # Loop through all plugins passed from inputs.plugins
   plugin_setup:
     name: Plugin(s)
     runs-on: ubuntu-latest
-    needs: preflight
+    needs: dependency_setup
     strategy:
       matrix:
         plugin: ${{ fromJSON( inputs.plugins ) }}
@@ -203,7 +206,7 @@ jobs:
           tar -xzf ./artifact/composer.tar.gz -C ./
 
       - name: Decompress Theme Artifacts
-        if: ${{ input.themes !== '["none"]' }} # skip this step if no themes are included.
+        if: ${{ inputs.themes !== '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
           tar -xzf ./artifact/theme-*.tar.gz -C ./build
