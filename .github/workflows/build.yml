@@ -320,13 +320,13 @@ jobs:
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
-          tar -xzf ./artifact/theme-*.tar.gz -C ./build
+          for file in ./artifact/theme-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Decompress Plugin Artifacts
         if: ${{ inputs.plugins != '["none"]' }} # skip this step if no themes are included.
         id: decompress_plugin_artifacts
         run: |
-          tar -xzf ./artifact/plugin-*.tar.gz -C ./build
+          for file in ./artifact/plugin-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Clean Build Files/Folders
         id: clean_build_ff
