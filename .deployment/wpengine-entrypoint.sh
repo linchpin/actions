@@ -10,12 +10,8 @@
 export DEPLOYMENT_DIR=$(pwd)
 export RELEASE_DIR="$(dirname "$DEPLOYMENT_DIR")"
 export RELEASES_DIR="$(dirname "$RELEASE_DIR")"
-export PUBLIC_DIR="$(dirname "$RELEASES_DIR")"
-
-echo "$DEPLOYMENT_DIR"
-echo "$RELEASE_DIR"
-echo "$RELEASES_DIR"
-echo "$PUBLIC_DIR"
+export PRIVATE_DIR="$(dirname "$RELEASES_DIR")"
+export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
 
 # Make all the bash scripts executable.
 chmod +x *.sh
@@ -41,6 +37,10 @@ fi
 
 # Final cleanup: Only keep the latest release zip
 
+echo "Delete all old release zips"
 cd "$RELEASES_DIR"
 
-rm `ls -t *.zip | awk 'NR>3'`
+rm `ls -t *.zip | awk 'NR>2'`
+
+echo "Delete all old release folders"
+find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
