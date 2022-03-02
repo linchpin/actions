@@ -121,7 +121,7 @@ jobs:
           ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
 
       - name: Clear Page and Object Cache
-        if: ${{ always() }}
+        if: ${{ always() && 'production' == inputs.environment }}
         run: |
           ssh wpengine "cd ~/sites/${{ inputs.install_name }} && wp cache flush && wp page-cache flush"
 
