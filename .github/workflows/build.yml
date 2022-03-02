@@ -331,8 +331,8 @@ jobs:
       - name: Clean Build Files/Folders
         id: clean_build_ff
         run: |
-          mkdir -p .build/.deployment/
-          cd .build/.deployment/
+          mkdir -p ./build/.deployment/
+          cd ./build/.deployment/
           wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cleanup.sh
           chmod +x ./build/.deployment/cleanup.sh
           sh ./build/.deployment/cleanup.sh
