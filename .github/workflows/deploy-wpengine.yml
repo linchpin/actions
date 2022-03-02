@@ -117,8 +117,8 @@ jobs:
         id: execute_bash
         run: |
           ssh wpengine "unzip -o ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
-          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && chmod +x ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh && sh ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh"
-          ssh wpengine "rm -rf ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/"
+          ssh wpengine "mkdir -p  ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/"
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh" && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
 
       - name: Clear Page and Object Cache
         if: ${{ always() }}
