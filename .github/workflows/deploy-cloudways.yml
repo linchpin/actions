@@ -121,8 +121,7 @@ jobs:
         id: execute_bash
         run: |
           ssh cloudways "unzip -o ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
-          ssh cloudways "chmod +x ${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh && sh ${{ inputs.deployment_path }}/release/.deployment/entrypoint.sh"
-          ssh cloudways "cd ${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
+          ssh cloudways "mkdir ${{ inputs.deployment_path }}/release/.deployment && cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
