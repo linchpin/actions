@@ -12,10 +12,10 @@ export RELEASE_DIR="$(dirname "$DEPLOYMENT_DIR")"
 export RELEASES_DIR="$(dirname "$RELEASE_DIR")"
 export PUBLIC_DIR="$(dirname "$RELEASES_DIR")"
 
-echo "DEPLOYMENT_DIR"
-echo "RELEASE_DIR"
-echo "RELEASES_DIR"
-echo "PUBLIC_DIR"
+echo "$DEPLOYMENT_DIR"
+echo "$RELEASE_DIR"
+echo "$RELEASES_DIR"
+echo "$PUBLIC_DIR"
 
 cd "$PUBLIC_DIR"
 
