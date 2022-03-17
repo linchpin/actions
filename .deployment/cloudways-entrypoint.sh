@@ -13,8 +13,16 @@ export RELEASES_DIR="$(dirname "$RELEASE_DIR")"
 export PRIVATE_DIR="$(dirname "$RELEASES_DIR")"
 export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
 
+echo "$DEPLOYMENT_DIR"
+echo "$RELEASE_DIR"
+echo "$RELEASES_DIR"
+echo "$PRIVATE_DIR"
+echo "$PUBLIC_DIR"
+
 # Make all the bash scripts executable.
 chmod +x *.sh
+
+cd "$PUBLIC_DIR"
 
 wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
 
