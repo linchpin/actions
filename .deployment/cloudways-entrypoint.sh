@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Default shell script used when deploying to WP Engine unless provided within the project directly.
+# Default shell script used when deploying to Cloudways unless provided within the project directly.
 # This shell script will take the following actions:
 # 1. Sync from the _wpeprivate folder to the public directory
 # 2. Backup the database
@@ -12,8 +12,10 @@ export RELEASE_DIR="$(dirname "$DEPLOYMENT_DIR")"
 export RELEASES_DIR="$(dirname "$RELEASE_DIR")"
 export PUBLIC_DIR="$(dirname "$RELEASES_DIR")"
 
-# Make all the bash scripts executable.
-chmod +x *.sh
+echo "DEPLOYMENT_DIR"
+echo "RELEASE_DIR"
+echo "RELEASES_DIR"
+echo "PUBLIC_DIR"
 
 cd "$PUBLIC_DIR"
 
