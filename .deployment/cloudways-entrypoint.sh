@@ -24,8 +24,8 @@ wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
 cd "$RELEASE_DIR"
 
 # rsync latest release to public folder.
-rsync -vrxc --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
-rsync -vrxc --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
+rsync -arxc --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
+rsync -arxc --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
 
 # Only sync MU Plugins if we have them
 if [ -d "${RELEASE_DIR}/mu-plugins/" ] ; then
@@ -35,7 +35,7 @@ if [ -d "${RELEASE_DIR}/mu-plugins/" ] ; then
     wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/main/default.distignore
   fi;
 
-  rsync -vrxc --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
+  rsync -rxc --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
 fi
 
 # Final cleanup: Only keep the latest release zip
