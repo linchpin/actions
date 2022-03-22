@@ -12,14 +12,26 @@ export RELEASE_DIR="$(dirname "$DEPLOYMENT_DIR")"
 export RELEASES_DIR="$(dirname "$RELEASE_DIR")"
 export PUBLIC_DIR="$(dirname "$RELEASES_DIR")"
 
-echo "$DEPLOYMENT_DIR"
-echo "$RELEASE_DIR"
-echo "$RELEASES_DIR"
-echo "$PUBLIC_DIR"
-
 cd "$PUBLIC_DIR"
 
 wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
+
+cd "$PUBLIC_DIR/wp-content"
+
+# Cleanup any symlinks
+if [[ -L "plugins" ]]; then
+  unlink plugins
+fi
+
+if [[ -L "themes" ]]; then
+  unlink themes
+fi
+
+if [[ -L "themes" ]]; then
+  unlink mu-plugin
+fi
+
+# End symlink cleanup
 
 cd "$RELEASE_DIR"
 
