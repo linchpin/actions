@@ -14,11 +14,18 @@ export PUBLIC_DIR="$(dirname "$RELEASES_DIR")"
 
 cd "$PUBLIC_DIR"
 
+# Start maintenance mode
+
+wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/maintenance.php
+wp maintenance-mode activate
+
+# Backup our database
 wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
+
+# Cleanup symlinks (from legacy deployment process)
 
 cd "$PUBLIC_DIR/wp-content"
 
-# Cleanup any symlinks
 if [[ -L "plugins" ]]; then
   unlink plugins
 fi
@@ -27,8 +34,8 @@ if [[ -L "themes" ]]; then
   unlink themes
 fi
 
-if [[ -L "themes" ]]; then
-  unlink mu-plugin
+if [[ -L "mu-plugins" ]]; then
+  unlink mu-plugins
 fi
 
 # End symlink cleanup
@@ -59,3 +66,10 @@ rm `ls -t *.zip | awk 'NR>2'`
 
 echo "Delete all old release folders"
 find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
+
+cd "$PUBLIC_DIR"
+
+# End maintenance mode, reset 
+
+rm maintenance.php
+wp maintenance-mode deactivate
