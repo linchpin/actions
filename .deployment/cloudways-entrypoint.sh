@@ -26,16 +26,28 @@ wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
 
 cd "$PUBLIC_DIR/wp-content"
 
-if [[ -L "plugins" ]]; then
+if [ -L "$PUBLIC_DIR/wp-content/plugins" ]; then
   unlink plugins
 fi
 
-if [[ -L "themes" ]]; then
+if [ -L "$PUBLIC_DIR/wp-content/themes" ]; then
   unlink themes
 fi
 
-if [[ -L "mu-plugins" ]]; then
+if [ -L "$PUBLIC_DIR/wp-content/mu-plugins" ]; then
   unlink mu-plugins
+fi
+
+if [ -f "$PUBLIC_DIR/wp-content/themes" ]; then
+    rm "$PUBLIC_DIR/wp-content/themes"
+fi
+
+if [ -f "$PUBLIC_DIR/wp-content/plugins" ]; then
+    rm "$PUBLIC_DIR/wp-content/plugins"
+fi
+
+if [ -f "$PUBLIC_DIR/wp-content/mu-plugins" ]; then
+    rm "$PUBLIC_DIR/wp-content/mu-plugins"
 fi
 
 # End symlink cleanup
