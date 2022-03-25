@@ -17,11 +17,10 @@ cd "$PUBLIC_DIR"
 
 # Start maintenance mode
 
+echo "::notice::ℹ︎ Starting Maintenance Mode"
+
 wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/maintenance.php
 wp maintenance-mode activate
-
-# Make all the bash scripts executable.
-chmod +x *.sh
 
 wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
 
@@ -42,19 +41,39 @@ if [ -d "${RELEASE_DIR}/mu-plugins/" ] ; then
   rsync -arxc --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
 fi
 
-# Final cleanup: Only keep the latest release zip
+# Final cleanup within the releases directory: Only keep the latest release zip
 
-echo "Delete all old release zips"
 cd "$RELEASES_DIR"
 
-rm `ls -t *.zip | awk 'NR>2'`
+# check for any zip files and remove them
+if [ -f *.zip ] ; then
+  echo "::notice::ℹ︎ Found old release zips. Removing..."
+  rm `ls -t *.zip | awk 'NR>2'`
+fi
 
-echo "Delete all old release folders"
-find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
+# Check for any .gz files and remove them
+if [ -f *.gz ] ; then
+  echo "::notice::ℹ︎ Found old release tar.tz files. Removing..."
+  rm `ls -t *.gz | awk 'NR>2'`
+fi
+
+# Scan for release sub directories and remove them if we have any
+subdircount=$(find ./ -maxdepth 1 -type d | wc -l)
+
+if [[ "$subdircount" -eq 1 ]]
+then
+else
+  echo "::notice::ℹ︎ Delete all old release folders"
+  find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
+fi
 
 cd "$PUBLIC_DIR"
 
 # End maintenance mode, reset 
 
+echo "::notice::ℹ︎ Maintenance Complete::"
+
 rm maintenance.php
 wp maintenance-mode deactivate
+
+echo "::notice::ℹ︎ Maintenance Mode Removed::"
