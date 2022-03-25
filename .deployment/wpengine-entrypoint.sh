@@ -46,13 +46,14 @@ fi
 cd "$RELEASES_DIR"
 
 # check for any zip files all but the newest
-if [ -f *.zip ] ; then
+
+if [ -f ./*.zip ]; then
   echo "::notice::ℹ︎ Found old release zips. Removing all but the newest..."
   ls -t *.zip | awk 'NR>2' | xargs rm -f
 fi
 
 # Check for any .gz files and remove them
-if [ -f *.gz ] ; then
+if [ -f ./*.gz ]; then
   echo "::notice::ℹ︎ Found old release tar.tz files. Removing all..."
   ls -t *.gz | xargs rm -f
 fi
@@ -60,9 +61,7 @@ fi
 # Scan for release sub directories and remove them if we have any
 subdircount=$(find ./ -maxdepth 1 -type d | wc -l)
 
-if [[ "$subdircount" -eq 1 ]]
-then
-else
+if [[ "$subdircount" -gt 1 ]]; then
   echo "::notice::ℹ︎ Delete all old release folders"
   find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
 fi
