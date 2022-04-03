@@ -139,7 +139,6 @@ jobs:
   plugin_setup:
     name: Plugin(s)
     runs-on: ubuntu-latest
-    needs: dependency_setup
     strategy:
       matrix:
         plugin: ${{ fromJSON( inputs.plugins ) }}
@@ -201,29 +200,24 @@ jobs:
     runs-on: ubuntu-latest
     needs: [dependency_setup,theme_setup,plugin_setup]
     steps:
-
       - name: Download All Artifacts
         uses: actions/download-artifact@v3
         with:
           path: ./
-
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
           tar -xzf ./artifact/composer.tar.gz -C ./
-
       - name: Decompress Theme Artifacts
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
           tar -xzf ./artifact/theme-*.tar.gz -C ./build
-
       - name: Decompress Plugin Artifacts
         if: ${{ inputs.plugins != '["none"]' }} # skip this step if no themes are included.
         id: decompress_plugin_artifacts
         run: |
           tar -xzf ./artifact/plugin-*.tar.gz -C ./build
-
       - name: Clean Build Files/Folders
         id: clean_build_ff
         run: |
@@ -234,12 +228,10 @@ jobs:
           sh ./cleanup.sh
           cd ../../
           rm -rf ./build/.deployment/
-
       - name: Get Current Version
         id: version
         run: |
           echo ::set-output name=tag::${GITHUB_REF#refs/tags/v}
-
       # Latest changelog entry is based on version. If not found, fall back to the last version
       - name: Get Latest CHANGELOG.md Entry
         id: changelog_reader
