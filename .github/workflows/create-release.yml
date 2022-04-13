@@ -212,13 +212,15 @@ jobs:
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
-          for f in ./artifact/theme-*.tar.gz; do tar -xvfC ./build/ "$f"; done
+          cd ./artifact
+          for f in theme-*.tar.gz; do tar -xvf -C "$f" ../build/; done
           
       - name: Decompress Plugin Artifacts
         if: ${{ inputs.plugins != '["none"]' }} # skip this step if no themes are included.
         id: decompress_plugin_artifacts
         run: |
-          for f in ./artifact/plugin-*.tar.gz; do tar -xvfC ./build/ "$f"; done
+          cd ./artifact
+          for f in plugin-*.tar.gz; do tar -xvf -C "$" ./build/; done
      
       - name: Clean Build Files/Folders
         id: clean_build_ff
