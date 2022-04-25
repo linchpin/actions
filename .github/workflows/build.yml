@@ -219,12 +219,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
+      - name: Install Theme Composer Dependencies
+        if: ${{ matrix.theme != 'none' &&  hashFiles('composer.json') != '' }} # skip this step if no themes are included.
+        id: install-theme-composer
+        uses: php-actions/composer@v6
+        with:
+          working_dir: ./themes/${{ matrix.theme }}
+          dev: no
+          php_version: ${{ inputs.php_version }}
+      
+
       - name: Build Theme
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         id: build-theme
         run: |
           cd themes/${{ matrix.theme }}
-          test -f ./composer.json && composer update
           yarn install # @todo exclude dev libraries (make initial non cached build faster)
           yarn build
 
