@@ -224,6 +224,7 @@ jobs:
         id: build-theme
         run: |
           cd themes/${{ matrix.theme }}
+          test -f ./composer.json && composer update
           yarn install # @todo exclude dev libraries (make initial non cached build faster)
           yarn build
 
