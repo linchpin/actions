@@ -225,7 +225,7 @@ jobs:
             ${{ runner.os }}-yarn-
 
       - name: Install Theme Composer Dependencies
-        if: ${{ matrix.theme != 'none' &&  hashFiles('composer.json') != '' }} # skip this step if no themes are included or we don't have a composer file
+        if: ${{ matrix.theme != 'none' && hashFiles('./themes/${{ matrix.theme }}/composer.json') != '' }} # skip this step if no themes are included or we don't have a composer file
         id: install-theme-composer
         uses: php-actions/composer@v6
         with:
