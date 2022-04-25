@@ -8,6 +8,11 @@ on:
         default: '["none"]'
         required: false
         type: string
+      build_theme_js:
+        description: 'Skip building theme js (typically for older build process, grunt, bower, etc)'
+        default: true
+        type: boolean
+        required: false
       plugins: # A JSON formatted array of plugins folder name(s) we need to build
         description: 'A JSON formatted array of plugin folder name(s) to build. Example: ["linchpin-functionality"]'
         default: '["none"]'
@@ -220,17 +225,16 @@ jobs:
             ${{ runner.os }}-yarn-
 
       - name: Install Theme Composer Dependencies
-        if: ${{ matrix.theme != 'none' &&  hashFiles('composer.json') != '' }} # skip this step if no themes are included.
+        if: ${{ matrix.theme != 'none' &&  hashFiles('composer.json') != '' }} # skip this step if no themes are included or we don't have a composer file
         id: install-theme-composer
         uses: php-actions/composer@v6
         with:
           working_dir: ./themes/${{ matrix.theme }}
           dev: no
           php_version: ${{ inputs.php_version }}
-      
 
       - name: Build Theme
-        if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.theme != 'none' && inputs.build_theme_js === 'true' }} # skip this step if no themes are included or we tell it to skip
         id: build-theme
         run: |
           cd themes/${{ matrix.theme }}
