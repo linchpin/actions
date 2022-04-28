@@ -234,7 +234,7 @@ jobs:
           php_version: ${{ inputs.php_version }}
 
       - name: Build Theme
-        if: ${{ matrix.theme != 'none' && inputs.build_theme_js == 'true' }} # skip this step if no themes are included or we tell it to skip
+        if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' }} # skip this step if no themes are included or we tell it to skip
         id: build-theme
         run: |
           cd themes/${{ matrix.theme }}
