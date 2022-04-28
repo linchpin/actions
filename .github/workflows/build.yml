@@ -10,7 +10,7 @@ on:
         type: string
       build_theme_js:
         description: 'Skip building theme js (typically for older build process, grunt, bower, etc)'
-        default: true
+        default: false
         type: boolean
         required: false
       plugins: # A JSON formatted array of plugins folder name(s) we need to build
