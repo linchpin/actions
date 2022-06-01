@@ -120,10 +120,10 @@ jobs:
           ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/"
           ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
 
-      - name: Clear Page and Object Cache
-        if: ${{ always() && 'production' == inputs.environment }}
-        run: |
-          ssh wpengine "cd ~/sites/${{ inputs.install_name }} && wp cache flush && wp page-cache flush"
+      # - name: Clear Page and Object Cache
+        # if: ${{ always() && 'production' == inputs.environment }}
+        # run: |
+          # ssh wpengine "cd ~/sites/${{ inputs.install_name }} && wp cache flush && wp page-cache flush"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
