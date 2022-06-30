@@ -50,7 +50,7 @@ jobs:
         run: echo '${{ secrets.packagist_auth }}' > ./build/auth.json
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /tmp/composer-cache
           key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
@@ -105,7 +105,7 @@ jobs:
         run: echo "::set-output name=dir::$(yarn cache dir)"
 
       - name: Cache Yarn Dependencies
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         id: cache-yarn-cache
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         with:
@@ -167,7 +167,7 @@ jobs:
 
       - name: Cache yarn cache
         if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         id: cache-yarn-cache
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
