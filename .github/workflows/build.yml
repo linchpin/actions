@@ -176,6 +176,7 @@ jobs:
       - name: Compress Composer Artifact
         id: composer_compression_artifact
         run: |
+          [ -d "./build/plugins/searchwp" ] && chmod 775 ./build/plugins/searchwp
           tar -zcf composer.tar.gz ./build
 
       - name: Upload Dependencies
