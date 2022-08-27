@@ -83,7 +83,7 @@ jobs:
 
       - name: Get branch name
         id: branch
-        uses: tj-actions/branch-names@v5.5
+        uses: tj-actions/branch-names@v5.6
 
       # Get our changelog if we are a tag and we have a version
       - name: Get Newest Changelog Entry
