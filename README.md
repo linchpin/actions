@@ -50,4 +50,4 @@ jobs:
 |------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
 | [default.distignore](default.distignore) | Default .distignore be loaded during deployment (and renamed to .distignore) if no .distignore is provided within your proejct |
 
-![Linchpin](https://raw.githubusercontent.com/linchpin/brand-assets/master/github-opensource-banner.png)
+![Linchpin](https://raw.githubusercontent.com/linchpin/brand-assets/master/github-banner@2x.jpg)
