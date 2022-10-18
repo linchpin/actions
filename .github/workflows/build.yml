@@ -67,7 +67,7 @@ jobs:
     # Map step output to a job output, We have to map to the step "outputs"
     # so we can reference the data in our preflight job as well as outside our preflight job
     outputs:
-      branch: ${{ steps.output_data.outputs.branch }}
+      branch: ${{ steps.branch.outputs.branch }}
       deployment_id: ${{ steps.deployment_data.outputs.deployment_id }}
       deployment_post: ${{ steps.deployment_data.outputs.deployment_post }}
       changelog: ${{ steps.changelog_reader.outputs.changes }}
