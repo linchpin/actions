@@ -28,6 +28,11 @@ on:
         default: false
         required: false
         type: boolean
+      composer_install:
+        description: 'Run composer install on the theme level'
+        default: false
+        required: false
+        type: boolean
     secrets:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
@@ -121,6 +126,13 @@ jobs:
           cd themes/${{ matrix.theme }}
           yarn install # @todo this should not include dev resources
           yarn build
+          
+      - name: Composer Theme Update
+        id: composer-theme-update
+        if: ${{ matrix.theme != 'none' && inputs.composer_install }} # skip this step if no themes are included.
+        run: |
+          cd themes/${{ matrix.theme }}
+          test -f composer.json && composer update
 
       - name: Compress Theme Artifact
         id: compress_theme_artifact
