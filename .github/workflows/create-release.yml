@@ -127,14 +127,12 @@ jobs:
           yarn install # @todo this should not include dev resources
           yarn build
           
-      - name: Build Theme Composer
-        id: build-theme-composer
-        if: ${{ matrix.theme != 'none' && input.composer_install }} # skip this step if no themes are included.
-        uses: php-actions/composer@v6
-        with:
-          working_dir: themes/${{ matrix.theme }}
-          dev: no
-          php_version: ${{ inputs.php_version }}
+      - name: Composer Theme Update
+        id: composer-theme-update
+        if: ${{ matrix.theme != 'none' && inputs.composer_install }} # skip this step if no themes are included.
+        run: |
+          cd themes/${{ matrix.theme }}
+          test -f composer.json && composer update
 
       - name: Compress Theme Artifact
         id: compress_theme_artifact
