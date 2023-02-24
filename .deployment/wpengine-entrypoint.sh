@@ -30,6 +30,12 @@ cd "$RELEASE_DIR"
 rsync -arxW --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
 rsync -arxW --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
 
+# if build has skip_composer input && remote_plugin_install is true
+# read composer.json file
+# loop through all plugins
+# parse plugin slug and version
+# call wp plugin update `slug` --version=`version` 
+
 # Only sync MU Plugins if we have them
 if [ -d "${RELEASE_DIR}/mu-plugins/" ] ; then
 
