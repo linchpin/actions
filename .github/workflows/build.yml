@@ -42,6 +42,11 @@ on:
         default: 16
         required: false
         type: number
+      skip_composer:
+        description: 'Allow the build process to skip composer dependency install'
+        default: false
+        required: false
+        type: boolean
     outputs:
       deployment_id:
         description: 'The ID of our deployment'
@@ -150,20 +155,24 @@ jobs:
     needs: preflight
     steps:
       - name: Checkout code
+        if: ${{ inputs.skip_composer != false }}
         uses: actions/checkout@v3
         with:
           path: 'build'
 
       - name: Authenticate Packagist
+        if: ${{ inputs.skip_composer != false }}
         run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
+        if: ${{ inputs.skip_composer != false }}
         uses: actions/cache@v3
         with:
           path: /tmp/composer-cache
           key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
 
       - name: Composer Install
+        if: ${{ inputs.skip_composer != false }}
         uses: php-actions/composer@v6
         with:
           working_dir: ./build
@@ -174,11 +183,13 @@ jobs:
         run: rm -f $GITHUB_WORKSPACE/build/auth.json
 
       - name: Compress Composer Artifact
+        if: ${{ inputs.skip_composer != false }}
         id: composer_compression_artifact
         run: |
           tar -zcf composer.tar.gz ./build
 
       - name: Upload Dependencies
+        if: ${{ inputs.skip_composer != false }}
         uses: actions/upload-artifact@v3
         with:
           path: composer.tar.gz
@@ -326,6 +337,7 @@ jobs:
           path: ./
 
       - name: Decompress Composer Artifacts
+        if: ${{ inputs.skip_composer != false }}
         id: decompress_composer_artifacts
         run: |
           tar -xzf ./artifact/composer.tar.gz -C ./
