@@ -22,7 +22,7 @@ echo "::notice::ℹ︎ Starting Maintenance Mode"
 wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/maintenance.php
 wp maintenance-mode activate
 
-wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
+# wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
 
 cd "$RELEASE_DIR"
 
