@@ -47,6 +47,11 @@ on:
         default: false
         required: false
         type: boolean
+      remote_plugin_install:
+        description: 'Allow for plugins to be installed remotely instead of via composer'
+        default: false
+        required: false
+        type: boolean
     outputs:
       deployment_id:
         description: 'The ID of our deployment'
@@ -184,14 +189,12 @@ jobs:
       - name: Compress Composer Artifact
         id: composer_compression_artifact
         run: |
-          tar -zcf composer.tar.gz ./build/plugins
+          tar -zcf composer.tar.gz ./build/plugins ./build/composer.json ./build/composer.lock
 
       - name: Upload Composer
         uses: actions/upload-artifact@v3
         with:
-          name: composer
           path: composer.tar.gz
-          retention-days: 1
 
   # Loop through all themes passed from inputs.themes
   theme_setup:
