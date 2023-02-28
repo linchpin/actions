@@ -187,7 +187,6 @@ jobs:
           tar -zcf composer.tar.gz ./build
 
       - name: Upload Dependencies
-        if: ${{ inputs.skip_composer == false }}
         uses: actions/upload-artifact@v3
         with:
           path: composer.tar.gz
