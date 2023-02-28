@@ -155,13 +155,11 @@ jobs:
     needs: preflight
     steps:
       - name: Checkout code
-        if: ${{ inputs.skip_composer == false }}
         uses: actions/checkout@v3
         with:
           path: 'build'
 
       - name: Authenticate Packagist
-        if: ${{ inputs.skip_composer == false }}
         run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
