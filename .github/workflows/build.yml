@@ -346,12 +346,14 @@ jobs:
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
+          mkdir -p ./build
           for file in ./artifact/theme-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Decompress Plugin Artifacts
         if: ${{ inputs.plugins != '["none"]' }} # skip this step if no themes are included.
         id: decompress_plugin_artifacts
         run: |
+          mkdir -p ./build
           for file in ./artifact/plugin-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Clean Build Files/Folders
