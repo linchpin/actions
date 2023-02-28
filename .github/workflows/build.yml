@@ -160,6 +160,7 @@ jobs:
           path: 'build'
 
       - name: Authenticate Packagist
+        if: ${{ inputs.skip_composer == false }}
         run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
@@ -185,10 +186,12 @@ jobs:
         run: |
           tar -zcf composer.tar.gz ./build
 
-      - name: Upload Dependencies
+      - name: Upload Composer
         uses: actions/upload-artifact@v3
         with:
+          name: composer
           path: composer.tar.gz
+          retention-days: 1
 
   # Loop through all themes passed from inputs.themes
   theme_setup:
@@ -269,7 +272,7 @@ jobs:
       matrix:
         plugin: ${{ fromJSON( inputs.plugins ) }}
     steps:
-      # check if we have a theme to build. If None output and skip the rest of the steps.
+      # check if we have a plugin to build. If None output and skip the rest of the steps.
       - name: Plugin Setup
         id: individual_plugin
         if: ${{ matrix.plugin == 'none' }}
@@ -277,22 +280,22 @@ jobs:
           echo "::warning::Skipping Plugin Build"
 
       - name: Checkout code
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
         uses: actions/checkout@v3
 
       - name: Setup Node.js
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
         uses: actions/setup-node@v3.5.1
         with:
           node-version: ${{ inputs.node_version }}
 
       - name: Get yarn cache directory path
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
 
       - name: Cache yarn cache
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
         uses: actions/cache@v3
         id: cache-yarn-cache
         with:
