@@ -184,7 +184,7 @@ jobs:
       - name: Compress Composer Artifact
         id: composer_compression_artifact
         run: |
-          tar -zcf composer.tar.gz ./build
+          tar -zcf composer.tar.gz ./build/plugins
 
       - name: Upload Composer
         uses: actions/upload-artifact@v3
@@ -336,7 +336,6 @@ jobs:
           path: ./
 
       - name: Decompress Composer Artifacts
-        if: ${{ inputs.skip_composer == false }}
         id: decompress_composer_artifacts
         run: |
           tar -xzf ./artifact/composer.tar.gz -C ./
