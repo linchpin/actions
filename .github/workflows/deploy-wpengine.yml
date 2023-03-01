@@ -54,7 +54,7 @@ jobs:
       name: ${{ inputs.environment }}
       url: ${{ inputs.site_url }}
     outputs:
-      wordpress_plugins:  ${{steps.wordpress_plugins.outputs.prop}} 
+      wordpress_plugins:  ${{steps.output_wordpress.outputs.plugins}} 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
