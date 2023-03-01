@@ -16,7 +16,6 @@ export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
 cd "$PUBLIC_DIR"
 
 # Start maintenance mode
-
 echo "::notice::ℹ︎ Starting Maintenance Mode"
 
 wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/maintenance.php
@@ -35,11 +34,11 @@ rsync -arxW --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
 rsync -arxW --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
 
 # Only sync MU Plugins if we have them
-if [ -d "${RELEASE_DIR}/mu-plugins/" ] ; then
+if [[ -d "${RELEASE_DIR}/mu-plugins/" ]]; then
   rsync -arxW --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
 fi
 
-if [ ! -f "${RELEASE_DIR}/.distignore" ]; then
+if [[ ! -f "${RELEASE_DIR}/.distignore" ]]; then
   echo "::warning::ℹ︎ Loading default .distignore from github.com/linchpin/actions, you should add one to your project"
   wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/main/default.distignore
 fi;
@@ -50,15 +49,15 @@ cd "$RELEASES_DIR"
 
 # check for any zip files all but the newest
 
-if [ -f ./*.zip ]; then
+if [[ -f ./*.zip ]]; then
   echo "::notice::ℹ︎ Found old release zips. Removing all but the newest..."
   ls -t *.zip | awk 'NR>2' | xargs rm -f
 fi
 
 # Check for any .gz files and remove them
-if [ -f ./*.zip ]; then
-  echo "::notice::ℹ︎ Found old release.zip files. Removing all..."
-  ls -t *.zip | xargs rm -f
+if [[ -f ./*.gz ]]; then
+  echo "::notice::ℹ︎ Found old tar.gz files. Removing all..."
+  ls -t *.gz | xargs rm -f
 fi
 
 # Scan for release sub directories and remove them if we have any
