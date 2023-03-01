@@ -125,7 +125,7 @@ jobs:
           ssh wpengine "rm -rf ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release"
           ssh wpengine "unzip -o -q ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
           ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/"
-          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
 
       - name: Get WordPress Plugins
         id: wordpress_plugins
