@@ -131,7 +131,7 @@ jobs:
         id: wordpress_plugins
         uses: notiz-dev/github-action-json-property@release
         with: 
-          path: './composer.json'
+          path: './build/composer.json'
           prop_path: 'require'
 
   # Loop through all themes passed from inputs.themes
