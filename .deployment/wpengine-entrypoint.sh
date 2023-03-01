@@ -22,7 +22,11 @@ echo "::notice::ℹ︎ Starting Maintenance Mode"
 wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/maintenance.php
 wp maintenance-mode activate
 
-wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
+echo "::notice::ℹ︎ Exporting Database"
+
+# wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
+
+echo "::notice::ℹ︎ Exporting Complete"
 
 cd "$RELEASE_DIR"
 
@@ -32,14 +36,13 @@ rsync -arxW --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
 
 # Only sync MU Plugins if we have them
 if [ -d "${RELEASE_DIR}/mu-plugins/" ] ; then
-
-  if [ ! -e "${RELEASE_DIR}/.distignore" ]; then
-    echo "::warning::ℹ︎ Loading default .distignore from github.com/linchpin/actions, you should add one to your project"
-    wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/main/default.distignore
-  fi;
-
   rsync -arxW --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
 fi
+
+if [ ! -f "${RELEASE_DIR}/.distignore" ]; then
+  echo "::warning::ℹ︎ Loading default .distignore from github.com/linchpin/actions, you should add one to your project"
+  wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/main/default.distignore
+fi;
 
 # Final cleanup within the releases directory: Only keep the latest release zip
 
@@ -53,9 +56,9 @@ if [ -f ./*.zip ]; then
 fi
 
 # Check for any .gz files and remove them
-if [ -f ./*.gz ]; then
-  echo "::notice::ℹ︎ Found old release tar.tz files. Removing all..."
-  ls -t *.gz | xargs rm -f
+if [ -f ./*.zip ]; then
+  echo "::notice::ℹ︎ Found old release.zip files. Removing all..."
+  ls -t *.zip | xargs rm -f
 fi
 
 # Scan for release sub directories and remove them if we have any
