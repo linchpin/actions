@@ -139,7 +139,6 @@ jobs:
           ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/"
           ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
 
-
       - name: Get WordPress Plugins
         uses: notiz-dev/github-action-json-property@v0.2.0
         id: wordpress_plugins
@@ -159,8 +158,7 @@ jobs:
     needs: deploy
     strategy:
       matrix:
-        plugin: ${{ needs.deploy.outputs.output_wordpress }}
-  
+        plugin: ${{ needs.deploy.outputs.wordpress_plugins }}
     steps:
       # check if we have a plugin to install. 
       
