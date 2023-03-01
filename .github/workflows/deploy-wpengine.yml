@@ -146,6 +146,11 @@ jobs:
         with: 
           path: './composer.json'
           prop_path: 'require'
+          
+      - name: Get Output WordPresss Plugins
+        id: output_wordpress
+        run: |
+          echo "::set-output name=plugins::${{ steps.wordpress_plugins.outputs.prop }}"
 
   # Loop through all themes passed from inputs.themes
   plugin_install:
@@ -154,7 +159,7 @@ jobs:
     needs: deploy
     strategy:
       matrix:
-        plugin: ${{ needs.deploy.outputs.wordpress_plugins }}
+        plugin: ${{ needs.deploy.outputs.output_wordpress }}
   
     steps:
       # check if we have a plugin to install. 
