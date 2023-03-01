@@ -56,6 +56,18 @@ jobs:
     outputs:
       wordpress_plugins:  ${{steps.wordpress_plugins.outputs.prop}} 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get Current Version
+        id: version
+        run: |
+          echo ::set-output name=current::${GITHUB_REF#refs/tags/v}
+
+      - name: Get branch name
+        id: branch
+        uses: tj-actions/branch-names@v5.6
+    
       - name: Deployment In Progress
         id: in_progress_deployment
         uses: octokit/request-action@v2.x
@@ -131,7 +143,7 @@ jobs:
         id: wordpress_plugins
         uses: notiz-dev/github-action-json-property@release
         with: 
-          path: './build/composer.json'
+          path: './composer.json'
           prop_path: 'require'
 
   # Loop through all themes passed from inputs.themes
