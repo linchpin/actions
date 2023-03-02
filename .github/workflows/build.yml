@@ -205,7 +205,7 @@ jobs:
 
       - name: Setup Node.js
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
-        uses: actions/setup-node@v3.5.1
+        uses: actions/setup-node@v3.6.0
         with:
           node-version: ${{ inputs.node_version }}
 
@@ -275,7 +275,7 @@ jobs:
 
       - name: Setup Node.js
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
-        uses: actions/setup-node@v3.5.1
+        uses: actions/setup-node@v3.6.0
         with:
           node-version: ${{ inputs.node_version }}
 
