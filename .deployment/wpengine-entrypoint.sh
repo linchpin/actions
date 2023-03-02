@@ -39,10 +39,6 @@ if [[ -d "${RELEASE_DIR}/mu-plugins/" ]]; then
 fi
 
 if [[ ! -f "${RELEASE_DIR}/.distignore" ]]; then
-  rsync -arxW --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
-fi
-
-if [ ! -f "${RELEASE_DIR}/.distignore" ]; then
   echo "::warning::ℹ︎ Loading default .distignore from github.com/linchpin/actions, you should add one to your project"
   wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/main/default.distignore
 fi;
