@@ -138,64 +138,101 @@ jobs:
           ssh wpengine "unzip -o -q ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
           ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/"
           ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
-
-      - name: Get WordPress Plugins
-        uses: notiz-dev/github-action-json-property@v0.2.0
-        id: wordpress_plugins
-        with: 
-          path: './composer.json'
-          prop_path: 'require'
           
-      - name: Get Output WordPresss Plugins
-        id: output_wordpress
-        run: |
-          echo "::set-output name=plugins::${{ steps.wordpress_plugins.outputs.prop }}"
-
   # Loop through all themes passed from inputs.themes
   plugin_install:
     name: WordPress Plug Install(s)
     runs-on: ubuntu-latest
     needs: deploy
-    strategy:
-      matrix:
-        plugin: ${{ needs.deploy.outputs.wordpress_plugins }}
     steps:
-      # check if we have a plugin to install. 
-      
-     - name: Configure SSH Connection with WP Engine
-       run: |
-         SSH_PATH="$HOME/.ssh"
-         KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
-         SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
-         mkdir -p "$SSH_PATH"
-         ssh-keyscan -t rsa "$SSH_HOST" >> "$KNOWN_HOSTS_PATH"
-         # Copy Secret Keys to container
-         echo "$SSH_KEY" > "$SSH_KEY_PRIVATE_PATH"
+      - name: Install jq
+        if: ${{ inputs.remote_plugin_install != false }}
+        run: sudo apt-get install jq
+        
+      - name: Get WordPress plugins and themes for install
+        if: ${{ inputs.remote_plugin_install != false }}
+        id: parse_composer_lock
+        run: |
+          output_data="["
 
-         chmod 700 "$SSH_PATH"
-         chmod 644 "$KNOWN_HOSTS_PATH"
-         chmod 600 "$SSH_KEY_PRIVATE_PATH"
+          # Read the composer.lock file and loop through each package
+          jq '.packages[]' composer.lock | while read -r package; do
+            # Extract the name, type, and version from the package
+            name=$(echo "$package" | jq -r '.name')
+            type=$(echo "$package" | jq -r '.type')
+            version=$(echo "$package" | jq -r '.version')
 
-         cat >>~/.ssh/config <<END
-         Host wpengine
-           HostName $SSH_HOST
-           User $SSH_USER
-           IdentityFile $SSH_KEY_PRIVATE_PATH
-           StrictHostKeyChecking no
-         END
-       env:
-        SSH_USER: ${{ inputs.install_name }}
-        SSH_KEY: ${{ secrets.deployment_ssh_key }}
-        SSH_HOST: "${{ inputs.install_name }}.ssh.wpengine.net"    
-      
-     - name: Install remaining plugins via wp cli
-       id: individual_plugin_install
-       if: ${{ true == inputs.wp_remote_install }}
-       run: |
-         [[ matrix.plugin =~ \/([a-z0-9\-]+)[[:space:]]?:[[:space:]]?([0-9\.a-z\-]*) ]] && plugin="${BASH_REMATCH[1]}" && version="${BASH_REMATCH[2]}"
-         if [ -z "$plugin" -a -z "$version" ]; then
-           ssh wpengine "wp plugin update $plugin --version=$version"
-         fi
+            # Check if the type is wordpress-plugin or wordpress-theme
+            if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
+              # Get the slug by splitting the name at the /
+              slug=${name#*/}
+
+              # Add the slug, type, and version to the output data
+              output_data+="$(jq -n --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
+            fi
+          done
+
+          # Remove the trailing comma and close the JSON array
+          output_data="${output_data%,}]"
+
+          # Set the output variable
+          echo "::set-output name=parsed_data::$output_data"
+
+      - name: Configure SSH Connection with WP Engine
+        run: |
+           SSH_PATH="$HOME/.ssh"
+           KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
+           SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
+           mkdir -p "$SSH_PATH"
+           ssh-keyscan -t rsa "$SSH_HOST" >> "$KNOWN_HOSTS_PATH"
+           # Copy Secret Keys to container
+           echo "$SSH_KEY" > "$SSH_KEY_PRIVATE_PATH"
+
+           chmod 700 "$SSH_PATH"
+           chmod 644 "$KNOWN_HOSTS_PATH"
+           chmod 600 "$SSH_KEY_PRIVATE_PATH"
+
+           cat >>~/.ssh/config <<END
+           Host wpengine
+             HostName $SSH_HOST
+             User $SSH_USER
+             IdentityFile $SSH_KEY_PRIVATE_PATH
+             StrictHostKeyChecking no
+           END
+        env:
+          SSH_USER: ${{ inputs.install_name }}
+          SSH_KEY: ${{ secrets.deployment_ssh_key }}
+          SSH_HOST: "${{ inputs.install_name }}.ssh.wpengine.net"    
+
+      - name: Install WordPress plugins remotely
+        run: |
+          parsed_data='${{ steps.parse_composer_lock.outputs.parsed_data }}'
+
+          # Loop through the JSON array
+          echo "$parsed_data" | jq '.[]' | while read -r item; do
+            slug=$(echo "$item" | jq -r '.slug')
+            type=$(echo "$item" | jq -r '.type')
+            version=$(echo "$item" | jq -r '.version')
+
+            # Check if the item is a plugin or theme and set the WP-CLI command accordingly
+            if [[ "$type" == "wordpress-plugin" ]]; then
+              wp_command="plugin"
+            elif [[ "$type" == "wordpress-theme" ]]; then
+              wp_command="theme"
+            else
+              continue
+            fi
+
+            # Check if the plugin or theme is installed using WP-CLI
+            installed=$(ssh wpengine "wp $wp_command is-installed $slug" && echo "yes" || echo "no")
+
+            # Install or update the plugin or theme based on the check
+            if [[ "$installed" == "no" ]]; then
+              ssh wpengine "wp $wp_command install $slug --version=$version"
+            else
+              ssh wpengine "wp $wp_command update $slug --version=$version"
+            fi
+          done
 
   status:
     name: Deploy Status
