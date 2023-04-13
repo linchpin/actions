@@ -28,12 +28,16 @@ on:
       deployment_path:
         description: 'Provide if the deployment path is non standard'
         required: false
-        default: '~/public_html/releases'
+        default: '~/private_html/releases'
         type: string
       workflow_run_id:
         description: 'Workflow Run ID to get artifacts from'
         required: true
         type: string
+      remote_plugin_install:
+        description: 'Use the wp cli to remote install plugins instead of using composer'
+        type: boolean
+        default: false
     secrets:
       deployment_ssh_user:
         description: 'Cloudways SSH User needed for deployment'
@@ -116,12 +120,13 @@ jobs:
           ssh cloudways "mkdir -p ${{ inputs.deployment_path }}"
           rsync --rsh="ssh -v -p 22 -i $SSH_KEY_PRIVATE_PATH -o StrictHostKeyChecking=no" -zrxc --delete "${{ steps.folder.outputs.folder }}.zip" "${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }}:${{ inputs.deployment_path }}"
 
-
       - name: Remote - Run Scripts
         id: execute_bash
         run: |
+          ssh cloudways "rm -rf ~/${{ inputs.deployment_path }}/release"
           ssh cloudways "unzip -o -q ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
-          ssh cloudways "mkdir -p ${{ inputs.deployment_path }}/release/.deployment && cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
+          ssh cloudways "mkdir -p ${{ inputs.deployment_path }}/release/.deployment
+          ssh cloudways "cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
