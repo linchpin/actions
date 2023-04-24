@@ -19,3 +19,58 @@ jobs:
         id: branch
         uses: tj-actions/branch-names@v5.6
         
+      - name: Get WordPress plugins and themes for install
+        if: ${{ inputs.remote_plugin_install != false }}
+        id: parse_composer_lock
+        run: |
+          output_data="["
+
+          # Read the composer.lock file and loop through each package
+          jq '.packages[]' composer.lock | while read -r package; do
+            # Extract the name, type, and version from the package
+            name=$(echo "$package" | jq -r '.name')
+            type=$(echo "$package" | jq -r '.type')
+            version=$(echo "$package" | jq -r '.version')
+
+            # Check if the type is wordpress-plugin or wordpress-theme
+            if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
+              # Get the slug by splitting the name at the /
+              slug=${name#*/}
+
+              # Add the slug, type, and version to the output data
+              output_data+="$(jq -n --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
+            fi
+          done
+
+          # Remove the trailing comma and close the JSON array
+          output_data="${output_data%,}]"
+
+          # Set the output variable
+          echo "::set-output name=parsed_data::$output_data"
+          
+      - name: Update README.md with parsed data
+        run: ./deployment/update_readme.sh "${{ steps.parse_composer_lock.outputs.parsed_data }}"
+        
+      - name: Commit changes to README.md
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          git add README.md
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            echo "::set-output name=skip_pr::true"
+          else
+            git commit -m "Update README.md with plugin list"
+            echo "::set-output name=skip_pr::false"
+          fi
+        id: commit_changes
+
+      - name: Create Pull Request
+        if: ${{ steps.commit_changes.outputs.skip_pr != 'true' }}
+        uses: peter-evans/create-pull-request@v3
+        with:
+          token: ${{ secrets.YOUR_GITHUB_TOKEN }}
+          title: 'Update README.md with plugin list'
+          branch: 'update-readme-plugin-list'
