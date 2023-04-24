@@ -1,0 +1,21 @@
+name: Update README.md
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+      - dev
+
+jobs:
+  update-readme:
+    name: Updated Readme
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get Branch Names
+        id: branch
+        uses: tj-actions/branch-names@v5.6
+        
