@@ -49,7 +49,21 @@ jobs:
     environment:
       name: ${{ inputs.environment }}
       url: ${{ inputs.site_url }}
+    outputs:
+      wordpress_plugins:  ${{steps.output_wordpress.outputs.plugins}} 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get Current Version
+        id: version
+        run: |
+          echo ::set-output name=current::${GITHUB_REF#refs/tags/v}
+
+      - name: Get branch name
+        id: branch
+        uses: tj-actions/branch-names@v5.6
+    
       - name: Deployment In Progress
         id: in_progress_deployment
         uses: octokit/request-action@v2.x
@@ -118,12 +132,112 @@ jobs:
         run: |
           ssh wpengine "unzip -o -q ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
           ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/"
-          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
+          
+  # Loop through all themes passed from inputs.themes
+  plugin_install:
+    name: WordPress Plug Install(s)
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Install jq
+        if: ${{ inputs.remote_plugin_install != false }}
+        run: sudo apt-get install jq
+        
+      - name: Get WordPress plugins and themes for install
+        if: ${{ inputs.remote_plugin_install != false }}
+        id: parse_composer_lock
+        run: |
+          output_data="["
 
-      # - name: Clear Page and Object Cache
-        # if: ${{ always() && 'production' == inputs.environment }}
-        # run: |
-          # ssh wpengine "cd ~/sites/${{ inputs.install_name }} && wp cache flush && wp page-cache flush"
+          # Read the composer.lock file and loop through each package
+          jq '.packages[]' composer.lock | while read -r package; do
+            # Extract the name, type, and version from the package
+            name=$(echo "$package" | jq -r '.name')
+            type=$(echo "$package" | jq -r '.type')
+            version=$(echo "$package" | jq -r '.version')
+
+            # Check if the type is wordpress-plugin or wordpress-theme
+            if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
+              # Get the slug by splitting the name at the /
+              slug=${name#*/}
+
+              # Add the slug, type, and version to the output data
+              output_data+="$(jq -n --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
+            fi
+          done
+
+          # Remove the trailing comma and close the JSON array
+          output_data="${output_data%,}]"
+
+          # Set the output variable
+          echo "::set-output name=parsed_data::$output_data"
+
+      - name: Configure SSH Connection with WP Engine
+        run: |
+           SSH_PATH="$HOME/.ssh"
+           KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
+           SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
+           mkdir -p "$SSH_PATH"
+           ssh-keyscan -t rsa "$SSH_HOST" >> "$KNOWN_HOSTS_PATH"
+           # Copy Secret Keys to container
+           echo "$SSH_KEY" > "$SSH_KEY_PRIVATE_PATH"
+
+           chmod 700 "$SSH_PATH"
+           chmod 644 "$KNOWN_HOSTS_PATH"
+           chmod 600 "$SSH_KEY_PRIVATE_PATH"
+
+           cat >>~/.ssh/config <<END
+           Host wpengine
+             HostName $SSH_HOST
+             User $SSH_USER
+             IdentityFile $SSH_KEY_PRIVATE_PATH
+             StrictHostKeyChecking no
+           END
+        env:
+          SSH_USER: ${{ inputs.install_name }}
+          SSH_KEY: ${{ secrets.deployment_ssh_key }}
+          SSH_HOST: "${{ inputs.install_name }}.ssh.wpengine.net"    
+
+      - name: Install WordPress plugins remotely
+        run: |
+          parsed_data='${{ steps.parse_composer_lock.outputs.parsed_data }}'
+
+          # Loop through the JSON array
+          echo "$parsed_data" | jq '.[]' | while read -r item; do
+            slug=$(echo "$item" | jq -r '.slug')
+            type=$(echo "$item" | jq -r '.type')
+            version=$(echo "$item" | jq -r '.version')
+
+            # Check if the item is a plugin or theme and set the WP-CLI command accordingly
+            if [[ "$type" == "wordpress-plugin" ]]; then
+              wp_command="plugin"
+            elif [[ "$type" == "wordpress-theme" ]]; then
+              wp_command="theme"
+            else
+              continue
+            fi
+
+            # Check if the plugin or theme is installed using WP-CLI
+            installed=$(ssh wpengine "wp $wp_command is-installed $slug" && echo "yes" || echo "no")
+
+            # Install or update the plugin or theme based on the check
+            if [[ "$installed" == "no" ]]; then
+              ssh wpengine "wp $wp_command install $slug --version=$version"
+            else
+              ssh wpengine "wp $wp_command update $slug --version=$version"
+            fi
+          done
+
+  status:
+    name: Deploy Status
+    runs-on: ubuntu-latest
+    needs: [deploy, plugin_install]
+    steps:
+    # - name: Clear Page and Object Cache
+      # if: ${{ always() && 'production' == inputs.environment }}
+      # run: |
+        # ssh wpengine "cd ~/sites/${{ inputs.install_name }} && wp cache flush && wp page-cache flush"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
