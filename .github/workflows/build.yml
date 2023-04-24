@@ -42,16 +42,6 @@ on:
         default: 16
         required: false
         type: number
-      skip_composer:
-        description: 'Allow the build process to skip composer dependency install'
-        default: false
-        required: false
-        type: boolean
-      remote_plugin_install:
-        description: 'Allow for plugins to be installed remotely instead of via composer'
-        default: false
-        required: false
-        type: boolean
     outputs:
       deployment_id:
         description: 'The ID of our deployment'
@@ -93,7 +83,7 @@ jobs:
 
       - name: Get branch name
         id: branch
-        uses: tj-actions/branch-names@v5.6
+        uses: tj-actions/branch-names@v6.5
 
       # Get our changelog if we are a tag and we have a version
       - name: Get Newest Changelog Entry
@@ -165,18 +155,15 @@ jobs:
           path: 'build'
 
       - name: Authenticate Packagist
-        if: ${{ inputs.skip_composer == false }}
         run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
-        if: ${{ inputs.skip_composer == false }}
         uses: actions/cache@v3
         with:
           path: /tmp/composer-cache
           key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
 
       - name: Composer Install
-        if: ${{ inputs.skip_composer == false }}
         uses: php-actions/composer@v6
         with:
           working_dir: ./build
@@ -189,9 +176,9 @@ jobs:
       - name: Compress Composer Artifact
         id: composer_compression_artifact
         run: |
-          tar -zcf composer.tar.gz ./build/plugins ./build/composer.json ./build/composer.lock
+          tar -zcf composer.tar.gz ./build
 
-      - name: Upload Composer
+      - name: Upload Dependencies
         uses: actions/upload-artifact@v3
         with:
           path: composer.tar.gz
@@ -218,7 +205,7 @@ jobs:
 
       - name: Setup Node.js
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
-        uses: actions/setup-node@v3.5.1
+        uses: actions/setup-node@v3.6.0
         with:
           node-version: ${{ inputs.node_version }}
 
@@ -275,7 +262,7 @@ jobs:
       matrix:
         plugin: ${{ fromJSON( inputs.plugins ) }}
     steps:
-      # check if we have a plugin to build. If None output and skip the rest of the steps.
+      # check if we have a theme to build. If None output and skip the rest of the steps.
       - name: Plugin Setup
         id: individual_plugin
         if: ${{ matrix.plugin == 'none' }}
@@ -283,22 +270,22 @@ jobs:
           echo "::warning::Skipping Plugin Build"
 
       - name: Checkout code
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         uses: actions/checkout@v3
 
       - name: Setup Node.js
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
-        uses: actions/setup-node@v3.5.1
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
+        uses: actions/setup-node@v3.6.0
         with:
           node-version: ${{ inputs.node_version }}
 
       - name: Get yarn cache directory path
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
 
       - name: Cache yarn cache
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         uses: actions/cache@v3
         id: cache-yarn-cache
         with:
@@ -347,14 +334,12 @@ jobs:
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
-          mkdir -p ./build
           for file in ./artifact/theme-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Decompress Plugin Artifacts
         if: ${{ inputs.plugins != '["none"]' }} # skip this step if no themes are included.
         id: decompress_plugin_artifacts
         run: |
-          mkdir -p ./build
           for file in ./artifact/plugin-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Clean Build Files/Folders
