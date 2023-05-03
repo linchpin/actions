@@ -215,6 +215,15 @@ jobs:
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         uses: actions/checkout@v3
 
+      - name: Install Theme Composer Dependencies
+        if: ${{ matrix.theme != 'none' && hashFiles('./themes/${{ matrix.theme }}/composer.json') != '' }} # skip this step if no themes are included or we don't have a composer file
+        id: install-theme-composer
+        uses: php-actions/composer@v6
+        with:
+          working_dir: ./themes/${{ matrix.theme }}
+          dev: no
+          php_version: ${{ inputs.php_version }}
+
       - name: Setup Node.js
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         uses: actions/setup-node@v3.6.0
@@ -241,15 +250,6 @@ jobs:
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
-
-      - name: Install Theme Composer Dependencies
-        if: ${{ matrix.theme != 'none' && hashFiles('./themes/${{ matrix.theme }}/composer.json') != '' }} # skip this step if no themes are included or we don't have a composer file
-        id: install-theme-composer
-        uses: php-actions/composer@v6
-        with:
-          working_dir: ./themes/${{ matrix.theme }}
-          dev: no
-          php_version: ${{ inputs.php_version }}
 
       - name: Build Theme with yarn
         if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' && inputs.theme_package_manager == 'yarn' }} # skip this step if no themes are included or we tell it to skip
