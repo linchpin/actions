@@ -42,7 +42,11 @@ on:
         default: 16
         required: false
         type: number
-      package_manager:
+      theme_package_manager:
+        description: 'Package manager npm/yarn'
+        default: 'yarn'
+        type: string
+      plugin_package_manager:
         description: 'Package manager npm/yarn'
         default: 'yarn'
         type: string
@@ -214,18 +218,18 @@ jobs:
           node-version: ${{ inputs.node_version }}
 
       - name: Get yarn cache directory path
-        if: ${{ matrix.theme != 'none' && inputs.package_manager == 'yarn' }} # skip this step if no themes are included.
+        if: ${{ matrix.theme != 'none' && inputs.theme_package_manager == 'yarn' }} # skip this step if no themes are included.
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
         
       - name: Get npm cache directory
         id: npm-cache-dir
-        if: ${{ matrix.theme != 'none' && inputs.package_manager == 'npm' }} # skip this step if no themes are included.
+        if: ${{ matrix.theme != 'none' && inputs.theme_package_manager == 'npm' }} # skip this step if no themes are included.
         shell: bash
         run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
       - name: Cache yarn cache
-        if: ${{ matrix.theme != 'none' && inputs.package_manager == 'yarn' }} # skip this step if no themes are included.
+        if: ${{ matrix.theme != 'none' && inputs.theme_package_manager == 'yarn' }} # skip this step if no themes are included.
         uses: actions/cache@v3
         id: cache-yarn-cache
         with:
@@ -244,7 +248,7 @@ jobs:
           php_version: ${{ inputs.php_version }}
 
       - name: Build Theme with yarn
-        if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' && inputs.package_manager == 'yarn' }} # skip this step if no themes are included or we tell it to skip
+        if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' && inputs.theme_package_manager == 'yarn' }} # skip this step if no themes are included or we tell it to skip
         id: build-theme
         run: |
           cd themes/${{ matrix.theme }}
@@ -252,12 +256,12 @@ jobs:
           yarn build
 
       - name: Build Theme with npm
-        if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' && inputs.package_manager == 'npm' }} # skip this step if no themes are included or we tell it to skip
+        if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' && inputs.theme_package_manager == 'npm' }} # skip this step if no themes are included or we tell it to skip
         id: build-theme-npm
         run: |
           cd themes/${{ matrix.theme }}
           npm install # @todo exclude dev libraries (make initial non cached build faster)
-          npm build
+          npm run build
 
       - name: Compress Theme Artifact
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
@@ -280,7 +284,7 @@ jobs:
       matrix:
         plugin: ${{ fromJSON( inputs.plugins ) }}
     steps:
-      # check if we have a theme to build. If None output and skip the rest of the steps.
+      # check if we have a plugin to build. If None output and skip the rest of the steps.
       - name: Plugin Setup
         id: individual_plugin
         if: ${{ matrix.plugin == 'none' }}
@@ -288,22 +292,28 @@ jobs:
           echo "::warning::Skipping Plugin Build"
 
       - name: Checkout code
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
         uses: actions/checkout@v3
 
       - name: Setup Node.js
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
         uses: actions/setup-node@v3.6.0
         with:
           node-version: ${{ inputs.node_version }}
 
       - name: Get yarn cache directory path
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'yarn' }} # skip this step if no plugins are included.
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
 
+      - name: Get npm cache directory
+        id: npm-cache-dir
+        if: ${{ matrix.plugin != 'none' && inputs.theme_package_manager == 'npm' }} # skip this step if no plugins are included.
+        shell: bash
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
+
       - name: Cache yarn cache
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'yarn' }} # skip this step if no plugins are included.
         uses: actions/cache@v3
         id: cache-yarn-cache
         with:
@@ -312,13 +322,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
-      - name: Build Plugin
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
+      - name: Build Plugin with yarn
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'yarn' }} # skip this step if no plugins are included.
         id: build-plugin
         run: |
           cd plugins/${{ matrix.plugin }}
           yarn install # @todo exclude dev libraries (make initial non cached build faster)
           yarn build
+          
+      - name: Build Plugin with npm
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'npm' }} # skip this step if no plugins are included.
+        id: build-plugin-npm
+        run: |
+          cd plugins/${{ matrix.plugin }}
+          npm install # @todo exclude dev libraries (make initial non cached build faster)
+          npm run build
 
       - name: Compress Plugin Artifact
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
