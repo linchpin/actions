@@ -50,6 +50,10 @@ on:
         description: 'Package manager npm/yarn'
         default: 'yarn'
         type: string
+      package_manager:
+        description: 'Package manager npm/yarn'
+        default: 'yarn'
+        type: string
     outputs:
       deployment_id:
         description: 'The ID of our deployment'
