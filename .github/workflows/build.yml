@@ -42,6 +42,10 @@ on:
         default: 16
         required: false
         type: number
+      package_manager:
+        description: 'Package manager npm/yarn'
+        default: 'yarn'
+        type: string
     outputs:
       deployment_id:
         description: 'The ID of our deployment'
@@ -210,12 +214,18 @@ jobs:
           node-version: ${{ inputs.node_version }}
 
       - name: Get yarn cache directory path
-        if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.theme != 'none' && inputs.package_manager == 'yarn' }} # skip this step if no themes are included.
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
+        
+      - name: Get npm cache directory
+        id: npm-cache-dir
+        if: ${{ matrix.theme != 'none' && inputs.package_manager == 'npm' }} # skip this step if no themes are included.
+        shell: bash
+        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
       - name: Cache yarn cache
-        if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.theme != 'none' && inputs.package_manager == 'yarn' }} # skip this step if no themes are included.
         uses: actions/cache@v3
         id: cache-yarn-cache
         with:
@@ -233,13 +243,21 @@ jobs:
           dev: no
           php_version: ${{ inputs.php_version }}
 
-      - name: Build Theme
-        if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' }} # skip this step if no themes are included or we tell it to skip
+      - name: Build Theme with yarn
+        if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' && inputs.package_manager == 'yarn' }} # skip this step if no themes are included or we tell it to skip
         id: build-theme
         run: |
           cd themes/${{ matrix.theme }}
           yarn install # @todo exclude dev libraries (make initial non cached build faster)
           yarn build
+
+      - name: Build Theme with npm
+        if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' && inputs.package_manager == 'npm' }} # skip this step if no themes are included or we tell it to skip
+        id: build-theme-npm
+        run: |
+          cd themes/${{ matrix.theme }}
+          npm install # @todo exclude dev libraries (make initial non cached build faster)
+          npm build
 
       - name: Compress Theme Artifact
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
