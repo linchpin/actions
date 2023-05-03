@@ -308,7 +308,7 @@ jobs:
 
       - name: Get npm cache directory
         id: npm-cache-dir
-        if: ${{ matrix.plugin != 'none' && inputs.theme_package_manager == 'npm' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'npm' }} # skip this step if no plugins are included.
         shell: bash
         run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
