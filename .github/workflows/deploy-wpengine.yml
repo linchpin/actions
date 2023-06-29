@@ -34,6 +34,11 @@ on:
         description: 'Workflow Run ID to get artifacts from'
         required: true
         type: string
+      remote_plugin_install:
+        description: 'Remotely install plugins instead of using composer'
+        required: false
+        default: false
+        type: boolean
     secrets:
       deployment_ssh_key:
         description: 'WP Engine SSH Key needed for deployment'
