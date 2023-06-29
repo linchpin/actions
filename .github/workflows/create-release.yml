@@ -118,7 +118,7 @@ jobs:
 
       - name: Composer Theme Update
         id: composer-theme-update
-        if: ${{ matrix.theme != 'none' && inputs.composer_install }} # skip this step if no themes are included.
+        if: ${{ matrix.theme != 'none' && inputs.theme_composer_install }} # skip this step if no themes are included.
         run: |
           cd themes/${{ matrix.theme }}
           test -f composer.json && composer update
@@ -197,6 +197,13 @@ jobs:
       - name: Checkout code
         if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
         uses: actions/checkout@v3
+
+      - name: Composer Theme Update
+        id: composer-theme-update
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_composer_install }} # skip this step if no themes are included.
+        run: |
+          cd plugins/${{ matrix.plugin }}
+          test -f composer.json && composer update
 
       - name: Setup Node.js
         if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
