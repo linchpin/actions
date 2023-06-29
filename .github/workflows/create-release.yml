@@ -28,7 +28,7 @@ on:
         default: false
         required: false
         type: boolean
-      composer_install:
+      theme_composer_install:
         description: 'Run composer install on the theme level'
         default: false
         required: false
@@ -41,6 +41,12 @@ on:
         description: 'Package manager npm/yarn'
         default: 'yarn'
         type: string
+
+      plugin_composer_install:
+        description: 'Run composer install on the functionality level'
+        default: false
+        required: false
+        type: boolean
       package_manager:
         description: 'Package manager npm/yarn'
         default: 'yarn'
