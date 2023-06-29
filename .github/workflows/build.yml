@@ -173,6 +173,7 @@ jobs:
           path: 'build'
 
       - name: Authenticate Packagist
+        if: ${{ inputs.remote_plugin_install != false }}
         run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
@@ -191,6 +192,7 @@ jobs:
           php_version: ${{ inputs.php_version }}
 
       - name: Remove Packagist Authentication
+        if: ${{ inputs.remote_plugin_install != false }}
         run: rm -f $GITHUB_WORKSPACE/build/auth.json
 
       - name: Compress Composer Artifact
