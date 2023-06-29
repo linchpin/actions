@@ -382,23 +382,19 @@ jobs:
         id: decompress_composer_artifacts
         run: |
           tar -xzf ./artifact/composer.tar.gz -C ./
-          
-      - name: Make build folder if needed
-        if: ${{ inputs.remote_plugin_install != false }}
-        id: make_build_folder
-        run: |
-          mkdir -p ./build
 
       - name: Decompress Theme Artifacts
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
+          mkdir -p ./build
           for file in ./artifact/theme-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Decompress Plugin Artifacts
         if: ${{ inputs.plugins != '["none"]' }} # skip this step if no themes are included.
         id: decompress_plugin_artifacts
         run: |
+          mkdir -p ./build
           for file in ./artifact/plugin-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Clean Build Files/Folders
