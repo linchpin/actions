@@ -54,6 +54,11 @@ on:
         description: 'Package manager npm/yarn'
         default: 'yarn'
         type: string
+      remote_plugin_install:
+        description: 'Remotely install plugins instead of using composer'
+        required: false
+        default: false
+        type: boolean
     outputs:
       deployment_id:
         description: 'The ID of our deployment'
