@@ -33,6 +33,11 @@ on:
         default: false
         required: false
         type: boolean
+      composer_install:
+        description: 'Run composer install on the project level to install plugins'
+        default: false
+        required: false
+        type: boolean
       theme_package_manager:
         description: 'Package manager npm/yarn'
         default: 'yarn'
@@ -41,7 +46,6 @@ on:
         description: 'Package manager npm/yarn'
         default: 'yarn'
         type: string
-
       plugin_composer_install:
         description: 'Run composer install on the functionality level'
         default: false
