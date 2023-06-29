@@ -167,6 +167,7 @@ jobs:
     needs: preflight
     steps:
       - name: Checkout code
+        if: ${{ inputs.remote_plugin_install != false }}
         uses: actions/checkout@v3
         with:
           path: 'build'
@@ -175,12 +176,14 @@ jobs:
         run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
+        if: ${{ inputs.remote_plugin_install != false }}
         uses: actions/cache@v3
         with:
           path: /tmp/composer-cache
           key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
 
       - name: Composer Install
+        if: ${{ inputs.remote_plugin_install != false }}
         uses: php-actions/composer@v6
         with:
           working_dir: ./build
@@ -191,11 +194,13 @@ jobs:
         run: rm -f $GITHUB_WORKSPACE/build/auth.json
 
       - name: Compress Composer Artifact
+        if: ${{ inputs.remote_plugin_install != false }}
         id: composer_compression_artifact
         run: |
           tar -zcf composer.tar.gz ./build
 
       - name: Upload Dependencies
+        if: ${{ inputs.remote_plugin_install != false }}
         uses: actions/upload-artifact@v3
         with:
           path: composer.tar.gz
