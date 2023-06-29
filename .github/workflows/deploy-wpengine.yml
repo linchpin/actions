@@ -141,7 +141,7 @@ jobs:
           
   # Loop through all themes passed from inputs.themes
   plugin_install:
-    name: WordPress Plug Install(s)
+    name: WordPress Plugin Install(s)
     runs-on: ubuntu-latest
     needs: deploy
     steps:
