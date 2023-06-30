@@ -167,24 +167,24 @@ jobs:
           echo 'Remote Plugin Install: ${{ inputs.remote_plugin_install }}'
     
       - name: Checkout code
-        if: ${{ inputs.remote_plugin_install != false }}
+        if: ${{ inputs.remote_plugin_install == false }}
         uses: actions/checkout@v3
         with:
           path: 'build'
 
       - name: Authenticate Packagist
-        if: ${{ inputs.remote_plugin_install != false }}
+        if: ${{ inputs.remote_plugin_install == false }}
         run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
-        if: ${{ inputs.remote_plugin_install != false }}
+        if: ${{ inputs.remote_plugin_install == false }}
         uses: actions/cache@v3
         with:
           path: /tmp/composer-cache
           key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
 
       - name: Composer Install
-        if: ${{ inputs.remote_plugin_install != false }}
+        if: ${{ inputs.remote_plugin_install == false }}
         uses: php-actions/composer@v6
         with:
           working_dir: ./build
@@ -192,17 +192,17 @@ jobs:
           php_version: ${{ inputs.php_version }}
 
       - name: Remove Packagist Authentication
-        if: ${{ inputs.remote_plugin_install != false }}
+        if: ${{ inputs.remote_plugin_install == false }}
         run: rm -f $GITHUB_WORKSPACE/build/auth.json
 
       - name: Compress Composer Artifact
-        if: ${{ inputs.remote_plugin_install != false }}
+        if: ${{ inputs.remote_plugin_install == false }}
         id: composer_compression_artifact
         run: |
           tar -zcf composer.tar.gz ./build
 
       - name: Upload Dependencies
-        if: ${{ inputs.remote_plugin_install != false }}
+        if: ${{ inputs.remote_plugin_install == false }}
         uses: actions/upload-artifact@v3
         with:
           path: composer.tar.gz
@@ -404,7 +404,7 @@ jobs:
           cd ./build/.deployment/
           wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cleanup.sh
           chmod +x ./cleanup.sh
-          sh ./cleanup.sh ${{ github.event.inputs.remote_plugin_install }}
+          sh ./cleanup.sh ${{ inputs.remote_plugin_install }}
           cd ../../
           rm -rf ./build/.deployment/
 
