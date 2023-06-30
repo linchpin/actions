@@ -31,10 +31,23 @@ jobs:
       - name: Authenticate packagist.linchpin.com
         run: echo '${{ secrets.packagist_auth }}' > ./auth.json
 
-      - name: Install Composer Dependencies
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist
+
+      - name: Cleanup Auth
         run: |
-          composer update
-          rm -f ./auth.json
+          rm ./auth.json
 
       - name: PHP Lint
         uses: overtrue/phplint@7.4
