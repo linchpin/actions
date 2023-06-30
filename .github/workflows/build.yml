@@ -404,7 +404,7 @@ jobs:
           cd ./build/.deployment/
           wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cleanup.sh
           chmod +x ./cleanup.sh
-          sh ./cleanup.sh
+          sh ./cleanup.sh ${{ github.event.inputs.remote_plugin_install }}
           cd ../../
           rm -rf ./build/.deployment/
 
