@@ -91,8 +91,7 @@ jobs:
 
       - name: Get Current Version
         id: version
-        run: |
-          echo ::set-output name=current::${GITHUB_REF#refs/tags/v}
+        run: echo "current=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Get branch name
         id: branch
@@ -139,8 +138,8 @@ jobs:
       - name: Deployment Data
         id: deployment_data
         run: |
-          echo "::set-output name=mantle_deployment_id::${{ fromJson( steps.send_to_mantle.outputs.data ).post_id }}"
-          echo "::set-output name=deployment_id::${{ fromJson( steps.create_deployment.outputs.data ).id }}"
+          echo "mantle_deployment_id=${{ fromJson( steps.send_to_mantle.outputs.data ).post_id }}" >> $GITHUB_OUTPUT
+          echo "deployment_id=${{ fromJson( steps.create_deployment.outputs.data ).id }}" >> $GITHUB_OUTPUT
 
       - name: Set Deployment Status to Pending
         id: start_deployment
@@ -246,7 +245,7 @@ jobs:
       - name: Get yarn cache directory path
         if: ${{ matrix.theme != 'none' && inputs.theme_package_manager == 'yarn' }} # skip this step if no themes are included.
         id: yarn-cache-dir-path
-        run: echo "::set-output name=dir::$(yarn cache dir)"
+        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
         
       - name: Get npm cache directory
         id: npm-cache-dir
