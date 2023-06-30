@@ -320,7 +320,7 @@ jobs:
       - name: Get yarn cache directory path
         if: ${{ matrix.plugin != 'none' && inputs.package_manager == 'yarn' }} # skip this step if no plugins are included.
         id: yarn-cache-dir-path
-        run: echo "::set-output name=dir::$(yarn cache dir)"
+        run: echo "dir=$(yarn cache dir)" >> ${GITHUB_OUTPUT}
 
       - name: Get npm cache directory
         id: npm-cache-dir
@@ -378,7 +378,7 @@ jobs:
           path: ./
 
       - name: Decompress Composer Artifacts
-        if: ${{ inputs.remote_plugin_install != false }}
+        if: ${{ inputs.remote_plugin_install == false }}
         id: decompress_composer_artifacts
         run: |
           tar -xzf ./artifact/composer.tar.gz -C ./
