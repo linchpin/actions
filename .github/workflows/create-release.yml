@@ -301,11 +301,10 @@ jobs:
           sh ./cleanup.sh
           cd ../../
           rm -rf ./build/.deployment/
-
+          
       - name: Get Current Version
         id: version
-        run: |
-          echo ::set-output name=tag::${GITHUB_REF#refs/tags/v}
+        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       # Latest changelog entry is based on version. If not found, fall back to the last version
       - name: Get Latest CHANGELOG.md Entry
@@ -313,7 +312,7 @@ jobs:
         uses: mindsers/changelog-reader-action@v2
         with:
           validation_depth: 10
-          version: ${{ steps.version.current }}
+          version: ${{ steps.version.tag }}
           path: ./build/CHANGELOG.md
 
       - name: Combine Assets for Release
