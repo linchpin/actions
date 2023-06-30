@@ -191,7 +191,6 @@ jobs:
         run: rm -f $GITHUB_WORKSPACE/build/auth.json
 
       - name: Compress Composer Artifact
-        if: ${{ inputs.remote_plugin_install == false }}
         id: composer_compression_artifact
         run: |
           tar -zcf composer.tar.gz ./build
