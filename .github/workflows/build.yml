@@ -8,11 +8,6 @@ on:
         default: '["none"]'
         required: false
         type: string
-      build_theme_js:
-        description: 'Skip building theme js (typically for older build process, grunt, bower, etc)'
-        default: false
-        type: boolean
-        required: false
       plugins: # A JSON formatted array of plugins folder name(s) we need to build
         description: 'A JSON formatted array of plugin folder name(s) to build. Example: ["linchpin-functionality"]'
         default: '["none"]'
@@ -46,10 +41,6 @@ on:
         description: 'Package manager npm/yarn'
         default: 'yarn'
         type: string
-      plugin_package_manager:
-        description: 'Package manager npm/yarn'
-        default: 'yarn'
-        type: string
       package_manager:
         description: 'Package manager npm/yarn'
         default: 'yarn'
@@ -59,6 +50,11 @@ on:
         required: false
         default: false
         type: boolean
+      build_theme_js:
+        description: 'Skip building theme js (typically for older build process, grunt, bower, etc)'
+        default: false
+        type: boolean
+        required: false
     outputs:
       deployment_id:
         description: 'The ID of our deployment'
@@ -318,13 +314,13 @@ jobs:
           node-version: ${{ inputs.node_version }}
 
       - name: Get yarn cache directory path
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'yarn' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && inputs.package_manager == 'yarn' }} # skip this step if no plugins are included.
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
 
       - name: Get npm cache directory
         id: npm-cache-dir
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'npm' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && inputs.package_manager == 'npm' }} # skip this step if no plugins are included.
         shell: bash
         run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
@@ -339,7 +335,7 @@ jobs:
             ${{ runner.os }}-yarn-
 
       - name: Build Plugin with yarn
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'yarn' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && inputs.package_manager == 'yarn' }} # skip this step if no plugins are included.
         id: build-plugin
         run: |
           cd plugins/${{ matrix.plugin }}
@@ -347,7 +343,7 @@ jobs:
           yarn build
           
       - name: Build Plugin with npm
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'npm' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && inputs.package_manager == 'npm' }} # skip this step if no plugins are included.
         id: build-plugin-npm
         run: |
           cd plugins/${{ matrix.plugin }}
