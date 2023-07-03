@@ -62,8 +62,7 @@ jobs:
 
       - name: Get Current Version
         id: version
-        run: |
-          echo ::set-output name=current::${GITHUB_REF#refs/tags/v}
+        run: echo "current=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Get branch name
         id: branch
@@ -93,8 +92,7 @@ jobs:
 
       - name: Generate release zip
         id: folder
-        run: |
-          echo ::set-output name=folder::$(date +'%s')
+        run: echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT        
 
       - name: Configure SSH Connection with WP Engine
         run: |
@@ -145,9 +143,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy
     steps:
-      - name: Install jq
-        if: ${{ inputs.remote_plugin_install != false }}
-        run: sudo apt-get install jq
+# May not need this, jq may be installed by default on action environments
+#      - name: Install jq
+#        if: ${{ inputs.remote_plugin_install != false }}
+#        run: sudo apt-get install jq
         
       - name: Get WordPress plugins and themes for install
         if: ${{ inputs.remote_plugin_install != false }}
