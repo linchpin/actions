@@ -129,13 +129,18 @@ jobs:
 #        if: ${{ inputs.remote_plugin_install != false }}
 #        run: sudo apt-get install jq
         
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          path: 'build'
+        
       - name: Get WordPress plugins and themes for install
         if: ${{ inputs.remote_plugin_install != false }}
         id: parse_composer_lock
         run: |
           output_data="["
           # Read the composer.lock file and loop through each package
-          jq '.packages[]' /home/wpe-user/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/composer.lock | while read -r package; do
+          jq '.packages[]' ./build/composer.lock | while read -r package; do
             # Extract the name, type, and version from the package
             name=$(echo "$package" | jq -r '.name')
             type=$(echo "$package" | jq -r '.type')
