@@ -19,7 +19,7 @@ fi;
 # $1 = the GitHub action input remote_plugin_install
 # If we are remotely installing plugins, we need to use the composer files to know what plugins to install/update
 # When installing via composer these files are not needed in the deployment
-if [ "$1" == "true" ]; then
+if [ "$1" = "true" ]; then
   echo "Updating the .distignore to allow composer lock file"
   sed -i '/composer.json\|composer.lock/d' .distignore
 
