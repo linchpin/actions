@@ -136,7 +136,7 @@ jobs:
           output_data="["
 
           # Read the composer.lock file and loop through each package
-          jq '.packages[]' ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/composer.lock | while read -r package; do
+          jq '.packages[]' ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/composer.lock | while read -r package; do
             # Extract the name, type, and version from the package
             name=$(echo "$package" | jq -r '.name')
             type=$(echo "$package" | jq -r '.type')
