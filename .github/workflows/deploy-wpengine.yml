@@ -152,7 +152,8 @@ jobs:
               slug=${name#*/}
 
               # Add the slug, type, and version to the output data
-              output_data+="$(jq -n --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
+              output_data+="$(jq -cn --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
+
             fi
           done < <(jq -c '.packages[]' ./build/composer.lock)
 
