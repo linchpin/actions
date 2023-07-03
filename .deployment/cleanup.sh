@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script is used to clean up any files that should not deploy to the server
-# It utilizes the default.distignore unless the project provides its own
+# It utilizes the default .distignore unless the project provides its own
 
 set -eo
 
@@ -20,6 +20,7 @@ fi;
 # If we are remotely installing plugins, we need to use the composer files to know what plugins to install/update
 # When installing via composer these files are not needed in the deployment
 if [ "$1" == "true" ]; then
+  echo "Updating the .distignore to allow composer lock file"
   sed -i '/composer.json\|composer.lock/d' .distignore
 fi;
 
