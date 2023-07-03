@@ -21,21 +21,21 @@ echo "::notice::ℹ︎ Starting Maintenance Mode"
 wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/maintenance.php
 wp maintenance-mode activate
 
-echo "::notice::ℹ︎ Exporting Database"
+## echo "::notice::ℹ︎ Exporting Database"
 
 # wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
 
-echo "::notice::ℹ︎ Exporting Complete"
+## echo "::notice::ℹ︎ Exporting Complete"
 
 cd "$RELEASE_DIR"
 
-# rsync latest release to public folder.
-rsync -arxW --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
-rsync -arxW --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
+# rsync latest release to the public folder.
+rsync -arxW --inplace --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
+rsync -arxW --inplace --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
 
 # Only sync MU Plugins if we have them
 if [[ -d "${RELEASE_DIR}/mu-plugins/" ]]; then
-  rsync -arxW --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
+  rsync -arxW --inplace --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
 fi
 
 if [[ ! -f "${RELEASE_DIR}/.distignore" ]]; then
