@@ -200,6 +200,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy, plugin_install]
     steps:
+      - name: Configure SSH Connection with WP Engine
+        uses: linchpin/actions-wpengine-ssh@main
+        with:
+          ssh_user: ${{ inputs.install_name }}
+          ssh_key: ${{ secrets.deployment_ssh_key }}
+          ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
+
+      - name: Cleanup Maintenance
+        id: cleanup_maintenance
+        run: |
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-endpoint.sh && chmod +x ./endpoint.sh && bash ./endpoint.sh"
+    
+    
     # - name: Clear Page and Object Cache
       # if: ${{ always() && 'production' == inputs.environment }}
       # run: |
