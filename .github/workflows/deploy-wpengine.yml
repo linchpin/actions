@@ -139,17 +139,24 @@ jobs:
         id: parse_composer_lock
         run: |
           output_data="["
-          # Read the composer.lock file and loop through each package
-          jq -c '.packages[]' ./build/composer.lock | while IFS= read -r -d $'\0' package; do
+          # Read the composer.lock file and output each package on a new line
+          jq -c '.packages[]' ./build/composer.lock | while IFS= read -r package; do
+            echo "package: $package" # DEBUG
+
             # Extract the name, type, and version from the package
             name=$(echo "$package" | jq -r '.name')
             type=$(echo "$package" | jq -r '.type')
             version=$(echo "$package" | jq -r '.version')
 
+            echo "name: $name" # DEBUG
+            echo "type: $type" # DEBUG
+            echo "version: $version" # DEBUG
+
             # Check if the type is wordpress-plugin or wordpress-theme
             if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
               # Get the slug by splitting the name at the /
               slug=${name#*/}
+              echo "slug: $slug" # DEBUG
 
               # Add the slug, type, and version to the output data
               output_data+="$(jq -n --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
@@ -158,6 +165,7 @@ jobs:
 
           # Remove the trailing comma and close the JSON array
           output_data="${output_data%,}]"
+          echo "output_data: $output_data" # DEBUG
 
           # Set the output variable
           echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
