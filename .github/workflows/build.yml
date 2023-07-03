@@ -192,11 +192,9 @@ jobs:
 
       - name: Compress Composer Artifact
         id: composer_compression_artifact
-        run: |
-          tar -zcf composer.tar.gz ./build
+        run: tar -zcf composer.tar.gz ./build
 
       - name: Upload Dependencies
-        if: ${{ inputs.remote_plugin_install == false }}
         uses: actions/upload-artifact@v3
         with:
           path: composer.tar.gz
