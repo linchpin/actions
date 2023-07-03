@@ -66,7 +66,7 @@ jobs:
 
       - name: Get branch name
         id: branch
-        uses: tj-actions/branch-names@v5.6
+        uses: tj-actions/branch-names@v7
     
       - name: Deployment In Progress
         id: in_progress_deployment
@@ -95,30 +95,11 @@ jobs:
         run: echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT        
 
       - name: Configure SSH Connection with WP Engine
-        run: |
-          SSH_PATH="$HOME/.ssh"
-          KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
-          SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
-          mkdir -p "$SSH_PATH"
-          ssh-keyscan -t rsa "$SSH_HOST" >> "$KNOWN_HOSTS_PATH"
-          # Copy Secret Keys to container
-          echo "$SSH_KEY" > "$SSH_KEY_PRIVATE_PATH"
-          
-          chmod 700 "$SSH_PATH"
-          chmod 644 "$KNOWN_HOSTS_PATH"
-          chmod 600 "$SSH_KEY_PRIVATE_PATH"
-
-          cat >>~/.ssh/config <<END
-          Host wpengine
-            HostName $SSH_HOST
-            User $SSH_USER
-            IdentityFile $SSH_KEY_PRIVATE_PATH
-            StrictHostKeyChecking no
-          END
-        env:
-          SSH_USER: ${{ inputs.install_name }}
-          SSH_KEY: ${{ secrets.deployment_ssh_key }}
-          SSH_HOST: "${{ inputs.install_name }}.ssh.wpengine.net"
+        uses: linchpin/actions-wpengine-ssh@main
+        with:
+          ssh_user: ${{ inputs.install_name }}
+          ssh_key: ${{ secrets.deployment_ssh_key }}
+          ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
 
       - name: Upload Assets
         id: upload_assets
@@ -178,30 +159,11 @@ jobs:
           echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
 
       - name: Configure SSH Connection with WP Engine
-        run: |
-           SSH_PATH="$HOME/.ssh"
-           KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
-           SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
-           mkdir -p "$SSH_PATH"
-           ssh-keyscan -t rsa "$SSH_HOST" >> "$KNOWN_HOSTS_PATH"
-           # Copy Secret Keys to container
-           echo "$SSH_KEY" > "$SSH_KEY_PRIVATE_PATH"
-
-           chmod 700 "$SSH_PATH"
-           chmod 644 "$KNOWN_HOSTS_PATH"
-           chmod 600 "$SSH_KEY_PRIVATE_PATH"
-
-           cat >>~/.ssh/config <<END
-           Host wpengine
-             HostName $SSH_HOST
-             User $SSH_USER
-             IdentityFile $SSH_KEY_PRIVATE_PATH
-             StrictHostKeyChecking no
-           END
-        env:
-          SSH_USER: ${{ inputs.install_name }}
-          SSH_KEY: ${{ secrets.deployment_ssh_key }}
-          SSH_HOST: "${{ inputs.install_name }}.ssh.wpengine.net"    
+        uses: linchpin/actions-wpengine-ssh@main
+        with:
+          ssh_user: ${{ inputs.install_name }}
+          ssh_key: ${{ secrets.deployment_ssh_key }}
+          ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net" 
 
       - name: Install WordPress plugins remotely
         run: |
