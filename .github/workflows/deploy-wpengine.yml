@@ -159,6 +159,10 @@ jobs:
           # Remove the trailing comma and close the JSON array
           output_data="${output_data%,}]"
 
+          # Replace newlines and percent signs in the output
+          output_data="${output_data//$'\n'/%0A}"
+          output_data="${output_data//%/%25}"
+
           # Set the output variable
           echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
 
