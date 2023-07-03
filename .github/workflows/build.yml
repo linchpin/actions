@@ -192,7 +192,7 @@ jobs:
 
       - name: Compress Composer Artifact
         id: composer_compression_artifact
-        run: tar -zcf composer.tar.gz ./build
+        run: tar -zvcf composer.tar.gz ./build
 
       - name: Upload Dependencies
         uses: actions/upload-artifact@v3
