@@ -141,7 +141,6 @@ jobs:
           output_data="["
           # Read the composer.lock file and loop through each package
           jq -c '.packages[]' ./build/composer.lock | while IFS= read -r -d $'\0' package; do
-          jq '.packages[]' ./build/composer.lock | while read -r package; do
             # Extract the name, type, and version from the package
             name=$(echo "$package" | jq -r '.name')
             type=$(echo "$package" | jq -r '.type')
