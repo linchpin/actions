@@ -67,14 +67,3 @@ if [[ "$subdircount" -gt 1 ]]; then
   echo "::notice::ℹ︎ Delete all old release folders"
   find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
 fi
-
-cd "$PUBLIC_DIR"
-
-# End maintenance mode, reset 
-
-echo "::notice::ℹ︎ Maintenance Complete::"
-
-rm maintenance.php
-wp maintenance-mode deactivate
-
-echo "::notice::ℹ︎ Maintenance Mode Removed::"
