@@ -22,6 +22,14 @@ fi;
 if [ "$1" == "true" ]; then
   echo "Updating the .distignore to allow composer lock file"
   sed -i '/composer.json\|composer.lock/d' .distignore
+
+  # Check the return code of the previous command
+  if [ $? -eq 0 ]; then
+    echo "Lines were successfully removed."
+  else
+    echo "Lines were not found or an error occurred."
+  fi
+
 fi;
 
 echo "➤ Copying files to $TMP_DIR"
