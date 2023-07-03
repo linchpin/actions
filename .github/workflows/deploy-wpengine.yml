@@ -175,7 +175,7 @@ jobs:
           output_data="${output_data%,}]"
 
           # Set the output variable
-          echo "::set-output name=parsed_data::$output_data"
+          echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
 
       - name: Configure SSH Connection with WP Engine
         run: |
