@@ -139,8 +139,9 @@ jobs:
         id: parse_composer_lock
         run: |
           output_data="["
+
           # Read the composer.lock file and loop through each package
-          while IFS= read -r package; do
+          jq -c '.packages[]' composer.lock | while read -r package; do
             # Extract the name, type, and version from the package
             name=$(echo "$package" | jq -r '.name')
             type=$(echo "$package" | jq -r '.type')
@@ -153,16 +154,15 @@ jobs:
 
               # Add the slug, type, and version to the output data
               output_data+="$(jq -cn --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
-
             fi
-          done < <(jq -c '.packages[]' ./build/composer.lock)
+          done
 
-          # Remove the trailing comma and close the JSON array
-          output_data="${output_data%,}]"
+          # Remove the trailing comma if output_data is longer than 2 characters (opening and closing brackets)
+          if [ ${#output_data} -gt 2 ]; then
+              output_data="${output_data:0:-1}"
+          fi
 
-          # Replace newlines and percent signs in the output
-          output_data="${output_data//$'\n'/%0A}"
-          output_data="${output_data//%/%25}"
+          output_data+="]"
 
           # Set the output variable
           echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
