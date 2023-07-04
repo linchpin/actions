@@ -160,6 +160,27 @@ jobs:
               # Add the slug, type, and version to the output data
               output_data+="$(jq -cn --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
 
+              echo "Installing $slug"
+
+              # Check if the item is a plugin or theme and set the WP-CLI command accordingly
+              if [[ "$type" == "wordpress-plugin" ]]; then
+                wp_command="plugin"
+              elif [[ "$type" == "wordpress-theme" ]]; then
+                wp_command="theme"
+              else
+                continue
+              fi
+  
+              # Check if the plugin or theme is installed using WP-CLI
+              installed=$(ssh wpengine "wp $wp_command is-installed $slug" && echo "yes" || echo "no")
+  
+              # Install or update the plugin or theme based on the check
+              if [[ "$installed" == "no" ]]; then
+                ssh wpengine "wp $wp_command install $slug --version=$version"
+              else
+                ssh wpengine "wp $wp_command update $slug --version=$version"
+              fi
+
             fi
           done < <(jq -c '.packages[]' ./build/composer.lock)
 
@@ -175,38 +196,6 @@ jobs:
 
           # Set the output variable
           echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
-
-      - name: Install WordPress plugins remotely
-        run: |
-          parsed_data='${{ steps.parse_composer_lock.outputs.parsed_data }}'
-
-          # Loop through the JSON array
-          echo "$parsed_data" | jq '.[]' | while read -r item; do
-            slug=$(echo "$item" | jq -r '.slug')
-            type=$(echo "$item" | jq -r '.type')
-            version=$(echo "$item" | jq -r '.version')
-
-            echo "Installing $type - $slug"
-
-            # Check if the item is a plugin or theme and set the WP-CLI command accordingly
-            if [[ "$type" == "wordpress-plugin" ]]; then
-              wp_command="plugin"
-            elif [[ "$type" == "wordpress-theme" ]]; then
-              wp_command="theme"
-            else
-              continue
-            fi
-
-            # Check if the plugin or theme is installed using WP-CLI
-            installed=$(ssh wpengine "wp $wp_command is-installed $slug" && echo "yes" || echo "no")
-
-            # Install or update the plugin or theme based on the check
-            if [[ "$installed" == "no" ]]; then
-              ssh wpengine "wp $wp_command install $slug --version=$version"
-            else
-              ssh wpengine "wp $wp_command update $slug --version=$version"
-            fi
-          done
 
   status:
     name: Deploy Status
