@@ -173,13 +173,6 @@ jobs:
           # Set the output variable
           echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
 
-          # Remove the trailing comma and close the JSON array
-          output_data="${output_data%,}]"
-          echo "output_data: $output_data" # DEBUG
-
-          # Set the output variable
-          echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
-
       - name: Install WordPress plugins remotely
         run: |
           parsed_data='${{ steps.parse_composer_lock.outputs.parsed_data }}'
