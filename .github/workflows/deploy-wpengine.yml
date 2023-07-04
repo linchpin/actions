@@ -91,8 +91,7 @@ jobs:
       - name: Generate release zip
         id: folder
         run: |
-          folder=$(date +'%s')
-          mv ./release.zip ./$folder.zip     
+          echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT  
 
       - name: Configure SSH Connection with WP Engine
         uses: linchpin/actions-wpengine-ssh@main
@@ -104,6 +103,7 @@ jobs:
       - name: Upload Assets
         id: upload_assets
         run: |
+          mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
           ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
           rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" wpengine:~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
 
