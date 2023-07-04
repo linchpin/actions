@@ -170,6 +170,9 @@ jobs:
 
           output_data+="]"
 
+          # Print the output data for debug usage
+          echo "$output_data"
+
           # Set the output variable
           echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
 
@@ -182,6 +185,8 @@ jobs:
             slug=$(echo "$item" | jq -r '.slug')
             type=$(echo "$item" | jq -r '.type')
             version=$(echo "$item" | jq -r '.version')
+
+            echo "Installing $type - $slug"
 
             # Check if the item is a plugin or theme and set the WP-CLI command accordingly
             if [[ "$type" == "wordpress-plugin" ]]; then
