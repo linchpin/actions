@@ -16,7 +16,7 @@ export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
 cd "$PUBLIC_DIR"
 
 # Start maintenance mode
-echo "::notice::ℹ︎ Starting Maintenance Mode"
+echo "Starting Maintenance Mode"
 
 wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/maintenance.php
 wp maintenance-mode activate
@@ -50,13 +50,13 @@ cd "$RELEASES_DIR"
 # check for any zip files all but the newest
 
 if [[ -f ./*.zip ]]; then
-  echo "::notice::ℹ︎ Found old release zips. Removing all but the newest..."
+  echo "ℹ︎ Found old release zips. Removing all but the newest..."
   ls -t *.zip | awk 'NR>2' | xargs rm -f
 fi
 
 # Check for any .gz files and remove them
 if [[ -f ./*.gz ]]; then
-  echo "::notice::ℹ︎ Found old tar.gz files. Removing all..."
+  echo "ℹ︎ Found old tar.gz files. Removing all..."
   ls -t *.gz | xargs rm -f
 fi
 
@@ -64,6 +64,6 @@ fi
 subdircount=$(find ./ -maxdepth 1 -type d | wc -l)
 
 if [[ "$subdircount" -gt 1 ]]; then
-  echo "::notice::ℹ︎ Delete all old release folders"
+  echo "ℹ︎ Delete all old release folders"
   find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
 fi
