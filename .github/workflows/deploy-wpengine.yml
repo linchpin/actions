@@ -90,7 +90,9 @@ jobs:
 
       - name: Generate release zip
         id: folder
-        run: echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT        
+        run: |
+          folder=$(date +'%s')
+          mv ./release.zip ./$folder.zip     
 
       - name: Configure SSH Connection with WP Engine
         uses: linchpin/actions-wpengine-ssh@main
@@ -102,12 +104,8 @@ jobs:
       - name: Upload Assets
         id: upload_assets
         run: |
-          SSH_PATH="$HOME/.ssh"
-          KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
-          SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
-          mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
           ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
-          rsync --rsh="ssh -p 22 -i $SSH_KEY_PRIVATE_PATH -o StrictHostKeyChecking=no" -W --progress "${{ steps.folder.outputs.folder }}.zip" "${{ inputs.install_name }}@${{ inputs.install_name }}.ssh.wpengine.net:~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
+          rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" wpengine:~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
 
       - name: Unzip Assets
         id: unzip_assets
