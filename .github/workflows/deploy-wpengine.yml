@@ -144,7 +144,23 @@ jobs:
         if: ${{ inputs.remote_plugin_install != false }}
         id: parse_composer_lock
         run: |
-          output_data="["
+
+          versionlt() {
+            [ "$1" = "$2" ] && return 1 || versionlte $1 $2
+          }
+
+          versionlte() {
+            [  "$1" = "`echo -e "$1\n$2" | sort -V | head -n1`" ]
+          }
+
+          versiongt() {
+            versionlt $1 $2 && return 1 || return 0
+          }
+
+          versiongte() {
+            versionlte $1 $2 && return 0 || return 1
+          }
+
           # Read the composer.lock file and loop through each package
           while IFS= read -r package; do
             # Extract the name, type, and version from the package
@@ -156,11 +172,6 @@ jobs:
             if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
               # Get the slug by splitting the name at the /
               slug=${name#*/}
-
-              # Add the slug, type, and version to the output data
-              output_data+="$(jq -cn --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
-
-              echo "Installing $slug"
 
               # Check if the item is a plugin or theme and set the WP-CLI command accordingly
               if [[ "$type" == "wordpress-plugin" ]]; then
@@ -179,23 +190,19 @@ jobs:
                 ssh wpengine "wp $wp_command install $slug --version=$version"
               else
                 ssh wpengine "wp $wp_command update $slug --version=$version"
+
+                # Get the current version using WP-CLI
+                  current_version=$(ssh wpengine "wp $wp_command get $slug --field=version")
+                  
+                  # Check if the current version is less than the version to be updated to
+                  if versionlt $current_version $version; then
+                    ssh wpengine "wp $wp_command update $slug --version=$version"
+                  fi
+
               fi
 
             fi
           done < <(jq -c '.packages[]' ./build/composer.lock)
-
-          # Remove the trailing comma if output_data is longer than 2 characters (opening and closing brackets)
-          if [ ${#output_data} -gt 2 ]; then
-              output_data="${output_data:0:-1}"
-          fi
-
-          output_data+="]"
-
-          # Print the output data for debug usage
-          echo "$output_data"
-
-          # Set the output variable
-          echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
 
   status:
     name: Deploy Status
