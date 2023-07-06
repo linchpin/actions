@@ -147,11 +147,8 @@ jobs:
           echo "::debug::$output"
 
           function versionlt() {
-            echo "::debug::Comparing versions $1 < $2"
-            [ "$1" = "$2" ] && return 1 || versionlte $1 $2
-            result=$?
-            echo "::debug::Comparison result $result"
-            return $result
+            echo "::debug::Comparing versions $1 < $2" >&2
+            [ "$1" = "$2" ] && echo 1 || versionlte $1 $2 && echo 0 || echo 1
           }
 
           function versionlte() {
