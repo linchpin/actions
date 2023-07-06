@@ -159,6 +159,9 @@ jobs:
             versionlte $1 $2 && return 0 || return 1
           }
 
+          # Get to the proper directory
+          cd sites/${{ inputs.install_name }}
+
           # Read the composer.lock file and loop through each package
           while IFS= read -r package; do
             # Extract the name, type, and version from the package
