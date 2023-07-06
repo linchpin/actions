@@ -188,7 +188,7 @@ jobs:
                 # php -r "exit(version_compare(\"$current_version\", \"$version\"));"
                 # comparison_result=$?
 
-                echo "::debug::Comparison Result $current_version"
+                echo "::debug::Comparison Result $slug - $current_version - $version"
 
                 # if [[ "$comparison_result" -lt 0 ]]; then
                 #  updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
