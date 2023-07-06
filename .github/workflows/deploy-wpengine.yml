@@ -181,20 +181,20 @@ jobs:
               fi
   
               # Check if the plugin or theme is installed using WP-CLI
-              installed=$(ssh wpengine "wp $wp_command is-installed $slug --path=sites/${{ inputs.install_name }}" && echo "yes" || echo "no")
+              installed=$(ssh wpengine "wp $wp_command is-installed $slug --path=/home/wpe-user/sites/${{ inputs.install_name }}" && echo "yes" || echo "no")
   
               # Install or update the plugin or theme based on the check
               if [[ "$installed" == "no" ]]; then
-                ssh wpengine "wp $wp_command install $slug --version=$version --path=sites/${{ inputs.install_name }}"
+                ssh wpengine "wp $wp_command install $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}"
               else
-                ssh wpengine "wp $wp_command update $slug --version=$version --path=sites/${{ inputs.install_name }}"
+                ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}"
 
                 # Get the current version using WP-CLI
-                  current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=sites/${{ inputs.install_name }}")
+                  current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
                   
                   # Check if the current version is less than the version to be updated to
                   if versionlt $current_version $version; then
-                    ssh wpengine "wp $wp_command update $slug --version=$version --path=sites/${{ inputs.install_name }}"
+                    ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}"
                   fi
 
               fi
