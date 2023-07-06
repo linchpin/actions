@@ -143,6 +143,9 @@ jobs:
         id: parse_composer_lock
         run: |
 
+          output=$(ssh wpengine "pwd")
+          echo "::debug::$output"
+
           versionlt() {
             [ "$1" = "$2" ] && return 1 || versionlte $1 $2
           }
@@ -182,6 +185,8 @@ jobs:
   
               # Check if the plugin or theme is installed using WP-CLI
               installed=$(ssh wpengine "wp $wp_command is-installed $slug --path=/home/wpe-user/sites/${{ inputs.install_name }}" && echo "yes" || echo "no")
+
+              echo "::debug::$slug - $installed""
   
               # Install or update the plugin or theme based on the check
               if [[ "$installed" == "no" ]]; then
