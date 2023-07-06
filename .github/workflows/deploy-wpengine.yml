@@ -143,14 +143,6 @@ jobs:
           ssh_key: ${{ secrets.deployment_ssh_key }}
           ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
 
-      - name: Run PHP Version Compare
-        run: |
-          current_version="6.0.4"
-          version="6.0.5"
-          comparison_result=$(php -r "echo (version_compare(\"$current_version\", \"$version\") + 1);")
-          echo "::debug::Comparison result: $comparison_result"
-        shell: bash
-
       - name: Get WordPress plugins and themes for install
         if: ${{ inputs.remote_plugin_install != false }}
         id: parse_composer_lock
@@ -195,6 +187,9 @@ jobs:
                 if [[ "$comparison_result" -eq 0 ]]; then
                   updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
                   echo "::debug::$updated_plugin"
+                else
+                  echo "::debug::Versions are equal. No update required for $slug."
+                  continue
                 fi
 
               fi
