@@ -187,13 +187,12 @@ jobs:
                 current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
 
                 # Run the PHP comparison and capture the exit status
-                php -r "if (version_compare(\"$current_version\", \"$version\") < 0) exit(1); elseif (version_compare(\"$current_version\", \"$version\") > 0) exit(2); else exit(0);"
-                comparison_result=$?
+                comparison_result=$(php -r "echo (version_compare(\"$current_version\", \"$version\") + 1);")
 
                 echo "::debug::Comparison Result $slug - $current_version - $version - $comparison_result"
-
-                # Check if the comparison_result is 1, meaning the current version is less than the required version
-                if [[ "$comparison_result" -eq 1 ]]; then
+                
+                # Check if the comparison_result is 0, meaning the current version is less than the required version
+                if [[ "$comparison_result" -eq 0 ]]; then
                   updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
                   echo "::debug::$updated_plugin"
                 fi
