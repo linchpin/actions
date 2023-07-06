@@ -160,7 +160,7 @@ jobs:
           }
 
           # Get to the proper directory
-          cd sites/${{ inputs.install_name }}
+          ssh wpengine "cd sites/${{ inputs.install_name }}"
 
           # Read the composer.lock file and loop through each package
           while IFS= read -r package; do
