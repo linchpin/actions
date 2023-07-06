@@ -146,7 +146,7 @@ jobs:
           output=$(ssh wpengine "pwd")
           echo "::debug::$output"
 
-          versionlt() {
+          function versionlt() {
             echo "::debug::Comparing versions $1 < $2"
             [ "$1" = "$2" ] && return 1 || versionlte $1 $2
             result=$?
@@ -154,16 +154,12 @@ jobs:
             return $result
           }
 
-          versionlte() {
-            [  "$1" = "`echo -e "$1\n$2" | sort -V | head -n1`" ]
-          }
-
-          versiongt() {
-            versionlt $1 $2 && return 1 || return 0
-          }
-
-          versiongte() {
-            versionlte $1 $2 && return 0 || return 1
+          function versionlte() {
+            if [  "$1" = "`echo -e "$1\n$2" | sort -V | head -n1`" ]; then
+              return 0
+            else
+              return 1
+            fi
           }
 
           # Read the composer.lock file and loop through each package
@@ -203,7 +199,8 @@ jobs:
                   echo "::debug::Current Version $current_version - $version"
 
                   # Check if the current version is less than the version to be updated to
-                  if versionlt $current_version $version; then
+                  versionlt_result=$(versionlt $current_version $version)
+                  if [ "$versionlt_result" -eq 0 ]; then
                     cmd="wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}"
                     echo "::debug::Running command $cmd"
                     updated_plugin=$(ssh wpengine "$cmd")
