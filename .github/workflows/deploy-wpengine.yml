@@ -147,7 +147,7 @@ jobs:
         run: |
           current_version="6.0.4"
           version="6.0.5"
-          php -r "exit(version_compare(\"$current_version\", \"$version\"));"
+          php -r "exit(version_compare(\"$current_version\", \"$version\") + 1);"
         shell: bash
 
       - name: Get WordPress plugins and themes for install
@@ -185,15 +185,17 @@ jobs:
                 # Get the current version using WP-CLI
                 current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
 
-                # php -r "exit(version_compare(\"$current_version\", \"$version\"));"
-                # comparison_result=$?
+                # Run the PHP comparison and capture the exit status
+                php -r "if (version_compare(\"$current_version\", \"$version\") < 0) exit(1); elseif (version_compare(\"$current_version\", \"$version\") > 0) exit(2); else exit(0);"
+                comparison_result=$?
 
-                echo "::debug::Comparison Result $slug - $current_version - $version"
+                echo "::debug::Comparison Result $slug - $current_version - $version - $comparison_result"
 
-                # if [[ "$comparison_result" -lt 0 ]]; then
-                #  updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
-                #  echo "::debug::$updated_plugin"
-                # fi
+                # Check if the comparison_result is 1, meaning the current version is less than the required version
+                if [[ "$comparison_result" -eq 1 ]]; then
+                  updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
+                  echo "::debug::$updated_plugin"
+                fi
 
               fi
 
