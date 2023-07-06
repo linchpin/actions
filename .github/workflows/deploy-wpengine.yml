@@ -186,19 +186,22 @@ jobs:
               # Check if the plugin or theme is installed using WP-CLI
               installed=$(ssh wpengine "wp $wp_command is-installed $slug --path=/home/wpe-user/sites/${{ inputs.install_name }}" && echo "yes" || echo "no")
 
-              echo "::debug::$slug - $installed""
+              echo "::debug::$slug - $installed"
   
               # Install or update the plugin or theme based on the check
               if [[ "$installed" == "no" ]]; then
                 ssh wpengine "wp $wp_command install $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}"
               else
-                ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}"
+                remote_command=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
+
+                echo "::debug::$remote_command"
 
                 # Get the current version using WP-CLI
                   current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
                   
                   # Check if the current version is less than the version to be updated to
                   if versionlt $current_version $version; then
+                    echo "::debug::Current Version $current_version"
                     ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}"
                   fi
 
