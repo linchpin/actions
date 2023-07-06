@@ -147,7 +147,8 @@ jobs:
         run: |
           current_version="6.0.4"
           version="6.0.5"
-          php -r "exit(version_compare(\"$current_version\", \"$version\") + 1);"
+          comparison_result=$(php -r "echo (version_compare(\"$current_version\", \"$version\") + 1);")
+          echo "::debug::Comparison result: $comparison_result"
         shell: bash
 
       - name: Get WordPress plugins and themes for install
