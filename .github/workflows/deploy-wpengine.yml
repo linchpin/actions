@@ -185,15 +185,17 @@ jobs:
                 
                 # Check if the comparison_result is 0, meaning the current version is less than the required version
                 if [[ "$comparison_result" -eq 0 ]]; then
-                  updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
-                  echo "::debug::$updated_plugin"
+                
+                  # updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
+                  echo "::debug::Should update $slug to $version"
                 else
                   echo "::debug::Versions are equal. No update required for $slug."
                   continue
                 fi
-
               fi
-
+            else
+              echo "::debug::Skipping $name because it is not a WordPress plugin or theme."
+              continue
             fi
           done < <(jq -c '.packages[]' ./build/composer.lock)
           shell: bash
