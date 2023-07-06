@@ -147,7 +147,11 @@ jobs:
           echo "::debug::$output"
 
           versionlt() {
+            echo "::debug::Comparing versions $1 < $2"
             [ "$1" = "$2" ] && return 1 || versionlte $1 $2
+            result=$?
+            echo "::debug::Comparison result $result"
+            return $result
           }
 
           versionlte() {
@@ -196,10 +200,16 @@ jobs:
                 # Get the current version using WP-CLI
                   current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
                   
-                  echo "::debug::Current Version $current_version"
+                  echo "::debug::Current Version $current_version - $version"
 
                   # Check if the current version is less than the version to be updated to
                   if versionlt $current_version $version; then
+
+                    cmd="wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}"
+                    echo "::debug::Running command $cmd"
+                    updated_plugin=$(ssh wpengine "$cmd")
+                    echo "::debug::$updated_plugin"
+
                     updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
                     echo "::debug::$updated_plugin"
                   fi
