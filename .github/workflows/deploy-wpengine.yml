@@ -204,13 +204,9 @@ jobs:
 
                   # Check if the current version is less than the version to be updated to
                   if versionlt $current_version $version; then
-
                     cmd="wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}"
                     echo "::debug::Running command $cmd"
                     updated_plugin=$(ssh wpengine "$cmd")
-                    echo "::debug::$updated_plugin"
-
-                    updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
                     echo "::debug::$updated_plugin"
                   fi
 
