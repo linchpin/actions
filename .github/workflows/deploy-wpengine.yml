@@ -190,7 +190,7 @@ jobs:
 
                   echo $(php -r "echo 'IN THE LOOOP';")
 
-                  comparison_result=$(php -r "echo version_compare('$current_version', '$version');")
+                  comparison_result=$(php -r "echo version_compare(\"$current_version\", \"$version\");")
 
                   echo "::debug::Comparison Result $comparison_result"
 
