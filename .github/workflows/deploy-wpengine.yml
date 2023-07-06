@@ -143,6 +143,13 @@ jobs:
           ssh_key: ${{ secrets.deployment_ssh_key }}
           ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
 
+      - name: Run PHP Version Compare
+        run: |
+          current_version="6.0.4"
+          version="6.0.5"
+          php -r "exit(version_compare(\"$current_version\", \"$version\"));"
+        shell: bash
+
       - name: Get WordPress plugins and themes for install
         if: ${{ inputs.remote_plugin_install != false }}
         id: parse_composer_lock
@@ -178,10 +185,10 @@ jobs:
                 # Get the current version using WP-CLI
                 current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
 
-                php -r "exit(version_compare(\"$current_version\", \"$version\"));"
-                comparison_result=$?
+                # php -r "exit(version_compare(\"$current_version\", \"$version\"));"
+                # comparison_result=$?
 
-                echo "::debug::Comparison Result $comparison_result"
+                echo "::debug::Comparison Result $current_version"
 
                 # if [[ "$comparison_result" -lt 0 ]]; then
                 #  updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
@@ -192,7 +199,7 @@ jobs:
 
             fi
           done < <(jq -c '.packages[]' ./build/composer.lock)
-          shell: bash {0}
+          shell: bash
 
   status:
     name: Deploy Status
