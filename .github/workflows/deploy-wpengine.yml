@@ -201,6 +201,7 @@ jobs:
 
             fi
           done < <(jq -c '.packages[]' ./build/composer.lock)
+          shell: bash -x
 
   status:
     name: Deploy Status
