@@ -191,10 +191,11 @@ jobs:
                   echo $(php -r "echo 'IN THE LOOOP';")
 
                   comparison_result=$(php -r "echo version_compare('$current_version', '$version');")
-                  if [ "$comparison_result" -lt 0 ]; then
-                    cmd="wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}"
-                    echo "::debug::Running command $cmd"
-                    updated_plugin=$(ssh wpengine "$cmd")
+
+                  echo "::debug::Comparison Result $comparison_result"
+
+                  if [[ "$comparison_result" -lt 0 ]]; then
+                    updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
                     echo "::debug::$updated_plugin"
                   fi
 
