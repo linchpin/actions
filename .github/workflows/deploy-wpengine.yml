@@ -178,7 +178,8 @@ jobs:
                 # Get the current version using WP-CLI
                 current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
 
-                comparison_result=$(php -r "echo version_compare(\"$current_version\", \"$version\");")
+                php -r "exit(version_compare(\"$current_version\", \"$version\"));"
+                comparison_result=$?
 
                 echo "::debug::Comparison Result $comparison_result"
 
