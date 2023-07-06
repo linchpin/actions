@@ -143,14 +143,6 @@ jobs:
           ssh_key: ${{ secrets.deployment_ssh_key }}
           ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
 
-      - name: Test PHP command
-        run: php -v
-        shell: bash
-
-      - name: Test PHP command
-        run: echo $(php -r "echo 'Hello, World!';")
-        shell: bash
-
       - name: Get WordPress plugins and themes for install
         if: ${{ inputs.remote_plugin_install != false }}
         id: parse_composer_lock
@@ -184,26 +176,22 @@ jobs:
                 installed_plugin=$(ssh wpengine "wp $wp_command install $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
               else
                 # Get the current version using WP-CLI
-                  current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
-                
-                  # Check if the current version is less than the version to be updated to
+                current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
 
-                  echo $(php -r "echo 'IN THE LOOOP';")
+                comparison_result=$(php -r "echo version_compare(\"$current_version\", \"$version\");")
 
-                  comparison_result=$(php -r "echo version_compare(\"$current_version\", \"$version\");")
+                echo "::debug::Comparison Result $comparison_result"
 
-                  echo "::debug::Comparison Result $comparison_result"
-
-                  if [[ "$comparison_result" -lt 0 ]]; then
-                    updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
-                    echo "::debug::$updated_plugin"
-                  fi
+                # if [[ "$comparison_result" -lt 0 ]]; then
+                #  updated_plugin=$(ssh wpengine "wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
+                #  echo "::debug::$updated_plugin"
+                # fi
 
               fi
 
             fi
           done < <(jq -c '.packages[]' ./build/composer.lock)
-          shell: bash
+          shell: bash {0}
 
   status:
     name: Deploy Status
