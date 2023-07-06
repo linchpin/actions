@@ -142,15 +142,19 @@ jobs:
           ssh_user: ${{ inputs.install_name }}
           ssh_key: ${{ secrets.deployment_ssh_key }}
           ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
-        
+
+      - name: Test PHP command
+        run: php -v
+        shell: bash
+
+      - name: Test PHP command
+        run: echo $(php -r "echo 'Hello, World!';")
+        shell: bash
+
       - name: Get WordPress plugins and themes for install
         if: ${{ inputs.remote_plugin_install != false }}
         id: parse_composer_lock
         run: |
-
-          output=$(ssh wpengine "pwd")
-          echo "::debug::$output"
-
           # Read the composer.lock file and loop through each package
           while IFS= read -r package; do
             # Extract the name, type, and version from the package
@@ -174,20 +178,18 @@ jobs:
   
               # Check if the plugin or theme is installed using WP-CLI
               installed=$(ssh wpengine "wp $wp_command is-installed $slug --path=/home/wpe-user/sites/${{ inputs.install_name }}" && echo "yes" || echo "no")
-
-              echo "::debug::$slug - $installed"
   
               # Install or update the plugin or theme based on the check
               if [[ "$installed" == "no" ]]; then
                 installed_plugin=$(ssh wpengine "wp $wp_command install $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
-                echo "::debug::$installed_plugin"
               else
                 # Get the current version using WP-CLI
                   current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
-                  
-                  echo "::debug::Current Version $current_version - $version"
-
+                
                   # Check if the current version is less than the version to be updated to
+
+                  echo $(php -r "echo 'IN THE LOOOP';")
+
                   comparison_result=$(php -r "echo version_compare('$current_version', '$version');")
                   if [ "$comparison_result" -lt 0 ]; then
                     cmd="wp $wp_command update $slug --version=$version --path=/home/wpe-user/sites/${{ inputs.install_name }}"
@@ -200,7 +202,7 @@ jobs:
 
             fi
           done < <(jq -c '.packages[]' ./build/composer.lock)
-          shell: bash -x
+          shell: bash
 
   status:
     name: Deploy Status
