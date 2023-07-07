@@ -191,28 +191,25 @@ jobs:
           }
 
           while read -r package; do
-
-            echo "::notice::Installing or Updating $package"
-
             # Extract the name, type, and version from the package
-          #  name=$(echo "$package" | jq -r '.name')
-          #  type=$(echo "$package" | jq -r '.type')
-          #  version=$(echo "$package" | jq -r '.version')
+            name=$(echo "$package" | jq -r '.name')
+            type=$(echo "$package" | jq -r '.type')
+            version=$(echo "$package" | jq -r '.version')
 
-          #  echo "::notice::Installing or Updating $name $type $version"
+            # echo "::notice::Installing or Updating $name $type $version"
 
             # Check if the type is wordpress-plugin or wordpress-theme
-           # if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
+            if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
               # Get the slug by splitting the name at the /
-            #  slug=${name#*/}
+              slug=${name#*/}
 
               # Parse the command type based on the package type in composer.lock
-            #  theme_or_plugin=${type#wordpress-}
+              theme_or_plugin=${type#wordpress-}
   
             #  echo "Checking if $slug is installed"
               # Check if the plugin or theme is installed using WP-CLI
-            #  installed=$(ssh_wpengine_wp "$theme_or_plugin is-installed $slug")
-            #  echo "Installed: $installed"
+              installed=$(ssh_wpengine_wp "$theme_or_plugin is-installed $slug")
+              echo "Installed: $installed"
   
               # Install or update the plugin or theme based on the check
               # if [[ "$installed" == "no" ]]; then
@@ -236,9 +233,9 @@ jobs:
                 #  echo "Versions are equal or your. No update required for $slug."
                 # fi
             #  fi
-           # else
+            # else
             #  echo "Skipping $name because it is not a WordPress plugin or theme."
-          #  fi
+            fi
           done < <(jq -c '.packages[]' ./build/composer.lock)
 
 
