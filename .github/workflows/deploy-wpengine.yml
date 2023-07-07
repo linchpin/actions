@@ -202,43 +202,43 @@ jobs:
             echo "::notice::Installing or Updating $name $type $version"
 
             # Check if the type is wordpress-plugin or wordpress-theme
-            if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
+           # if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
               # Get the slug by splitting the name at the /
-              slug=${name#*/}
+            #  slug=${name#*/}
 
               # Parse the command type based on the package type in composer.lock
-              theme_or_plugin=${type#wordpress-}
+            #  theme_or_plugin=${type#wordpress-}
   
-              echo "Checking if $slug is installed"
+            #  echo "Checking if $slug is installed"
               # Check if the plugin or theme is installed using WP-CLI
               installed=$(ssh_wpengine_wp "$theme_or_plugin is-installed $slug")
               echo "Installed: $installed"
   
               # Install or update the plugin or theme based on the check
-              if [[ "$installed" == "no" ]]; then
-                echo "Try To install $slug at version $version"
-                installed_plugin=$(ssh_wpengine_wp "$theme_or_plugin install $slug $version")
-              else
+              # if [[ "$installed" == "no" ]]; then
+              #  echo "Try To install $slug at version $version"
+              #  installed_plugin=$(ssh_wpengine_wp "$theme_or_plugin install $slug $version")
+              #else
                 # Get the current version using WP-CLI
-                echo "Fetching current version for $slug"
-                current_version=$(ssh wpengine "wp $theme_or_plugin get $slug --field=version --path=$install_path")
+              #  echo "Fetching current version for $slug"
+              # current_version=$(ssh wpengine "wp $theme_or_plugin get $slug --field=version --path=$install_path")
                 
-                echo "Comparing versions: $current_version vs $version"
+              #  echo "Comparing versions: $current_version vs $version"
                 # Check if the comparison_result is 0, meaning the current version is less than the required version
 
-                comparison_result=$(php -r "echo version_compare('$current_version', '$version');")
-                echo "Comparison Result: $comparison_result"
+                # comparison_result=$(php -r "echo version_compare('$current_version', '$version');")
+                # echo "Comparison Result: $comparison_result"
 
-                if [[ "$comparison_result" == "-1" ]]; then
-                  echo "Update $slug to $version"
-                  updated_plugin=$(ssh_wpengine_wp "$wp_command update $slug $version")
-                else
-                  echo "Versions are equal or your. No update required for $slug."
-                fi
-              fi
-            else
-              echo "Skipping $name because it is not a WordPress plugin or theme."
-            fi
+                # if [[ "$comparison_result" == "-1" ]]; then
+                #  echo "Update $slug to $version"
+                #  updated_plugin=$(ssh_wpengine_wp "$wp_command update $slug $version")
+                # else
+                #  echo "Versions are equal or your. No update required for $slug."
+                # fi
+            #  fi
+           # else
+            #  echo "Skipping $name because it is not a WordPress plugin or theme."
+          #  fi
           done < <(jq -c '.packages[]' ./build/composer.lock)
 
 
