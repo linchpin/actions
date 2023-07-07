@@ -148,7 +148,6 @@ jobs:
         shell: bash
         run: |
           # Read the composer.lock file and loop through each package
-
           total_plugins=$(jq '.packages | length' ./build/composer.lock)
 
           echo "::notice::Potentially Installing or Updating $total_plugins Plugins,Packages or Themes"
@@ -197,7 +196,7 @@ jobs:
             fi
           }
 
-          jq -c '.packages[]' ./build/composer.lock | while read -r package; do
+          while read -r package; do
             # Extract the name, type, and version from the package
             name=$(echo "$package" | jq -r '.name')
             type=$(echo "$package" | jq -r '.type')
@@ -235,7 +234,7 @@ jobs:
             else
               echo "Skipping $name because it is not a WordPress plugin or theme."
             fi
-          done
+          done < <(jq -c '.packages[]' ./build/composer.lock)
 
 
   status:
