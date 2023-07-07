@@ -146,6 +146,7 @@ jobs:
       - name: Get WordPress plugins and themes for install
         if: ${{ inputs.remote_plugin_install != false }}
         id: parse_composer_lock
+        shell: bash
         run: |
           # Read the composer.lock file and loop through each package
           while IFS= read -r package; do
@@ -198,7 +199,7 @@ jobs:
               continue
             fi
           done < <(jq -c '.packages[]' ./build/composer.lock)
-          shell: bash
+
 
   status:
     name: Deploy Status
