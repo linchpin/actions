@@ -151,7 +151,7 @@ jobs:
 
           total_plugins=$(jq '.packages | length' ./build/composer.lock)
 
-          echo "::notice::Installing or Updating $total_plugins Plugin(s)"
+          echo "::notice::Potentially Installing or Updating $total_plugins Plugins,Packages or Themes"
 
           versionlt() {
             [ "$1" = "$2" ] && return 1 || versionlte $1 $2
@@ -188,6 +188,8 @@ jobs:
             name=$(echo "$package" | jq -r '.name')
             type=$(echo "$package" | jq -r '.type')
             version=$(echo "$package" | jq -r '.version')
+
+            echo "::notice::Installing or Updating $name $type $version"
 
             # Check if the type is wordpress-plugin or wordpress-theme
             if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
