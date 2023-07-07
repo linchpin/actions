@@ -152,7 +152,7 @@ jobs:
 
           total_plugins=$(jq '.packages | length' ./build/composer.lock)
 
-          echo "::notice::Installing $total_plugins Plugin(s)"
+          echo "::notice::Installing or Updating $total_plugins Plugin(s)"
 
           versionlt() {
             [ "$1" = "$2" ] && return 1 || versionlte $1 $2
@@ -203,7 +203,7 @@ jobs:
               # Install or update the plugin or theme based on the check
               if [[ "$installed" == "no" ]]; then
                 installed_plugin=$(ssh_wpengine_wp_plugin "$wp_command install $slug $version")
-                else
+              else
                 # Get the current version using WP-CLI
                 current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
 
