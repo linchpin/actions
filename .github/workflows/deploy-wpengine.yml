@@ -154,7 +154,7 @@ jobs:
         run: |
           # Read the composer.lock file and loop through each package
           total_plugins=$(jq '.packages | length' ./build/composer.lock)
-          install_path="/home/wpe-user/sites/${{ inputs.install_name }}""
+          install_path="/home/wpe-user/sites/${{ inputs.install_name }}"
 
           echo "::notice::Potentially Installing or Updating $total_plugins Plugins,Packages or Themes"
 
