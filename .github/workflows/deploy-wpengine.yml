@@ -169,19 +169,17 @@ jobs:
 
             # Construct the full command based on whether wp_command is "is-installed" or version is blank
             local full_command
-            if [[ $wp_command == "is-installed" || -z $version ]]; then
+            if [[ -z $version ]]; then
                 full_command="wp $type $wp_command $slug $path"
             else
                 full_command="wp $type $wp_command $slug --version=$version $path"
             fi
 
-            echo "::notice::Calling: $full_command"
-
             # Execute the command and return the result
             ssh wpengine "$full_command"
             local exit_code=$?
 
-            if [[ $wp_command == "is-installed" ]]; then
+            if [[ "$wp_command" == "is-installed" ]]; then
               if [[ $exit_code == 0 ]]; then
                 echo "yes"
               else
@@ -219,11 +217,11 @@ jobs:
               # Install or update the plugin or theme based on the check
               if [[ "$installed" == "no" ]]; then
                 echo "Try To install $slug at version $version"
-                installed_plugin=$(ssh_wpengine_wp "$wp_command install $slug $version")
+                installed_plugin=$(ssh_wpengine_wp "$theme_or_plugin install $slug $version")
               else
                 # Get the current version using WP-CLI
                 echo "Fetching current version for $slug"
-                current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=$install_path")
+                current_version=$(ssh wpengine "wp $theme_or_plugin get $slug --field=version --path=$install_path")
                 
                 echo "Comparing versions: $current_version vs $version"
                 # Check if the comparison_result is 0, meaning the current version is less than the required version
