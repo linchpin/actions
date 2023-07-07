@@ -175,6 +175,8 @@ jobs:
                 full_command="wp $type $wp_command $slug --version=$version $path"
             fi
 
+            echo "::notice::Calling: $full_command"
+
             # Execute the command and return the result
             ssh wpengine "$full_command"
             local exit_code=$?
@@ -186,7 +188,7 @@ jobs:
                 echo "no"
               fi
             else
-              return $exit_code
+              echo $exit_code
             fi
           }
 
