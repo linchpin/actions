@@ -177,7 +177,7 @@ jobs:
             echo "$result"
           }
 
-          jq '.packages[]' ./build/composer.lock | while read -r package; do
+          jq -c '.packages[]' ./build/composer.lock | while read -r package; do
             # Extract the name, type, and version from the package
             name=$(echo "$package" | jq -r '.name')
             type=$(echo "$package" | jq -r '.type')
