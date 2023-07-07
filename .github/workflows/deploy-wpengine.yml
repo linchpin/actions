@@ -197,6 +197,9 @@ jobs:
           }
 
           while read -r package; do
+
+            echo "::notice::Installing or Updating $package"
+
             # Extract the name, type, and version from the package
             name=$(echo "$package" | jq -r '.name')
             type=$(echo "$package" | jq -r '.type')
@@ -212,8 +215,10 @@ jobs:
               # Parse the command type based on the package type in composer.lock
               wp_command=${type#wordpress-}
   
+              echo "Checking if $slug is installed"
               # Check if the plugin or theme is installed using WP-CLI
               installed=$(ssh_wpengine_wp_plugin "$wp_command is-installed $slug")
+              echo "Installed: $installed"
   
               # Install or update the plugin or theme based on the check
               if [[ "$installed" == "no" ]]; then
@@ -221,14 +226,17 @@ jobs:
                 installed_plugin=$(ssh_wpengine_wp_plugin "$wp_command install $slug $version")
               else
                 # Get the current version using WP-CLI
+                echo "Fetching current version for $slug"
                 current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
                 
+                echo "Comparing versions: $current_version vs $version"
                 # Check if the comparison_result is 0, meaning the current version is less than the required version
                 if versionlt $current_version $version; then
                   echo "Update $slug to $version"
                   updated_plugin=$(ssh_wpengine_wp_plugin "$wp_command update $slug $version")
                 else
                   echo "Versions are equal. No update required for $slug."
+                  continue
                 fi
               fi
             else
