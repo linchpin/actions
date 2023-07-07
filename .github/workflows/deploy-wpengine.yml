@@ -196,20 +196,15 @@ jobs:
               # Get the slug by splitting the name at the /
               slug=${name#*/}
 
-              # Check if the item is a plugin or theme and set the WP-CLI command accordingly
-              if [[ "$type" == "wordpress-plugin" ]]; then
-                wp_command="plugin"
-              elif [[ "$type" == "wordpress-theme" ]]; then
-                wp_command="theme"
-              else
-                continue
-              fi
+              # Parse the command type based on the package type in composer.lock
+              wp_command=${type#wordpress-}
   
               # Check if the plugin or theme is installed using WP-CLI
               installed=$(ssh_wpengine_wp_plugin "$wp_command is-installed $slug" && echo "yes" || echo "no")
   
               # Install or update the plugin or theme based on the check
               if [[ "$installed" == "no" ]]; then
+                echo "Try To install $slug at version $version"
                 installed_plugin=$(ssh_wpengine_wp_plugin "$wp_command install $slug $version")
               else
                 # Get the current version using WP-CLI
@@ -217,9 +212,8 @@ jobs:
                 
                 # Check if the comparison_result is 0, meaning the current version is less than the required version
                 if versionlt $current_version $version; then
-                  updated_plugin=$(ssh_wpengine_wp_plugin "$wp_command update $slug $version")
-
                   echo "Update $slug to $version"
+                  updated_plugin=$(ssh_wpengine_wp_plugin "$wp_command update $slug $version")
                 else
                   echo "Versions are equal. No update required for $slug."
                   continue
