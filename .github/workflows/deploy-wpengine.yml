@@ -157,14 +157,6 @@ jobs:
 
           echo "::notice::Potentially Installing or Updating $total_plugins Plugins,Packages or Themes"
 
-          versionlt() {
-            [ "$1" = "$2" ] && return 1 || versionlte $1 $2
-          }
-          
-          versionlte() {
-            [  "$1" = "`echo -e "$1\n$2" | sort -V | head -n1`" ]
-          }
-
           ssh_wpengine_wp_plugin() {
             # Use local variables to store the function arguments
             local type=$1 # wordpress-plugin or wordpress-theme
@@ -238,7 +230,7 @@ jobs:
                 # Check if the comparison_result is 0, meaning the current version is less than the required version
 
                 comparison_result=$(php -r "echo version_compare('$current_version', '$version');")
-                if [ "$comparison_result" -lt 0 ]]; then
+                if [[ "$comparison_result" -lt 0 ]]; then
                   echo "Update $slug to $version"
                   updated_plugin=$(ssh_wpengine_wp_plugin "$wp_command update $slug $version")
                 else
