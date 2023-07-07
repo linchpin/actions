@@ -135,6 +135,11 @@ jobs:
             composer.lock
           sparse-checkout-cone-mode: false
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
       - name: Configure SSH Connection with WP Engine
         uses: linchpin/actions-wpengine-ssh@main
         with:
@@ -231,11 +236,13 @@ jobs:
                 
                 echo "Comparing versions: $current_version vs $version"
                 # Check if the comparison_result is 0, meaning the current version is less than the required version
-                if versionlt $current_version $version; then
+
+                comparison_result=$(php -r "echo version_compare('$current_version', '$version');")
+                if [ "$comparison_result" -lt 0 ]]; then
                   echo "Update $slug to $version"
                   updated_plugin=$(ssh_wpengine_wp_plugin "$wp_command update $slug $version")
                 else
-                  echo "Versions are equal. No update required for $slug."
+                  echo "Versions are equal or your. No update required for $slug."
                   continue
                 fi
               fi
