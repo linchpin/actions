@@ -179,8 +179,22 @@ jobs:
             fi
 
             # Execute the command and return the result
-            local result=$(ssh wpengine "$full_command")
-            echo "$result"
+            ssh wpengine "$full_command"
+            local exit_code=$?
+
+            if [[ $wp_command == "is-installed" ]]; then
+              if [[ $exit_code == 0 ]]; then
+                echo "yes"
+              else
+                echo "no"
+              fi
+            else
+              if [[ $exit_code == 0 ]]; then
+                echo "Command executed successfully."
+              else
+                echo "Command failed."
+              fi
+            fi
           }
 
           jq -c '.packages[]' ./build/composer.lock | while read -r package; do
@@ -200,7 +214,7 @@ jobs:
               wp_command=${type#wordpress-}
   
               # Check if the plugin or theme is installed using WP-CLI
-              installed=$(ssh_wpengine_wp_plugin "$wp_command is-installed $slug" && echo "yes" || echo "no")
+              installed=$(ssh_wpengine_wp_plugin "$wp_command is-installed $slug")
   
               # Install or update the plugin or theme based on the check
               if [[ "$installed" == "no" ]]; then
@@ -216,12 +230,10 @@ jobs:
                   updated_plugin=$(ssh_wpengine_wp_plugin "$wp_command update $slug $version")
                 else
                   echo "Versions are equal. No update required for $slug."
-                  continue
                 fi
               fi
             else
               echo "Skipping $name because it is not a WordPress plugin or theme."
-              continue
             fi
           done
 
