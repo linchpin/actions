@@ -230,12 +230,13 @@ jobs:
                 # Check if the comparison_result is 0, meaning the current version is less than the required version
 
                 comparison_result=$(php -r "echo version_compare('$current_version', '$version');")
-                if [[ "$comparison_result" -lt 0 ]]; then
+                echo "Comparison Result: $comparison_result"
+
+                if [[ "$comparison_result" == "-1" ]]; then
                   echo "Update $slug to $version"
                   updated_plugin=$(ssh_wpengine_wp_plugin "$wp_command update $slug $version")
                 else
                   echo "Versions are equal or your. No update required for $slug."
-                  continue
                 fi
               fi
             else
