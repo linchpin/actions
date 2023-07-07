@@ -212,20 +212,20 @@ jobs:
               else
                 # Get the current version using WP-CLI
                 current_version=$(ssh wpengine "wp $wp_command get $slug --field=version --path=/home/wpe-user/sites/${{ inputs.install_name }}")
-
-                echo "::debug::Comparison Result $slug - $current_version - $version - $comparison_result"
                 
                 # Check if the comparison_result is 0, meaning the current version is less than the required version
                 if versionlt $current_version $version; then
                   updated_plugin=$(ssh_wpengine_wp_plugin "$wp_command update $slug $version")
 
-                  echo "::debug::Should update $slug to $version"
+                  echo "Update $slug to $version"
                 else
-                  echo "::debug::Versions are equal. No update required for $slug."
+                  echo "Versions are equal. No update required for $slug."
+                  continue
                 fi
               fi
             else
-              echo "::debug::Skipping $name because it is not a WordPress plugin or theme."
+              echo "Skipping $name because it is not a WordPress plugin or theme."
+              continue
             fi
           done
 
