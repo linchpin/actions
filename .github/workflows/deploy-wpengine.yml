@@ -175,11 +175,11 @@ jobs:
                 full_command="wp $type $wp_command $slug --version=$version $path"
             fi
         
-            echo "Executing command: $full_command" # Debug line
+            echo "Executing command: $full_command" >&2 # Debug line
             local output=$(ssh wpengine "$full_command")
             local exit_code=$?
         
-            echo "Exit code: $exit_code" # Debug line
+            echo "Exit code: $exit_code" >&2 # Debug line
         
             if [[ $wp_command == "is-installed" ]]; then
               if [[ $exit_code == 0 ]]; then
