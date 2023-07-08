@@ -164,9 +164,9 @@ jobs:
             local wp_command=$2
             local slug=$3
             local version=$4
-        
+
             local path="--path=$install_path"
-        
+
             # Construct the full command based on whether wp_command is "is-installed" or version is blank
             local full_command
             if [[ -z $version ]]; then
@@ -174,22 +174,25 @@ jobs:
             else
                 full_command="wp $type $wp_command $slug --version=$version $path"
             fi
-        
+
             echo "Executing command: $full_command" >&2 # Debug line
-            local output=$(ssh wpengine "$full_command")
+            local output
+            output=$(ssh wpengine "$full_command")
             local exit_code=$?
-        
+
             echo "Exit code: $exit_code" >&2 # Debug line
-        
+
             if [[ $wp_command == "is-installed" ]]; then
               if [[ $exit_code == 0 ]]; then
-                echo "yes"
+                output="yes"
               else
-                echo "no"
+                output="no"
               fi
             else
-              echo $exit_code
+              output=$exit_code
             fi
+
+            echo $output
           }
 
           while read -r package; do
