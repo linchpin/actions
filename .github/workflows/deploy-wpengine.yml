@@ -164,9 +164,9 @@ jobs:
             local wp_command=$2
             local slug=$3
             local version=$4
-
+        
             local path="--path=$install_path"
-
+        
             # Construct the full command based on whether wp_command is "is-installed" or version is blank
             local full_command
             if [[ -z $version ]]; then
@@ -174,12 +174,14 @@ jobs:
             else
                 full_command="wp $type $wp_command $slug --version=$version $path"
             fi
-
-            # Execute the command and return the result
-            ssh wpengine "$full_command"
+        
+            echo "Executing command: $full_command" # Debug line
+            local output=$(ssh wpengine "$full_command")
             local exit_code=$?
-
-            if [[ "$wp_command" == "is-installed" ]]; then
+        
+            echo "Exit code: $exit_code" # Debug line
+        
+            if [[ $wp_command == "is-installed" ]]; then
               if [[ $exit_code == 0 ]]; then
                 echo "yes"
               else
@@ -206,7 +208,7 @@ jobs:
               # Parse the command type based on the package type in composer.lock
               theme_or_plugin=${type#wordpress-}
   
-            #  echo "Checking if $slug is installed"
+              # echo "Checking if $slug is installed"
               # Check if the plugin or theme is installed using WP-CLI
               installed=$(ssh_wpengine_wp "$theme_or_plugin is-installed $slug")
               echo "Installed: $installed"
