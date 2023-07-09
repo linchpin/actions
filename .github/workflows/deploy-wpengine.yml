@@ -147,11 +147,14 @@ jobs:
           ssh_key: ${{ secrets.deployment_ssh_key }}
           ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
 
-      - name: Get WordPress plugins and themes for install
+      - name: Remote Plugin Install
         if: ${{ inputs.remote_plugin_install != false }}
         id: parse_composer_lock
         shell: bash
-        run: bash .deployment/remote-plugin-install.sh ${{ inputs.install_name }}
+        run: |
+          wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/feature/maybe-skip-composer/.deployment/remote-plugin-install.sh
+          chmod +x ./remote-plugin-install.sh
+          sh ./remote-plugin-install.sh ${{ inputs.install_name }}
 
 
   status:
