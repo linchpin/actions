@@ -116,7 +116,7 @@ jobs:
         id: execute_bash
         run: |
           ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/"
-          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
 
 
   # Loop through all themes passed from inputs.themes
@@ -152,7 +152,7 @@ jobs:
         id: parse_composer_lock
         shell: bash
         run: |
-          wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/feature/maybe-skip-composer/.deployment/remote-plugin-install.sh
+          wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/remote-plugin-install.sh
           chmod +x ./remote-plugin-install.sh
           bash ./remote-plugin-install.sh ${{ inputs.install_name }}
 
@@ -172,7 +172,7 @@ jobs:
       - name: Cleanup Maintenance
         id: cleanup_maintenance
         run: |
-          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O endpoint.sh https://raw.githubusercontent.com/linchpin/actions/feature/maybe-skip-composer/.deployment/wpengine-endpoint.sh && chmod +x ./endpoint.sh && bash ./endpoint.sh"
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O endpoint.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/wpengine-endpoint.sh && chmod +x ./endpoint.sh && bash ./endpoint.sh"
     
     # - name: Clear Page and Object Cache
       # if: ${{ always() && 'production' == inputs.environment }}
