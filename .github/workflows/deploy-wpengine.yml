@@ -34,6 +34,11 @@ on:
         description: 'Workflow Run ID to get artifacts from'
         required: true
         type: string
+      remote_plugin_install:
+        description: 'Remotely install plugins instead of using composer'
+        required: false
+        default: false
+        type: boolean
     secrets:
       deployment_ssh_key:
         description: 'WP Engine SSH Key needed for deployment'
@@ -50,6 +55,17 @@ jobs:
       name: ${{ inputs.environment }}
       url: ${{ inputs.site_url }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get Current Version
+        id: version
+        run: echo "current=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Get branch name
+        id: branch
+        uses: tj-actions/branch-names@v7
+    
       - name: Deployment In Progress
         id: in_progress_deployment
         uses: octokit/request-action@v2.x
@@ -75,55 +91,93 @@ jobs:
       - name: Generate release zip
         id: folder
         run: |
-          echo ::set-output name=folder::$(date +'%s')
+          echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT  
 
       - name: Configure SSH Connection with WP Engine
-        run: |
-          SSH_PATH="$HOME/.ssh"
-          KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
-          SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
-          mkdir -p "$SSH_PATH"
-          ssh-keyscan -t rsa "$SSH_HOST" >> "$KNOWN_HOSTS_PATH"
-          # Copy Secret Keys to container
-          echo "$SSH_KEY" > "$SSH_KEY_PRIVATE_PATH"
-          
-          chmod 700 "$SSH_PATH"
-          chmod 644 "$KNOWN_HOSTS_PATH"
-          chmod 600 "$SSH_KEY_PRIVATE_PATH"
-
-          cat >>~/.ssh/config <<END
-          Host wpengine
-            HostName $SSH_HOST
-            User $SSH_USER
-            IdentityFile $SSH_KEY_PRIVATE_PATH
-            StrictHostKeyChecking no
-          END
-        env:
-          SSH_USER: ${{ inputs.install_name }}
-          SSH_KEY: ${{ secrets.deployment_ssh_key }}
-          SSH_HOST: "${{ inputs.install_name }}.ssh.wpengine.net"
+        uses: linchpin/actions-wpengine-ssh@main
+        with:
+          ssh_user: ${{ inputs.install_name }}
+          ssh_key: ${{ secrets.deployment_ssh_key }}
+          ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
 
       - name: Upload Assets
         id: upload_assets
         run: |
-          SSH_PATH="$HOME/.ssh"
-          KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
-          SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
           mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
           ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
-          rsync --rsh="ssh -p 22 -i $SSH_KEY_PRIVATE_PATH -o StrictHostKeyChecking=no" -zrxc --progress "${{ steps.folder.outputs.folder }}.zip" "${{ inputs.install_name }}@${{ inputs.install_name }}.ssh.wpengine.net:~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
+          rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" wpengine:~/sites/"${{ inputs.install_name }}"/"${{ inputs.deployment_path }}"
 
-      - name: Execute bash scripts on server
-        id: execute_bash
+      - name: Unzip Assets
+        id: unzip_assets
         run: |
           ssh wpengine "unzip -o -q ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
-          ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/"
-          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
 
-      # - name: Clear Page and Object Cache
-        # if: ${{ always() && 'production' == inputs.environment }}
-        # run: |
-          # ssh wpengine "cd ~/sites/${{ inputs.install_name }} && wp cache flush && wp page-cache flush"
+      - name: Execute Commands On Server
+        id: execute_bash
+        run: |
+          ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/"
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
+
+
+  # Loop through all themes passed from inputs.themes
+  plugin_install:
+    name: WordPress Plugin Install(s)
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+
+      # When installing the plugins we only need the lock file
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          path: 'build'
+          sparse-checkout: |
+            composer.lock
+          sparse-checkout-cone-mode: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Configure SSH Connection with WP Engine
+        uses: linchpin/actions-wpengine-ssh@main
+        with:
+          ssh_user: ${{ inputs.install_name }}
+          ssh_key: ${{ secrets.deployment_ssh_key }}
+          ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
+
+      - name: Remote Plugin Install
+        if: ${{ inputs.remote_plugin_install != false }}
+        id: parse_composer_lock
+        shell: bash
+        run: |
+          wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/feature/maybe-skip-composer/.deployment/remote-plugin-install.sh
+          chmod +x ./remote-plugin-install.sh
+          bash ./remote-plugin-install.sh ${{ inputs.install_name }}
+
+
+  status:
+    name: Deploy Status
+    runs-on: ubuntu-latest
+    needs: [deploy, plugin_install]
+    steps:
+      - name: Configure SSH Connection with WP Engine
+        uses: linchpin/actions-wpengine-ssh@main
+        with:
+          ssh_user: ${{ inputs.install_name }}
+          ssh_key: ${{ secrets.deployment_ssh_key }}
+          ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
+
+      - name: Cleanup Maintenance
+        id: cleanup_maintenance
+        run: |
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O endpoint.sh https://raw.githubusercontent.com/linchpin/actions/feature/maybe-skip-composer/.deployment/wpengine-endpoint.sh && chmod +x ./endpoint.sh && bash ./endpoint.sh"
+    
+    # - name: Clear Page and Object Cache
+      # if: ${{ always() && 'production' == inputs.environment }}
+      # run: |
+        # ssh wpengine "cd ~/sites/${{ inputs.install_name }} && wp cache flush && wp page-cache flush"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
@@ -148,7 +202,7 @@ jobs:
           repo: ${{ github.repository }}
           deployment: ${{ inputs.deployment }}
           environment: ${{ inputs.environment }}
-          environment_url: ${{ needs.preflight.outputs.site_url }}
+          environment_url: ${{ inputs.site_url }}
           log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           state: failure
           mediaType: '{"previews": ["flash", "ant-man"]}'

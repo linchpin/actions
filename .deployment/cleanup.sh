@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# This script is used to cleanup any files that should not deploy to the server
-# It utilizes the default.distignore unless the project provides it's own
+# This script is used to clean up any files that should not deploy to the server
+# It utilizes the default .distignore unless the project provides its own
 
 set -eo
 
@@ -14,6 +14,22 @@ cd "$GITHUB_WORKSPACE/build"
 if [ ! -e "$GITHUB_WORKSPACE/build/.distignore" ]; then
   echo "::warning::ℹ︎ Loading default .distignore from github.com/linchpin/actions, you should add one to your project"
   wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/main/default.distignore
+fi;
+
+# $1 = the GitHub action input remote_plugin_install
+# If we are remotely installing plugins, we need to use the composer files to know what plugins to install/update
+# When installing via composer these files are not needed in the deployment
+if [ "$1" = "true" ]; then
+  echo "Updating the .distignore to allow composer lock file"
+  sed -i '/composer.json\|composer.lock/d' .distignore
+
+  # Check the return code of the previous command
+  if [ $? -eq 0 ]; then
+    echo "Lines were successfully removed."
+  else
+    echo "Lines were not found or an error occurred."
+  fi
+
 fi;
 
 echo "➤ Copying files to $TMP_DIR"

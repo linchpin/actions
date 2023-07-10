@@ -42,19 +42,15 @@ on:
         description: 'Package manager npm/yarn'
         default: 'yarn'
         type: string
-      plugin_package_manager:
-        description: 'Package manager npm/yarn'
-        default: 'yarn'
-        type: string
-      plugin_composer_install:
-        description: 'Run composer install on the functionality level'
-        default: false
-        required: false
-        type: boolean
       package_manager:
         description: 'Package manager npm/yarn'
         default: 'yarn'
         type: string
+      plugin_composer_install:
+        description: 'Run composer install on the functionality plugin'
+        default: false
+        required: false
+        type: boolean
     secrets:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
@@ -216,18 +212,18 @@ jobs:
           node-version: ${{ inputs.node_version }}
 
       - name: Get yarn cache directory path
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'yarn' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && inputs.package_manager == 'yarn' }} # skip this step if no plugins are included.
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
 
       - name: Get npm cache directory
         id: npm-cache-dir
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'npm' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && inputs.package_manager == 'npm' }} # skip this step if no plugins are included.
         shell: bash
         run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
       - name: Cache yarn cache
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'yarn' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && inputs.package_manager == 'yarn' }} # skip this step if no plugins are included.
         uses: actions/cache@v3
         id: cache-yarn-cache
         with:
@@ -237,7 +233,7 @@ jobs:
             ${{ runner.os }}-yarn-
 
       - name: Build Plugin with yarn
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'yarn' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && inputs.package_manager == 'yarn' }} # skip this step if no plugins are included.
         id: build-plugin
         run: |
           cd plugins/${{ matrix.plugin }}
@@ -245,7 +241,7 @@ jobs:
           yarn build
           
       - name: Build Plugin with npm
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'npm' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && inputs.package_manager == 'npm' }} # skip this step if no plugins are included.
         id: build-plugin-npm
         run: |
           cd plugins/${{ matrix.plugin }}
@@ -273,10 +269,12 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           path: ./
+
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
           tar -xzf ./artifact/composer.tar.gz -C ./
+
       - name: Decompress Theme Artifacts
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
@@ -303,17 +301,18 @@ jobs:
           sh ./cleanup.sh
           cd ../../
           rm -rf ./build/.deployment/
+          
       - name: Get Current Version
         id: version
-        run: |
-          echo ::set-output name=tag::${GITHUB_REF#refs/tags/v}
+        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
       # Latest changelog entry is based on version. If not found, fall back to the last version
       - name: Get Latest CHANGELOG.md Entry
         id: changelog_reader
         uses: mindsers/changelog-reader-action@v2
         with:
           validation_depth: 10
-          version: ${{ steps.version.current }}
+          version: ${{ steps.version.tag }}
           path: ./build/CHANGELOG.md
 
       - name: Combine Assets for Release
@@ -327,10 +326,10 @@ jobs:
           name: release
           path: release.zip
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
-
+          
       - name: Create Release
         id: create_release
-        if: ${{ ! inputs.skip_github_release }}
+        if: ${{ ! inputs.skip_github_release && startsWith( github.ref, 'refs/tags/' ) }}
         uses: softprops/action-gh-release@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
