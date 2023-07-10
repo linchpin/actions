@@ -40,7 +40,7 @@ fi
 
 if [[ ! -f "${RELEASE_DIR}/.distignore" ]]; then
   echo "::warning::ℹ︎ Loading default .distignore from github.com/linchpin/actions, you should add one to your project"
-  wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/main/default.distignore
+  wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/v2/default.distignore
 fi;
 
 # Final cleanup within the releases directory: Only keep the latest release zip
