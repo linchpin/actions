@@ -152,9 +152,9 @@ jobs:
         id: parse_composer_lock
         shell: bash
         run: |
-          wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/feature/maybe-skip-composer/.deployment/remote-plugin-install.sh
+          wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/feature/maybe-skip-composer/.deployment/remote-plugin-install.sh
           chmod +x ./remote-plugin-install.sh
-          sh ./remote-plugin-install.sh ${{ inputs.install_name }}
+          bash ./remote-plugin-install.sh ${{ inputs.install_name }}
 
 
   status:
