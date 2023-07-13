@@ -7,19 +7,24 @@
 # 3. Cleanup any older releases
 
 # Shared variables for bash scripts.
-export DEPLOYMENT_DIR=$(pwd)
-export RELEASE_DIR="$(dirname "$DEPLOYMENT_DIR")"
-export RELEASES_DIR="$(dirname "$RELEASE_DIR")"
-export PRIVATE_DIR="$(dirname "$RELEASES_DIR")"
-export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
+export DEPLOYMENT_DIR=$(pwd) # .deployment
+export RELEASE_DIR="$(dirname "$DEPLOYMENT_DIR")" # release
+export RELEASES_DIR="$(dirname "$RELEASE_DIR")"	# releases
+export PRIVATE_DIR="$(dirname "$RELEASES_DIR")"	# _wpeprivate
+export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")" # base WordPress install directory
 
-cd "$PUBLIC_DIR"
-
+# Maintenance Mode Flag (Commented out for now)
+# cd "$PUBLIC_DIR"
 # Start maintenance mode
 # echo "Starting Maintenance Mode"
-
 # wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/v2/maintenance.php
 # wp maintenance-mode activate
+
+echo "$DEPLOYMENT_DIR"
+echo "$RELEASE_DIR"
+echo "$RELEASES_DIR"
+echo "$PRIVATE_DIR"
+echo "$PUBLIC_DIR"
 
 # Every release should be cleaned up before we start
 # If it exists, delete it
@@ -32,7 +37,7 @@ mkdir -p "$RELEASE_DIR"
 release_folder_name=$1 # data/timestamp release folder name
 
 // Unzip the release
-unzip -o -q "$DEPLOYMENT_DIR/$release_folder_name.zip -d $DEPLOYMENT_DIR"
+unzip -o -q "$PRIVATE_DIR/$release_folder_name.zip -d $PRIVATE_DIR"
 
 ## echo "::notice::ℹ︎ Exporting Database"
 
