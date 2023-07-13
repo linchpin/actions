@@ -16,10 +16,23 @@ export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
 cd "$PUBLIC_DIR"
 
 # Start maintenance mode
-echo "Starting Maintenance Mode"
+# echo "Starting Maintenance Mode"
 
-wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/maintenance.php
-wp maintenance-mode activate
+# wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/v2/maintenance.php
+# wp maintenance-mode activate
+
+# Every release should be cleaned up before we start
+# If it exists, delete it
+if [ -d "$RELEASE_DIR" ]; then
+    rm -rf "$RELEASE_DIR"
+fi
+
+mkdir -p "$RELEASE_DIR"
+
+release_folder_name=$1 # data/timestamp release folder name
+
+// Unzip the release
+unzip -o -q "$DEPLOYMENT_DIR/$release_folder_name.zip -d $DEPLOYMENT_DIR"
 
 ## echo "::notice::ℹ︎ Exporting Database"
 
@@ -30,18 +43,32 @@ wp maintenance-mode activate
 cd "$RELEASE_DIR"
 
 # rsync latest release to the public folder.
-rsync -arxW --inplace --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
-rsync -arxW --inplace --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
+
+for dir in ./plugins/*/
+do
+    base=$(basename "$dir")
+	echo "Syncing Plugin $base"
+    rsync -arxW --inplace --delete "$dir" "${PUBLIC_DIR}/wp-content/plugins/$base"
+done
+
+for dir in ./themes/*/
+do
+    base=$(basename "$dir")
+	echo "Syncing Theme: $base"
+    rsync -arxW --inplace --delete "$dir" "${PUBLIC_DIR}/wp-content/themes/$base"
+done
 
 # Only sync MU Plugins if we have them
 if [[ -d "${RELEASE_DIR}/mu-plugins/" ]]; then
+
+	# This may no longer be needed
+	if [[ ! -f "${RELEASE_DIR}/.distignore" ]]; then
+		echo "::warning::ℹ︎ Loading default .distignore from github.com/linchpin/actions, you should add one to your project"
+		wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/v2/default.distignore
+	fi;
+
   rsync -arxW --inplace --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
 fi
-
-if [[ ! -f "${RELEASE_DIR}/.distignore" ]]; then
-  echo "::warning::ℹ︎ Loading default .distignore from github.com/linchpin/actions, you should add one to your project"
-  wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/v2/default.distignore
-fi;
 
 # Final cleanup within the releases directory: Only keep the latest release zip
 
