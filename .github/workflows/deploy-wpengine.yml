@@ -104,13 +104,14 @@ jobs:
         id: upload_assets
         run: |
           mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
-          ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
-          rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip wpengine:~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
+          ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/"
+          rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" wpengine:~/sites/"${{ inputs.install_name }}"/"${{ inputs.deployment_path }}"
 
       - name: Execute Commands On Server
         id: execute_bash
         run: |
-          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.folder.outputs.folder }}"
+          ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment"
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.folder.outputs.folder }}"
 
 
   # Loop through all themes passed from inputs.themes
