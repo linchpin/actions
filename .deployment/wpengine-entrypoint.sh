@@ -34,7 +34,16 @@ fi
 
 mkdir -p "$RELEASE_DIR/.deployment"
 
-// Unzip the release
+# Unzip the release
+
+if [ ! -f "$RELEASES_DIR/$release_folder_name.zip" ]; then
+	echo "::error::❌ Release zip not found at $RELEASES_DIR/$release_folder_name.zip"
+	exit 1
+fi
+
+if [ ! -d "$RELEASE_DIR" ]; then
+	mkdir -p "$RELEASE_DIR"
+fi
 
 unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
 
