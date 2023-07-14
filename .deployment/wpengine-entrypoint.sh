@@ -14,6 +14,11 @@ export RELEASES_DIR="$PRIVATE_DIR/releases"	# releases
 export RELEASE_DIR="$RELEASES_DIR/release" # release
 export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
 
+echo "$PRIVATE_DIR"
+echo "$RELEASES_DIR"
+echo "$RELEASE_DIR"
+echo "$PUBLIC_DIR"
+
 # Maintenance Mode Flag (Commented out for now)
 # cd "$PUBLIC_DIR"
 # Start maintenance mode
@@ -30,7 +35,9 @@ fi
 mkdir -p "$RELEASE_DIR/.deployment"
 
 // Unzip the release
-unzip -o -q "$PRIVATE_DIR/$release_folder_name.zip -d $PRIVATE_DIR"
+
+echo "$PRIVATE_DIR/$release_folder_name.zip -d $RELEASE_DIR"
+unzip -o -q "$PRIVATE_DIR/$release_folder_name.zip -d $RELEASE_DIR"
 
 ## echo "::notice::ℹ︎ Exporting Database"
 
@@ -38,18 +45,20 @@ unzip -o -q "$PRIVATE_DIR/$release_folder_name.zip -d $PRIVATE_DIR"
 
 ## echo "::notice::ℹ︎ Exporting Complete"
 
-cd "$RELEASE_DIR"
+cd "$RELEASE_DIR/plugins"
 
 # rsync latest release to the public folder.
 
-for dir in ./plugins/*/
+for dir in ./*/
 do
     base=$(basename "$dir")
 	echo "Syncing Plugin $base"
     rsync -arxW --inplace --delete "$dir" "${PUBLIC_DIR}/wp-content/plugins/$base"
 done
 
-for dir in ./themes/*/
+cd "$RELEASE_DIR/themes"
+
+for dir in ./*/
 do
     base=$(basename "$dir")
 	echo "Syncing Theme: $base"
