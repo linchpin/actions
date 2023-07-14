@@ -39,13 +39,17 @@ mkdir -p "$RELEASE_DIR/.deployment"
 if [ ! -f "$RELEASES_DIR/$release_folder_name.zip" ]; then
 	echo "::error::❌ Release zip not found at $RELEASES_DIR/$release_folder_name.zip"
 	exit 1
-fi
+else 
+	echo "::notice::ℹ︎ Release zip found at $RELEASES_DIR/$release_folder_name.zip"
 
-if [ ! -d "$RELEASE_DIR" ]; then
-	mkdir -p "$RELEASE_DIR"
-fi
+	if [ ! -d "$RELEASE_DIR" ]; then
+		mkdir -p "$RELEASE_DIR"
+	fi
 
-unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
+	echo "COMMAND: unzip -o -q $RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
+
+	unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
+fi
 
 ## echo "::notice::ℹ︎ Exporting Database"
 
@@ -93,7 +97,7 @@ cd "$RELEASES_DIR"
 
 if [[ -f ./*.zip ]]; then
   echo "ℹ︎ Found old release zips. Removing all but the newest..."
-  ls -t *.zip | awk 'NR>2' | xargs rm -f
+#  ls -t *.zip | awk 'NR>2' | xargs rm -f
 fi
 
 # Check for any .gz files and remove them
