@@ -42,12 +42,13 @@ if [ ! -f "$RELEASES_DIR/$release_folder_name.zip" ]; then
 else 
 	echo "::notice::ℹ︎ Release zip found at $RELEASES_DIR/$release_folder_name.zip"
 
-	if [ ! -d "$RELEASE_DIR" ]; then
+	if [[ ! -d "$RELEASE_DIR" ]]; then
 		mkdir -p "$RELEASE_DIR"
 	fi
 
-	echo "Command: unzip -o -q $RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
-
+	# Make sure both the zip file and the directory we created have the proper permissions
+	chmod a+r "$RELEASES_DIR/$release_folder_name.zip"
+	chmod g+wx "$RELEASE_DIR"
 	unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
 fi
 
@@ -56,8 +57,6 @@ fi
 # wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
 
 ## echo "::notice::ℹ︎ Exporting Complete"
-
-
 
 # rsync latest release to the public folder.
 
@@ -106,7 +105,7 @@ cd "$RELEASES_DIR"
 # check for any zip files all but the newest
 
 if [[ -f ./*.zip ]]; then
-#  echo "ℹ︎ Found old release zips. Removing all but the newest..."
+  echo "ℹ︎ Found old release zips. Removing all but the newest..."
 #  ls -t *.zip | awk 'NR>2' | xargs rm -f
 fi
 
