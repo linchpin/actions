@@ -14,10 +14,10 @@ export PRIVATE_DIR="$(dirname "$RELEASES_DIR")"
 export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
 export RELEASE_DIR="$RELEASES_DIR/release" # release
 
-echo "$PRIVATE_DIR"
-echo "$RELEASES_DIR"
-echo "$RELEASE_DIR"
-echo "$PUBLIC_DIR"
+echo "Private: $PRIVATE_DIR"
+echo "Releases: $RELEASES_DIR"
+echo "Release: $RELEASE_DIR"
+echo "Public: $PUBLIC_DIR"
 
 # Maintenance Mode Flag (Commented out for now)
 # cd "$PUBLIC_DIR"
