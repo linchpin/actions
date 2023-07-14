@@ -43,7 +43,8 @@ else
 	# Make sure both the zip file and the directory we created have the proper permissions
 	chmod a+r "$RELEASES_DIR/$release_folder_name.zip"
 	chmod g+wx "$RELEASES_DIR"
-	unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASES_DIR"
+	cd "$RELEASES_DIR"
+	unzip -o -q "$release_folder_name.zip"
 fi
 
 ## echo "::notice::ℹ︎ Exporting Database"
@@ -98,21 +99,21 @@ cd "$RELEASES_DIR"
 
 # check for any zip files all but the newest
 
-#if [[ -f ./*.zip ]]; then
-#  echo "ℹ︎ Found old release zips. Removing all but the newest..."
-#  ls -t *.zip | awk 'NR>2' | xargs rm -f
-#fi
+if [[ -f ./*.zip ]]; then
+  echo "ℹ︎ Found old release zips. Removing all but the newest..."
+  ls -t *.zip | awk 'NR>2' | xargs rm -f
+fi
 
 # Check for any .gz files and remove them
-#if [[ -f ./*.gz ]]; then
-#  echo "ℹ︎ Found old tar.gz files. Removing all..."
-#  ls -t *.gz | xargs rm -f
-#fi
+if [[ -f ./*.gz ]]; then
+  echo "ℹ︎ Found old tar.gz files. Removing all..."
+  ls -t *.gz | xargs rm -f
+fi
 
 # Scan for release sub directories and remove them if we have any
-#subdircount=$(find ./ -maxdepth 1 -type d | wc -l)
+subdircount=$(find ./ -maxdepth 1 -type d | wc -l)
 
-#if [[ "$subdircount" -gt 1 ]]; then
-#  echo "ℹ︎ Delete all old release folders"
-#  find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
-# fi
+if [[ "$subdircount" -gt 1 ]]; then
+  echo "ℹ︎ Delete all old release folders"
+  find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
+fi
