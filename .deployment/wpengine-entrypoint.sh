@@ -36,8 +36,7 @@ mkdir -p "$RELEASE_DIR/.deployment"
 
 // Unzip the release
 
-echo "$PRIVATE_DIR/$release_folder_name.zip -d $RELEASE_DIR"
-unzip -o -q "$PRIVATE_DIR/$release_folder_name.zip -d $RELEASE_DIR"
+unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
 
 ## echo "::notice::ℹ︎ Exporting Database"
 
