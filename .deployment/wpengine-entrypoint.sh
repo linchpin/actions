@@ -42,8 +42,8 @@ else
 
 	# Make sure both the zip file and the directory we created have the proper permissions
 	chmod a+r "$RELEASES_DIR/$release_folder_name.zip"
-	chmod g+wx "$RELEASE_DIR"
-	unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASES_DIR/"
+	chmod g+wx "$RELEASES_DIR"
+	unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASES_DIR"
 fi
 
 ## echo "::notice::ℹ︎ Exporting Database"
