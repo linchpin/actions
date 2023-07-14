@@ -32,6 +32,7 @@ if [ -d "$RELEASE_DIR" ]; then
     rm -rf "$RELEASE_DIR"
 fi
 
+mkdir -p "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR/.deployment"
 
 # Unzip the release
@@ -95,7 +96,7 @@ if [[ -d "${RELEASE_DIR}/mu-plugins/" ]]; then
 		wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/v2/default.distignore
 	fi;
 
-  rsync -arxW --inplace --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
+	rsync -arxW --inplace --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
 fi
 
 # Final cleanup within the releases directory: Only keep the latest release zip
@@ -104,21 +105,21 @@ cd "$RELEASES_DIR"
 
 # check for any zip files all but the newest
 
-if [[ -f ./*.zip ]]; then
-  echo "ℹ︎ Found old release zips. Removing all but the newest..."
+#if [[ -f ./*.zip ]]; then
+#  echo "ℹ︎ Found old release zips. Removing all but the newest..."
 #  ls -t *.zip | awk 'NR>2' | xargs rm -f
-fi
+#fi
 
 # Check for any .gz files and remove them
-if [[ -f ./*.gz ]]; then
-  echo "ℹ︎ Found old tar.gz files. Removing all..."
+#if [[ -f ./*.gz ]]; then
+#  echo "ℹ︎ Found old tar.gz files. Removing all..."
 #  ls -t *.gz | xargs rm -f
-fi
+#fi
 
 # Scan for release sub directories and remove them if we have any
-subdircount=$(find ./ -maxdepth 1 -type d | wc -l)
+#subdircount=$(find ./ -maxdepth 1 -type d | wc -l)
 
-if [[ "$subdircount" -gt 1 ]]; then
-  echo "ℹ︎ Delete all old release folders"
-  find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
-fi
+#if [[ "$subdircount" -gt 1 ]]; then
+#  echo "ℹ︎ Delete all old release folders"
+#  find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
+# fi
