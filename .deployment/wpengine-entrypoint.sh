@@ -46,7 +46,7 @@ else
 		mkdir -p "$RELEASE_DIR"
 	fi
 
-	echo "COMMAND: unzip -o -q $RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
+	echo "COMMAND: unzip -o -q $RELEASES_DIR/$release_folder_name.zip -d $RELEASES_DIR/release"
 
 	unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
 fi

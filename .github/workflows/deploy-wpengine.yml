@@ -104,8 +104,8 @@ jobs:
         id: upload_assets
         run: |
           mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
-          ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/"
-          rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" wpengine:~/sites/"${{ inputs.install_name }}"/"${{ inputs.deployment_path }}"
+          ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
+          rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip wpengine:~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}"
 
       - name: Execute Commands On Server
         id: execute_bash
