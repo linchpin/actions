@@ -46,6 +46,8 @@ else
 		mkdir -p "$RELEASE_DIR"
 	fi
 
+	echo "Command: unzip -o -q $RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
+
 	unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
 fi
 
@@ -55,25 +57,35 @@ fi
 
 ## echo "::notice::ℹ︎ Exporting Complete"
 
-cd "$RELEASE_DIR/plugins"
+
 
 # rsync latest release to the public folder.
 
-for dir in ./*/
-do
-    base=$(basename "$dir")
-	echo "Syncing Plugin $base"
-    rsync -arxW --inplace --delete "$dir" "${PUBLIC_DIR}/wp-content/plugins/$base"
-done
+# Sync Plugins
+if [[ -d "${RELEASE_DIR}/plugins/" ]]; then
 
-cd "$RELEASE_DIR/themes"
+	cd "$RELEASE_DIR/plugins"
 
-for dir in ./*/
-do
-    base=$(basename "$dir")
-	echo "Syncing Theme: $base"
-    rsync -arxW --inplace --delete "$dir" "${PUBLIC_DIR}/wp-content/themes/$base"
-done
+	for dir in ./*/
+	do
+		base=$(basename "$dir")
+		echo "Syncing Plugin $base"
+		rsync -arxW --inplace --delete "$dir" "${PUBLIC_DIR}/wp-content/plugins/$base"
+	done
+fi
+
+# Sync Themes
+if [[ -d "${RELEASE_DIR}/themes/" ]]; then
+
+	cd "$RELEASE_DIR/themes"
+
+	for dir in ./*/
+	do
+		base=$(basename "$dir")
+		echo "Syncing Theme: $base"
+		rsync -arxW --inplace --delete "$dir" "${PUBLIC_DIR}/wp-content/themes/$base"
+	done
+fi
 
 # Only sync MU Plugins if we have them
 if [[ -d "${RELEASE_DIR}/mu-plugins/" ]]; then
@@ -94,14 +106,14 @@ cd "$RELEASES_DIR"
 # check for any zip files all but the newest
 
 if [[ -f ./*.zip ]]; then
-  echo "ℹ︎ Found old release zips. Removing all but the newest..."
+#  echo "ℹ︎ Found old release zips. Removing all but the newest..."
 #  ls -t *.zip | awk 'NR>2' | xargs rm -f
 fi
 
 # Check for any .gz files and remove them
 if [[ -f ./*.gz ]]; then
   echo "ℹ︎ Found old tar.gz files. Removing all..."
-  ls -t *.gz | xargs rm -f
+#  ls -t *.gz | xargs rm -f
 fi
 
 # Scan for release sub directories and remove them if we have any
