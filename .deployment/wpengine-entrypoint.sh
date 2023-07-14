@@ -32,9 +32,6 @@ if [ -d "$RELEASE_DIR" ]; then
     rm -rf "$RELEASE_DIR"
 fi
 
-mkdir -p "$RELEASE_DIR"
-mkdir -p "$RELEASE_DIR/.deployment"
-
 # Unzip the release
 
 if [ ! -f "$RELEASES_DIR/$release_folder_name.zip" ]; then
@@ -43,14 +40,10 @@ if [ ! -f "$RELEASES_DIR/$release_folder_name.zip" ]; then
 else 
 	echo "::notice::ℹ︎ Release zip found at $RELEASES_DIR/$release_folder_name.zip"
 
-	if [[ ! -d "$RELEASE_DIR" ]]; then
-		mkdir -p "$RELEASE_DIR"
-	fi
-
 	# Make sure both the zip file and the directory we created have the proper permissions
 	chmod a+r "$RELEASES_DIR/$release_folder_name.zip"
 	chmod g+wx "$RELEASE_DIR"
-	unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASE_DIR"
+	unzip -o -q "$RELEASES_DIR/$release_folder_name.zip -d $RELEASES_DIR/"
 fi
 
 ## echo "::notice::ℹ︎ Exporting Database"
