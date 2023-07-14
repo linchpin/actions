@@ -10,7 +10,7 @@ release_folder_name=$1 # data/timestamp release folder name
 
 # Shared variables for bash scripts.
 export PRIVATE_DIR=$(pwd) # _wpeprivate
-export RELEASES_DIR="$DEPLOYMENT_DIR/releases"	# releases
+export RELEASES_DIR="$PRIVATE_DIR/releases"	# releases
 export RELEASE_DIR="$RELEASES_DIR/release" # release
 export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
 
