@@ -15,7 +15,7 @@ on:
 
 jobs:
   phpcbf-fixer:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-lg
     steps:
       - uses: actions/checkout@v3
         with:
