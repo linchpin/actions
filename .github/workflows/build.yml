@@ -158,7 +158,7 @@ jobs:
 
   dependency_setup:
     name: Composer
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-lg
     needs: preflight
     steps:
 
@@ -202,7 +202,7 @@ jobs:
   # Loop through all themes passed from inputs.themes
   theme_setup:
     name: Theme(s)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-lg
     needs: preflight
     strategy:
       matrix:
@@ -286,7 +286,7 @@ jobs:
   # Loop through all plugins passed from input.plugins
   plugin_setup:
     name: Plugin(s)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-lg
     needs: preflight
     strategy:
       matrix:
