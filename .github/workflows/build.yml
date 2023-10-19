@@ -86,7 +86,7 @@ jobs:
       run_id: ${{ github.run_id }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Get Current Version
         id: version
@@ -162,7 +162,7 @@ jobs:
     needs: preflight
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: 'build'
 
@@ -213,7 +213,7 @@ jobs:
 
       - name: Checkout code
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Theme Composer Dependencies
         if: ${{ matrix.theme != 'none' && hashFiles('./themes/${{ matrix.theme }}/composer.json') != '' }} # skip this step if no themes are included or we don't have a composer file
@@ -297,7 +297,7 @@ jobs:
 
       - name: Checkout code
         if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
         if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
