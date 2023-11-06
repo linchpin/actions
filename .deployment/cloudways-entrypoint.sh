@@ -20,7 +20,7 @@ wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/
 wp maintenance-mode activate
 
 # Backup our database
-wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
+# wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
 
 # Cleanup symlinks (from legacy deployment process)
 
