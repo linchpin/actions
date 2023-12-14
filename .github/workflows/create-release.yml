@@ -98,7 +98,7 @@ jobs:
           tar -zcf composer.tar.gz ./build
 
       - name: Upload Dependencies
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: composer.tar.gz
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
@@ -177,7 +177,7 @@ jobs:
           tar -zcf theme-${{ matrix.theme }}.tar.gz --exclude "node_modules" themes/${{ matrix.theme }}
 
       - name: Upload Theme
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         with:
           path: theme-${{ matrix.theme }}.tar.gz
@@ -260,7 +260,7 @@ jobs:
 
       - name: Upload Plugin
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: plugin-${{ matrix.plugin }}.tar.gz
 
@@ -322,7 +322,7 @@ jobs:
           zip -r release.zip ./temp_archive
 
       - name: Upload Release Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: release
           path: release.zip
