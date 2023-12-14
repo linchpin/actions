@@ -270,7 +270,7 @@ jobs:
     needs: [dependency_setup,theme_setup,plugin_setup]
     steps:
       - name: Download All Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: ./
       - name: Decompress Composer Artifacts
