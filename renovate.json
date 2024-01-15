@@ -87,16 +87,5 @@
       }
     ],
     "rebaseWhen": "conflicted",
-    "rangeStrategy": "bump",
-    "hostRules": [
-      {
-        "hostType": "packagist",
-        "matchHost": "packagist.linchpin.com",
-        "authType": "Basic",
-        "encrypted": {
-          "username": "wcFMA/xDdHCJBTolAQ//Z6xHYVjOFEqDzGMe6D+BOyjhbWeqFgtzjueS/OJHN9+ale3saihuxfY4OUMtMeB5BIiez1zZ02i5hmmalZN3tV0Psm8UD7+Jsi07gEozOpBvjB1dOi8q5nIn8K7dSoq7GqhYGoHjswchBN4mpkU9zcEOeO6RBo5LCDsUSigK3HbCEaQDXIjc5AnvUuxmol7J+MxTUc4Oq8WNOYexjYptSNL4Rky6zBnhc5EX2ACVCED6woYL1CklWCh2L6qgGsw+LwbZaum4NPJ/ZcPLspbvljqR40Sppi+YeidmtUiEhYBhNz4TuKb3qfliinFp0/X0iFANIt0ucghupX+gCoiX9LgYei2PjJXPpElpCtUpBLI2By4WDMIdB0BgCBlpQneb+JKjXkBI6tzjmr4PxNZsgG1EFrjHYvbgzEHCGQvWh00Ppj+zZhN3EAh+X3gh7iWJnVO57B+9gffvDGdtzhpsDCcaIW+ZUmXjijSoYkX8ZZIMUhtEHpY65g2Tdso3/Q3XQ5/P0bBs/S6cC0pyyF4U1sS2HeMWeIOWEM1Q8im8kGhhmjFaGqxkYxQjxaLaTSzk+K8gDf1dAGJW/2whFVcTN/78BXPjnO9/oeVLom55Yut6DlEX8UDopr+92BZE+P9KKxf7s9sh9gIJObLLwxRzvkiqQcSjV/+p1Nig3KHAhj/SbwFYrl8issuheVHfqEJOFUV9v2qxU6skH8lw3QurK7McOjO1cbuTokKGNVefQHAaeRgCnPSgl1guBZeviBRMKFf6gpfi8q1sff9o14+bH/rGxxDdThOqQdzfcAPcl+hB8+AfM4D5RwkNQJI1sZxPcA",
-          "password": "wcFMA/xDdHCJBTolARAAjRPtPSbPcMS9cbqXJcS2ydiDQqH7xIDnP5jcObyzVrydzFE1jWPEAtcPJN2qByYnvk/y12m09wMApQwRegXtZl85NkcleIH0eXybj1nszOGeojE7r5S2Iv5d46HUM3KTcjQe/BDpoXiCX0NRyu/SaK+BLbU2zMNtswM4ce4icwbGFLyJWzs4OEEC7J3rH1LT71P+cBfZMMJO4Zw6ulgr8L4coOjw8G0g7XGYHDULzxkIBir0wPyIfbov8Vk1ZNpjQm4r3WBs2y9L+nS2KYBJuxtnPuSrcr9IsFTtPTPtnyqdvLmaQ9i3BIjcB6QMuAfSz3H2n3d0DQnRqeTcxn9SW5Br7a7Q/ho/vQjdunSUTtu8lWG9AE86zz7h5SLI0wWR+TbJAwo1gjsPVA0JuDDivsAw7rdQzjWmtd3p6VITVZ2ZEmtnzaTr76bcYM555thUXH1edsnx9Mlw03xtblxggH++qOBkphTdnb+7bfXkbD2H18n0rP+b/rDXy8l+4WfBamfUyu0uA0ksi88964NyCfGqI9/U6YZWSOgioL6t4/pxHCdfLAsfC3UpJF0nFXKqZtTHV225P6qfHb5DXxEi9e44lLJSJPqZ5eKy48aQpxYhjBWJRJTtnwquClLs9xQdAqbqXsykFdh+u7ZQCSD+pk9lUW7ZRay6U8J5sL/owcbSWQFDUOXSCZoDiM8PRHs1y+U+K3R874eZx+wO+Hjgfu6D/hD8qipg+MJ0vUmGMuzKRL5IQNwc0KSob65Bnry5Ti7/WRyWvrI46IDd1VIkuQtsRTRLRks/cNWU"
-        }
-      }
-    ]
+    "rangeStrategy": "bump"
 }
