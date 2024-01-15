@@ -1,0 +1,7 @@
+{
+	".": "1.0.0",
+  "release-type":"php",
+  "package-name":"Your Project Name",
+  "bump-minor-pre-major": true,
+  "versioning-strategy": "always-bump-patch"
+}
