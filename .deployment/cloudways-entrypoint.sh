@@ -8,10 +8,22 @@
 
 # Shared variables for bash scripts.
 export DEPLOYMENT_DIR=$(pwd)
+
+    echo "::warning::ℹ︎ $DEPLOYMENT_DIR"
+
 export RELEASE_DIR="$(dirname "$DEPLOYMENT_DIR")"
+
+    echo "::warning::ℹ︎ $RELEASE_DIR"
+
 export RELEASES_DIR="$(dirname "$RELEASE_DIR")"
+
+    echo "::warning::ℹ︎ $RELEASES_DIR"
 export PRIVATE_DIR="$(dirname "$RELEASES_DIR")"
-export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
+
+    echo "::warning::ℹ︎ $PRIVATE_DIR"
+export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")/public_html/"
+
+    echo "::warning::ℹ︎ $PUBLIC_DIR"
 
 cd "$PUBLIC_DIR"
 
