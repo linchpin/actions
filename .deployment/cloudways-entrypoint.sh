@@ -10,7 +10,8 @@
 export DEPLOYMENT_DIR=$(pwd)
 export RELEASE_DIR="$(dirname "$DEPLOYMENT_DIR")"
 export RELEASES_DIR="$(dirname "$RELEASE_DIR")"
-export PUBLIC_DIR="$(dirname "$RELEASES_DIR")"
+export PRIVATE_DIR="$(dirname "$RELEASES_DIR")"
+export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
 
 cd "$PUBLIC_DIR"
 
