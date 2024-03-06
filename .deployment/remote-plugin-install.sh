@@ -104,8 +104,13 @@ while read -r package; do
 
 				if [[ "$comparison_result" == "-1" ]]; then
 					updated_plugin=$(ssh_wpengine_wp "$theme_or_plugin" update "$slug" "$version")
-					echo "Update plugin status $updated_plugin"
-					((updated_plugins++))
+     					if [[ updated_plugin == "0" ]]; then
+	  				  ((updated_plugins++))
+       					else 
+	  				  echo "Could not update $slug, trying to install instead";
+					  installed_theme_or_plugin=$(ssh_wpengine_wp "$theme_or_plugin" install "$slug" "$version")
+					  ((installed_plugins++))
+	  				fi
 				else
 					echo "No update required for $slug."
 					((skipped_plugins++))
