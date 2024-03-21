@@ -49,7 +49,14 @@ jobs:
         run: |
           rm ./auth.json
 
-      - name: PHP Lint
-        uses: overtrue/phplint@7.4
+      - name: PHP Lint 8.0+
+        if: "inputs.php_version == 8.0"
+        uses: overtrue/phplint@9.0
+        with:
+          path: .
+
+      - name: PHP Lint 7.4
+        if: "inputs.php_version == 7.4"
+        uses: overtrue/phplint@3.4.0
         with:
           path: .
