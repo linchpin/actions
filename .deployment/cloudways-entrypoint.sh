@@ -52,15 +52,15 @@ if [ -L "$PUBLIC_DIR/wp-content/mu-plugins" ]; then
 fi
 
 if [ -f "$PUBLIC_DIR/wp-content/themes" ]; then
-    rm "$PUBLIC_DIR/wp-content/themes"
+    rm -rf "$PUBLIC_DIR/wp-content/themes"
 fi
 
 if [ -f "$PUBLIC_DIR/wp-content/plugins" ]; then
-    rm "$PUBLIC_DIR/wp-content/plugins"
+    rm -rf "$PUBLIC_DIR/wp-content/plugins"
 fi
 
 if [ -f "$PUBLIC_DIR/wp-content/mu-plugins" ]; then
-    rm "$PUBLIC_DIR/wp-content/mu-plugins"
+    rm -rf "$PUBLIC_DIR/wp-content/mu-plugins"
 fi
 
 # End symlink cleanup
@@ -68,8 +68,8 @@ fi
 cd "$RELEASE_DIR"
 
 # rsync latest release to public folder.
-rsync -arxc --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
-rsync -arxc --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
+rsync -arxcO --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
+rsync -arxcO --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
 
 # Only sync MU Plugins if we have them
 if [ -d "${RELEASE_DIR}/mu-plugins/" ] ; then
@@ -97,4 +97,12 @@ cd "$PUBLIC_DIR"
 # End maintenance mode, reset 
 
 rm maintenance.php
+
+# Check if the WP-CLI command exists
+if wp cli has-command redis flush; then
+    wp redis enable --force
+    wp redis flush
+    wp flush cache
+fi
+
 wp maintenance-mode deactivate
