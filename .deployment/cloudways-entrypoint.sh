@@ -99,7 +99,7 @@ cd "$PUBLIC_DIR"
 rm maintenance.php
 
 # Check if the WP-CLI command exists
-if wp cli has-command redis flush; then
+if wp cli has-command redis; then
     wp redis enable --force
     wp redis flush
     wp flush cache
