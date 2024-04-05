@@ -75,6 +75,12 @@ cd "$PUBLIC_DIR"
 echo "::notice::ℹ︎ Maintenance Complete::"
 
 rm maintenance.php
+
+# Check if the WP-CLI command exists
+if wp cli has-command page-cache; then
+    wp page-cache flush
+fi
+
 wp maintenance-mode deactivate
 
 echo "::notice::ℹ︎ Maintenance Mode Removed::"
