@@ -51,6 +51,10 @@ on:
         default: false
         required: false
         type: boolean
+      plugin_package_manager:
+        description: 'Package manager npm/yarn'
+        default: 'npm'
+        type: string
     secrets:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
