@@ -7,23 +7,34 @@
 # 3. Cleanup any older releases
 
 # Shared variables for bash scripts.
+
 export DEPLOYMENT_DIR=$(pwd)
 
-    echo "::warning::ℹ︎ $DEPLOYMENT_DIR"
+echo "::warning::ℹ︎ $DEPLOYMENT_DIR"
 
 export RELEASE_DIR="$(dirname "$DEPLOYMENT_DIR")"
 
-    echo "::warning::ℹ︎ $RELEASE_DIR"
+if test -d RELEASE_DIR; then
+  echo "::warning::ℹ︎ $RELEASE_DIR doesn't exist"
+fi
 
 export RELEASES_DIR="$(dirname "$RELEASE_DIR")"
 
-    echo "::warning::ℹ︎ $RELEASES_DIR"
+if test -d RELEASES_DIR; then
+  echo "::warning::ℹ︎ $RELEASES_DIR doesn't exist"
+fi
+
 export PRIVATE_DIR="$(dirname "$RELEASES_DIR")"
 
-    echo "::warning::ℹ︎ $PRIVATE_DIR"
+if test -d PRIVATE_DIR; then
+  echo "::warning::ℹ︎ $PRIVATE_DIR doesn't exist"
+fi
+
 export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")/public_html/"
 
-    echo "::warning::ℹ︎ $PUBLIC_DIR"
+if test -d PUBLIC_DIR; then
+  echo "::warning::ℹ︎ $PUBLIC_DIR doesn't exist"
+fi
 
 cd "$PUBLIC_DIR"
 
@@ -98,11 +109,16 @@ cd "$PUBLIC_DIR"
 
 rm maintenance.php
 
+wp maintenance-mode deactivate
+
 # Check if the WP-CLI command exists
 if wp cli has-command redis; then
     wp redis enable --force
     wp redis flush
-    wp flush cache
 fi
 
-wp maintenance-mode deactivate
+if wp cli has-command cache; then
+    wp cache flush
+fi
+
+
