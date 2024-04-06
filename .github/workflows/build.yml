@@ -45,7 +45,7 @@ on:
         description: 'Package manager npm/yarn'
         default: 'yarn'
         type: string
-      plugin_package_manage:
+      plugin_package_manager:
         description: 'Package manager npm/yarn'
         default: 'npm'
         type: 'string'
