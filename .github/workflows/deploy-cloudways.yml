@@ -116,12 +116,11 @@ jobs:
           ssh cloudways "mkdir -p ${{ inputs.deployment_path }}"
           rsync --rsh="ssh -v -p 22 -i $SSH_KEY_PRIVATE_PATH -o StrictHostKeyChecking=no" -zrxc --delete "${{ steps.folder.outputs.folder }}.zip" "${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }}:${{ inputs.deployment_path }}"
 
-
       - name: Remote - Run Scripts
         id: execute_bash
         run: |
           ssh cloudways "unzip -o -q ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
-          ssh cloudways "mkdir -p ${{ inputs.deployment_path }}/release/.deployment && cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
+          ssh cloudways "rm -rf ${{ inputs.deployment_path }}/release/ && mkdir -p ${{ inputs.deployment_path }}/release/.deployment && cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
