@@ -82,7 +82,7 @@ jobs:
       - name: Generate release zip
         id: folder
         run: |
-          echo ::set-output name=folder::$(date +'%s')
+          echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT
 
       - name: Configure SSH Connection with Cloudways
         run: |
@@ -126,7 +126,7 @@ jobs:
           ssh cloudways "rm -rf ~/${{ inputs.deployment_path }}/release"
           ssh cloudways "unzip -o -q ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
           ssh cloudways "mkdir -p ${{ inputs.deployment_path }}/release/.deployment
-          ssh cloudways "cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
+          ssh cloudways "cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
