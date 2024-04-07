@@ -59,6 +59,16 @@ on:
         default: false
         type: boolean
         required: false
+      theme_uses_composer:
+        description: 'Use composer to install dependencies for your functionality plugin'
+        default: false
+        type: boolean
+        required: false
+      plugin_uses_composer:
+        description: 'Use composer to install dependencies for your functionality plugin'
+        default: false
+        type: boolean
+        required: false  
     outputs:
       deployment_id:
         description: 'The ID of our deployment'
