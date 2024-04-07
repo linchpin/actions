@@ -7,10 +7,36 @@
 # 3. Cleanup any older releases
 
 # Shared variables for bash scripts.
+
 export DEPLOYMENT_DIR=$(pwd)
+
+echo "::warning::ℹ︎ $DEPLOYMENT_DIR"
+
 export RELEASE_DIR="$(dirname "$DEPLOYMENT_DIR")"
+
+if test -d RELEASE_DIR; then
+  echo "::warning::ℹ︎ $RELEASE_DIR doesn't exist"
+fi
+
 export RELEASES_DIR="$(dirname "$RELEASE_DIR")"
-export PUBLIC_DIR="$(dirname "$RELEASES_DIR")"
+
+if test -d RELEASES_DIR; then
+  echo "::warning::ℹ︎ $RELEASES_DIR doesn't exist"
+fi
+
+export PRIVATE_DIR="$(dirname "$RELEASES_DIR")"
+
+if test -d PRIVATE_DIR; then
+  echo "::warning::ℹ︎ $PRIVATE_DIR doesn't exist"
+fi
+
+export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")/public_html/"
+
+if test -d PUBLIC_DIR; then
+  echo "::warning::ℹ︎ $PUBLIC_DIR doesn't exist"
+fi
+
+echo "::warning::ℹ︎ $PUBLIC_DIR"
 
 cd "$PUBLIC_DIR"
 
@@ -20,7 +46,7 @@ wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/
 wp maintenance-mode activate
 
 # Backup our database
-wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
+# wp db export --path="$PUBLIC_DIR" - | gzip > "$RELEASES_DIR/db_backup.sql.gz"
 
 # Cleanup symlinks (from legacy deployment process)
 
@@ -39,15 +65,15 @@ if [ -L "$PUBLIC_DIR/wp-content/mu-plugins" ]; then
 fi
 
 if [ -f "$PUBLIC_DIR/wp-content/themes" ]; then
-    rm "$PUBLIC_DIR/wp-content/themes"
+    rm -rf "$PUBLIC_DIR/wp-content/themes"
 fi
 
 if [ -f "$PUBLIC_DIR/wp-content/plugins" ]; then
-    rm "$PUBLIC_DIR/wp-content/plugins"
+    rm -rf "$PUBLIC_DIR/wp-content/plugins"
 fi
 
 if [ -f "$PUBLIC_DIR/wp-content/mu-plugins" ]; then
-    rm "$PUBLIC_DIR/wp-content/mu-plugins"
+    rm -rf "$PUBLIC_DIR/wp-content/mu-plugins"
 fi
 
 # End symlink cleanup
@@ -55,8 +81,8 @@ fi
 cd "$RELEASE_DIR"
 
 # rsync latest release to public folder.
-rsync -arxc --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
-rsync -arxc --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
+rsync -arxcO --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
+rsync -arxcO --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
 
 # Only sync MU Plugins if we have them
 if [ -d "${RELEASE_DIR}/mu-plugins/" ] ; then
@@ -84,4 +110,15 @@ cd "$PUBLIC_DIR"
 # End maintenance mode, reset 
 
 rm maintenance.php
+
 wp maintenance-mode deactivate
+
+# Check if the WP-CLI command exists
+if wp cli has-command redis; then
+    wp redis enable --force
+    wp redis flush
+fi
+
+if wp cli has-command cache; then
+    wp cache flush
+fi
