@@ -360,6 +360,15 @@ jobs:
           npm install # @todo exclude dev libraries (make initial non cached build faster)
           npm run build
 
+      - name: Install Plugin Composer Dependencies
+        if: ${{ matrix.plugin != 'none' && hashFiles('./themes/${{ matrix.theme }}/composer.json') != '' && inputs.plugin_uses_composer == true }} # skip this step if no themes are included or we don't have a composer file
+        id: install-plugin-composer
+        uses: php-actions/composer@v6
+        with:
+          working_dir: ./plugins/${{ matrix.plugin }}
+          dev: no
+          php_version: ${{ inputs.php_version }}
+
       - name: Compress Plugin Artifact
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         id: compress_plugin_artifact
