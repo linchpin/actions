@@ -64,7 +64,7 @@ on:
         default: false
         type: boolean
         required: false
-      :
+      plugin_uses_composer:
         description: 'Use composer to install dependencies for your functionality plugin'
         default: false
         type: boolean
