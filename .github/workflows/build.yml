@@ -64,7 +64,7 @@ on:
         default: false
         type: boolean
         required: false
-      plugin_uses_composer:
+      :
         description: 'Use composer to install dependencies for your functionality plugin'
         default: false
         type: boolean
@@ -361,7 +361,7 @@ jobs:
           npm run build
 
       - name: Install Plugin Composer Dependencies
-        if: ${{ matrix.plugin != 'none' && hashFiles('./plugins/${{ matrix.plugin }}/composer.json') != '' && inputs.plugin_uses_composer == true }} # skip this step if no themes are included or we don't have a composer file
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_uses_composer == true }} # skip this step if no themes are included or we don't have a composer file
         id: install-plugin-composer
         uses: php-actions/composer@v6
         with:
