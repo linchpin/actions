@@ -361,7 +361,7 @@ jobs:
           npm run build
 
       - name: Install Plugin Composer Dependencies
-        if: ${{ matrix.plugin != 'none' && hashFiles('./themes/${{ matrix.theme }}/composer.json') != '' && inputs.plugin_uses_composer == true }} # skip this step if no themes are included or we don't have a composer file
+        if: ${{ matrix.plugin != 'none' && hashFiles('./plugins/${{ matrix.plugin }}/composer.json') != '' && inputs.plugin_uses_composer == true }} # skip this step if no themes are included or we don't have a composer file
         id: install-plugin-composer
         uses: php-actions/composer@v6
         with:
