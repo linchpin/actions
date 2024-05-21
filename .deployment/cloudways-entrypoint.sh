@@ -36,6 +36,8 @@ if test -d PUBLIC_DIR; then
   echo "::warning::ℹ︎ $PUBLIC_DIR doesn't exist"
 fi
 
+echo "::warning::ℹ︎ $PUBLIC_DIR"
+
 cd "$PUBLIC_DIR"
 
 # Start maintenance mode
@@ -120,5 +122,3 @@ fi
 if wp cli has-command cache; then
     wp cache flush
 fi
-
-

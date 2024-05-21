@@ -8,11 +8,6 @@ on:
         default: '["none"]'
         required: false
         type: string
-      build_theme_js:
-        description: 'Skip building theme js (typically for older build process, grunt, bower, etc)'
-        default: false
-        type: boolean
-        required: false
       plugins: # A JSON formatted array of plugins folder name(s) we need to build
         description: 'A JSON formatted array of plugin folder name(s) to build. Example: ["linchpin-functionality"]'
         default: '["none"]'
@@ -46,14 +41,34 @@ on:
         description: 'Package manager npm/yarn'
         default: 'yarn'
         type: string
-      plugin_package_manager:
-        description: 'Package manager npm/yarn'
-        default: 'yarn'
-        type: string
       package_manager:
         description: 'Package manager npm/yarn'
         default: 'yarn'
         type: string
+      plugin_package_manager:
+        description: 'Package manager npm/yarn'
+        default: 'npm'
+        type: 'string'
+      remote_plugin_install:
+        description: 'Remotely install plugins instead of using composer'
+        required: false
+        default: false
+        type: boolean
+      build_theme_js:
+        description: 'Skip building theme js (typically for older build process, grunt, bower, etc)'
+        default: false
+        type: boolean
+        required: false
+      theme_uses_composer:
+        description: 'Use composer to install dependencies for your functionality plugin'
+        default: false
+        type: boolean
+        required: false
+      plugin_uses_composer:
+        description: 'Use composer to install dependencies for your functionality plugin'
+        default: false
+        type: boolean
+        required: false  
     outputs:
       deployment_id:
         description: 'The ID of our deployment'
@@ -90,12 +105,11 @@ jobs:
 
       - name: Get Current Version
         id: version
-        run: |
-          echo ::set-output name=current::${GITHUB_REF#refs/tags/v}
+        run: echo "current=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Get branch name
         id: branch
-        uses: tj-actions/branch-names@v6.5
+        uses: tj-actions/branch-names@v7.0.7
 
       # Get our changelog if we are a tag and we have a version
       - name: Get Newest Changelog Entry
@@ -138,8 +152,8 @@ jobs:
       - name: Deployment Data
         id: deployment_data
         run: |
-          echo "::set-output name=mantle_deployment_id::${{ fromJson( steps.send_to_mantle.outputs.data ).post_id }}"
-          echo "::set-output name=deployment_id::${{ fromJson( steps.create_deployment.outputs.data ).id }}"
+          echo "mantle_deployment_id=${{ fromJson( steps.send_to_mantle.outputs.data ).post_id }}" >> $GITHUB_OUTPUT
+          echo "deployment_id=${{ fromJson( steps.create_deployment.outputs.data ).id }}" >> $GITHUB_OUTPUT
 
       - name: Set Deployment Status to Pending
         id: start_deployment
@@ -158,24 +172,28 @@ jobs:
 
   dependency_setup:
     name: Composer
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-lg
     needs: preflight
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           path: 'build'
 
       - name: Authenticate Packagist
+        if: ${{ inputs.remote_plugin_install == false }}
         run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
+        if: ${{ inputs.remote_plugin_install == false }}
         uses: actions/cache@v3
         with:
           path: /tmp/composer-cache
           key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
 
       - name: Composer Install
+        if: ${{ inputs.remote_plugin_install == false }}
         uses: php-actions/composer@v6
         with:
           working_dir: ./build
@@ -183,12 +201,12 @@ jobs:
           php_version: ${{ inputs.php_version }}
 
       - name: Remove Packagist Authentication
+        if: ${{ inputs.remote_plugin_install == false }}
         run: rm -f $GITHUB_WORKSPACE/build/auth.json
 
       - name: Compress Composer Artifact
         id: composer_compression_artifact
-        run: |
-          tar -zcf composer.tar.gz ./build
+        run: tar -zvcf composer.tar.gz ./build
 
       - name: Upload Dependencies
         uses: actions/upload-artifact@v3
@@ -198,7 +216,7 @@ jobs:
   # Loop through all themes passed from inputs.themes
   theme_setup:
     name: Theme(s)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-lg
     needs: preflight
     strategy:
       matrix:
@@ -233,7 +251,7 @@ jobs:
       - name: Get yarn cache directory path
         if: ${{ matrix.theme != 'none' && inputs.theme_package_manager == 'yarn' }} # skip this step if no themes are included.
         id: yarn-cache-dir-path
-        run: echo "::set-output name=dir::$(yarn cache dir)"
+        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
         
       - name: Get npm cache directory
         id: npm-cache-dir
@@ -282,7 +300,7 @@ jobs:
   # Loop through all plugins passed from input.plugins
   plugin_setup:
     name: Plugin(s)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-lg
     needs: preflight
     strategy:
       matrix:
@@ -342,6 +360,15 @@ jobs:
           npm install # @todo exclude dev libraries (make initial non cached build faster)
           npm run build
 
+      - name: Install Plugin Composer Dependencies
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_uses_composer == true }} # skip this step if no themes are included or we don't have a composer file
+        id: install-plugin-composer
+        uses: php-actions/composer@v6
+        with:
+          working_dir: ./plugins/${{ matrix.plugin }}
+          dev: no
+          php_version: ${{ inputs.php_version }}
+
       - name: Compress Plugin Artifact
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         id: compress_plugin_artifact
@@ -374,12 +401,14 @@ jobs:
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
+          mkdir -p ./build
           for file in ./artifact/theme-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Decompress Plugin Artifacts
         if: ${{ inputs.plugins != '["none"]' }} # skip this step if no themes are included.
         id: decompress_plugin_artifacts
         run: |
+          mkdir -p ./build
           for file in ./artifact/plugin-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Clean Build Files/Folders
@@ -387,9 +416,9 @@ jobs:
         run: |
           mkdir -p ./build/.deployment/
           cd ./build/.deployment/
-          wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cleanup.sh
+          wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/cleanup.sh
           chmod +x ./cleanup.sh
-          sh ./cleanup.sh
+          sh ./cleanup.sh ${{ inputs.remote_plugin_install }}
           cd ../../
           rm -rf ./build/.deployment/
 
