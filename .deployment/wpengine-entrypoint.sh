@@ -117,3 +117,20 @@ if [[ "$subdircount" -gt 1 ]]; then
   echo "ℹ︎ Delete all old release folders"
   find -maxdepth 1 ! -name "release" ! -name . -exec rm -rv {} \;
 fi
+
+cd "$PUBLIC_DIR"
+
+# End maintenance mode, reset 
+
+echo "::notice::ℹ︎ Maintenance Complete::"
+
+rm maintenance.php
+
+# Check if the WP-CLI command exists
+if wp cli has-command page-cache; then
+    wp page-cache flush
+fi
+
+wp maintenance-mode deactivate
+
+echo "::notice::ℹ︎ Maintenance Mode Removed::"

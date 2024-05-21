@@ -69,8 +69,15 @@ jobs:
         run: |
           rm ./auth.json
 
-      - name: PHP Lint
-        if: steps.check_commit_message.outputs.skip_lint != 'true'
-        uses: overtrue/phplint@7.4
+
+      - name: PHP Lint 8.0+
+        if: "inputs.php_version == 8.0 && steps.check_commit_message.outputs.skip_lint != 'true'" 
+        uses: overtrue/phplint@9.0
+        with:
+          path: .
+
+      - name: PHP Lint 7.4
+        if: "inputs.php_version == 7.4 && steps.check_commit_message.outputs.skip_lint != 'true'"
+        uses: overtrue/phplint@3.4.0
         with:
           path: .
