@@ -37,6 +37,10 @@ sed -i.bak -e "/<!-- x-linchpin-process-readme-start -->/,/<!-- x-linchpin-proce
 # Support for additional comment tags
 sed -i.bak -e "/<!-- x-linchpin-update-readme-start -->/,/<!-- x-linchpin-update-readme-end -->/c\\<!-- x-linchpin-update-readme-start -->\n$table_output\n<!-- x-linchpin-update-readme-end -->" "$README_FILE"
 
+# Support for plugin list
+sed -i.bak -e "/<!-- x-linchpin-plugin-list-start -->/,/<!-- x-linchpin-plugin-list-end -->/c\\<!-- x-linchpin-plugin-list-start -->\n$table_output\n<!-- x-linchpin-plugin-list-end -->" "$README_FILE"
+
+
 # Update the release date
 current_date=$(date +"[%m/%d/%Y]")
 sed -i.bak -e "/<!-- x-linchpin-release-date-start -->/,/<!-- x-linchpin-release-date-end -->/c\\<!-- x-linchpin-release-date-start -->$current_date<!-- x-linchpin-release-date-end -->" "$README_FILE"
