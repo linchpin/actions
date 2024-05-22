@@ -13,10 +13,6 @@ on:
           required: false
           default: 'release-please--branches--main--readme'
           type: string
-    secrets:
-      gh_bot_token:
-        description: 'Bot Access to Private repo'
-        required: true
 
 permissions:
   contents: write
