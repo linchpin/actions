@@ -18,7 +18,13 @@ cd "$PUBLIC_DIR"
 
 echo "::notice::ℹ︎ Maintenance Complete::"
 
-rm maintenance.php
-wp maintenance-mode deactivate
+MAINTENANCE_FILE="./maintenance.php"
 
-echo "::notice::ℹ︎ Maintenance Mode Removed::"
+if [[ -e $FILE ]]; then
+  rm MAINTENANCE_FILE
+fi
+
+if wp maintenance-mode is-active; then
+  wp maintenance-mode deactivate
+  echo "::notice::ℹ︎ Maintenance Mode Removed::"
+fi
