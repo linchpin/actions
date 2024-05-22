@@ -34,7 +34,7 @@ on:
         type: string
       node_version:
         description: 'Node version used during build (Default 16.x)'
-        default: 16
+        default: 18
         required: false
         type: number
       theme_package_manager:
