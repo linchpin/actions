@@ -36,6 +36,8 @@ if test -d PUBLIC_DIR; then
   echo "::warning::ℹ︎ $PUBLIC_DIR doesn't exist"
 fi
 
+echo "::warning::ℹ︎ $PUBLIC_DIR"
+
 cd "$PUBLIC_DIR"
 
 # Start maintenance mode
@@ -107,9 +109,16 @@ cd "$PUBLIC_DIR"
 
 # End maintenance mode, reset 
 
-rm maintenance.php
+MAINTENANCE_FILE="./maintenance.php"
 
-wp maintenance-mode deactivate
+if [[ -e $FILE ]]; then
+  rm MAINTENANCE_FILE
+fi
+
+if wp maintenance-mode is-active; then
+  wp maintenance-mode deactivate
+  echo "::notice::ℹ︎ Maintenance Mode Removed::"
+fi
 
 # Check if the WP-CLI command exists
 if wp cli has-command redis; then
@@ -120,5 +129,3 @@ fi
 if wp cli has-command cache; then
     wp cache flush
 fi
-
-

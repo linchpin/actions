@@ -1,0 +1,100 @@
+name: Update README.md
+
+on:
+  workflow_call:
+    inputs:
+      base:
+        description: 'Where the branch is based from. Typically release please'
+        required: false
+        default: 'release-please--branches--main'
+        type: string
+      branch:
+          description: 'What branch do we create when updating hte readme'
+          required: false
+          default: 'release-please--branches--main--readme'
+          type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-readme:
+    name: Update Readme
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get Branch Names
+        id: branch
+        uses: tj-actions/branch-names@v7.0.7
+        
+      - name: Get WordPress plugins and themes for install
+        id: parse_composer_lock
+        run: |
+          output_data="["
+
+          # Read the composer.lock file and loop through each package
+          jq '.packages[]' composer.lock | while read -r package; do
+            # Extract the name, type, and version from the package
+            name=$(echo "$package" | jq -r '.name')
+            type=$(echo "$package" | jq -r '.type')
+            version=$(echo "$package" | jq -r '.version')
+
+            # Check if the type is wordpress-plugin or wordpress-theme
+            if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
+              # Get the slug by splitting the name at the /
+              slug=${name#*/}
+
+              # Add the slug, type, and version to the output data
+              output_data+="$(jq -n --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
+            fi
+          done
+
+          # Remove the trailing comma and close the JSON array
+          output_data="${output_data%,}]"
+
+          # Set the output variable
+          echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
+          
+      - name: Update README.md with parsed data
+        run: ./deployment/update_readme.sh "${{ steps.parse_composer_lock.outputs.parsed_data }}"
+        
+      - name: Commit changes to README.md
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          git add README.md
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            echo "skip_pr=true" >> $GITHUB_OUTPUT
+            
+          else
+            git commit -m "Update README.md with plugin list"
+            echo "skip_pr=false" >> $GITHUB_OUTPUT
+          fi
+        id: commit_changes
+
+      - name: Create or Update Pull Request
+        uses: peter-evans/create-pull-request@v6
+        id: create-pr
+        with:
+          commit-message: "[automated] Update Plugin List"
+          title: "[Maintenance] Update README.md WordPress Plugin List"
+          body-path: README.md
+          base: 'release-please--branches--main' # Use the same branch for PR updates
+          branch: 'release-please--branches--main--readme' # Use the same branch for PR updates
+          labels: |
+            wordpress
+            automated pr
+            maintenance
+          token: ${{ secrets.GITHUB_TOKEN }}
+  
+      - name: Automerge Pull Request
+        if: steps.create-pr.outputs.pull-request-number != null
+        run: gh pr merge --merge --auto "${{ steps.create-pr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

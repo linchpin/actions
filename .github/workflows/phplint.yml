@@ -15,13 +15,30 @@ on:
 
 jobs:
   phpcbf-fixer:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-lg
     steps:
       - uses: actions/checkout@v3
         with:
           ref: ${{ github.head_ref }}
 
+      - name: Parse commit message
+        id: parse_commit_message
+        run: echo "message=$(git log --format=%B -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
+
+      - name: Check commit message
+        id: check_commit_message
+        run: |
+          commit_message="${{ steps.parse_commit_message.outputs.message }}"
+          if [[ $commit_message == *"#skip-lint"* ]]; then
+            echo "Commit message contains #skip-lint. Skipping linting..."
+            echo "skip_lint=true" >> $GITHUB_OUTPUT
+          else
+            echo "Commit message does not contain #skip-lint. Running linting..."
+            echo "skip_lint=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install PHP
+        if: steps.check_commit_message.outputs.skip_lint != 'true'
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ inputs.php_version }}
@@ -30,12 +47,14 @@ jobs:
 
       - name: Authenticate packagist.linchpin.com
         run: echo '${{ secrets.packagist_auth }}' > ./auth.json
-
+        
       - name: Get composer cache directory
+        if: steps.check_commit_message.outputs.skip_lint != 'true'
         id: composer-cache
         run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
       - name: Cache dependencies
+        if: steps.check_commit_message.outputs.skip_lint != 'true'
         uses: actions/cache@v3
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
@@ -43,20 +62,22 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Install dependencies
+        if: steps.check_commit_message.outputs.skip_lint != 'true'
         run: composer install --prefer-dist
 
       - name: Cleanup Auth
         run: |
           rm ./auth.json
 
+
       - name: PHP Lint 8.0+
-        if: "inputs.php_version == 8.0"
+        if: "inputs.php_version == 8.0 && steps.check_commit_message.outputs.skip_lint != 'true'" 
         uses: overtrue/phplint@9.0
         with:
           path: .
 
       - name: PHP Lint 7.4
-        if: "inputs.php_version == 7.4"
+        if: "inputs.php_version == 7.4 && steps.check_commit_message.outputs.skip_lint != 'true'"
         uses: overtrue/phplint@3.4.0
         with:
           path: .
