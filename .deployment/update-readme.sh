@@ -34,5 +34,12 @@ done < <(echo "${PARSED_DATA}" | jq -c '.[] | select(.type == "wordpress-plugin"
 # Replace the content between the comments in the Markdown file
 sed -i.bak -e "/<!-- x-linchpin-process-readme-start -->/,/<!-- x-linchpin-process-readme-end -->/c\\<!-- x-linchpin-process-readme-start -->\n$table_output\n<!-- x-linchpin-process-readme-end -->" "$README_FILE"
 
+# Support for additional comment tags
+sed -i.bak -e "/<!-- x-linchpin-update-readme-start -->/,/<!-- x-linchpin-update-readme-end -->/c\\<!-- x-linchpin-update-readme-start -->\n$table_output\n<!-- x-linchpin-update-readme-end -->" "$README_FILE"
+
+# Update the release date
+current_date=$(date +"[%m/%d/%Y]")
+sed -i.bak -e "/<!-- x-linchpin-release-date-start -->/,/<!-- x-linchpin-release-date-end -->/c\\<!-- x-linchpin-release-date-start -->$current_date<!-- x-linchpin-release-date-end -->" "$README_FILE"
+
 # Remove the backup file created by sed
 rm "${README_FILE}.bak"
