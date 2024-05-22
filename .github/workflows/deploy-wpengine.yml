@@ -148,7 +148,7 @@ jobs:
         run: |
           wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/remote-plugin-install.sh
           chmod +x ./remote-plugin-install.sh
-          bash ./remote-plugin-install.sh ${{ inputs.install_name }}
+          bash ./remote-plugin-install.sh ${{ inputs.install_name }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
 
 
   status:
