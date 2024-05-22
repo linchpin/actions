@@ -1,16 +1,30 @@
 name: Update README.md
 
 on:
-  push:
-    branches:
-      - main
-      - master
-      - staging
-      - dev
+  workflow_call:
+    inputs:
+      base:
+        description: 'Where the branch is based from. Typically release please'
+        required: false
+        default: 'release-please--branches--main'
+        type: string
+      branch:
+          description: 'What branch do we create when updating hte readme'
+          required: false
+          default: 'release-please--branches--main--readme'
+          type: string
+    secrets:
+      gh_bot_token:
+        description: 'Bot Access to Private repo'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   update-readme:
-    name: Updated Readme
+    name: Update Readme
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -18,10 +32,9 @@ jobs:
 
       - name: Get Branch Names
         id: branch
-        uses: tj-actions/branch-names@v5.6
+        uses: tj-actions/branch-names@v7.0.7
         
       - name: Get WordPress plugins and themes for install
-        if: ${{ inputs.remote_plugin_install != false }}
         id: parse_composer_lock
         run: |
           output_data="["
@@ -47,7 +60,7 @@ jobs:
           output_data="${output_data%,}]"
 
           # Set the output variable
-          echo "::set-output name=parsed_data::$output_data"
+          echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
           
       - name: Update README.md with parsed data
         run: ./deployment/update_readme.sh "${{ steps.parse_composer_lock.outputs.parsed_data }}"
@@ -61,17 +74,31 @@ jobs:
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
-            echo "::set-output name=skip_pr::true"
+            echo "skip_pr=true" >> $GITHUB_OUTPUT
+            
           else
             git commit -m "Update README.md with plugin list"
-            echo "::set-output name=skip_pr::false"
+            echo "skip_pr=false" >> $GITHUB_OUTPUT
           fi
         id: commit_changes
 
-      - name: Create Pull Request
-        if: ${{ steps.commit_changes.outputs.skip_pr != 'true' }}
-        uses: peter-evans/create-pull-request@v3
+      - name: Create or Update Pull Request
+        uses: peter-evans/create-pull-request@v6
+        id: create-pr
         with:
-          token: ${{ secrets.YOUR_GITHUB_TOKEN }}
-          title: 'Update README.md with plugin list'
-          branch: 'update-readme-plugin-list'
+          commit-message: "[automated] Update Plugin List"
+          title: "[Maintenance] Update README.md WordPress Plugin List"
+          body-path: README.md
+          base: 'release-please--branches--main' # Use the same branch for PR updates
+          branch: 'release-please--branches--main--readme' # Use the same branch for PR updates
+          labels: |
+            wordpress
+            automated pr
+            maintenance
+          token: ${{ secrets.GITHUB_TOKEN }}
+  
+      - name: Automerge Pull Request
+        if: steps.create-pr.outputs.pull-request-number != null
+        run: gh pr merge --merge --auto "${{ steps.create-pr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
