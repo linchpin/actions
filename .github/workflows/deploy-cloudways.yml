@@ -119,8 +119,9 @@ jobs:
       - name: Remote - Run Scripts
         id: execute_bash
         run: |
+          ssh cloudways "rm -rf ${{ inputs.deployment_path }}/release/"
           ssh cloudways "unzip -o -q ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
-          ssh cloudways "rm -rf ${{ inputs.deployment_path }}/release/ && mkdir -p ${{ inputs.deployment_path }}/release/.deployment && cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
+          ssh cloudways "mkdir -p ${{ inputs.deployment_path }}/release/.deployment && cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && sh ./entrypoint.sh"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
