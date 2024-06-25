@@ -13,6 +13,10 @@ on:
           required: false
           default: 'release-please--branches--main--readme'
           type: string
+    secrets:
+      bot_token:
+        description: 'Override Bot Token'
+        required: false
 
 permissions:
   contents: write
