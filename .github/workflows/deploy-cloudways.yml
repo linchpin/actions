@@ -136,8 +136,6 @@ jobs:
             User $SSH_USER
             StrictHostKeyChecking no
           END
-
-          sudo apt-get install sshpass
         env:
           SSH_USER: ${{ secrets.deployment_ssh_user }}
           SSH_HOST: ${{ inputs.host_ip }}
@@ -154,6 +152,7 @@ jobs:
           rsync --rsh="ssh -v -p 22 -i $SSH_KEY_PRIVATE_PATH -o StrictHostKeyChecking=no" -zrxc --delete "${{ steps.folder.outputs.folder }}.zip" "${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }}:${{ inputs.deployment_path }}"
 
       - name: Upload Assets with Password
+        if: ${{ inputs.deployment_auth_type == 'pass' }}
         run: |
           SSH_PATH="$HOME/.ssh"
           KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
@@ -162,7 +161,7 @@ jobs:
           chmod 700 "$SSH_PATH"
           chmod 644 "$KNOWN_HOSTS_PATH"
           sshpass -p "${{ secrets.deployment_ssh_pass }}" ssh -o StrictHostKeyChecking=no ${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }} "mkdir -p ${{ inputs.deployment_path }}"
-          sshpass -p "${{ secrets.deployment_ssh_pass }}" rsync --rsh="ssh -o StrictHostKeyChecking=no" -zrxc --delete "${{ steps.folder.outputs.folder }}.zip" "${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }}:${{ inputs.deployment_path }}"
+          sshpass -p "${{ secrets.deployment_ssh_pass }}" rsync --rsh="ssh -o StrictHostKeyChecking=no" -zrxc --delete --no-perms --no-times "${{ steps.folder.outputs.folder }}.zip" "${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }}:${{ inputs.deployment_path }}"
         env:
           SSH_USER: ${{ secrets.deployment_ssh_user }}
           SSH_HOST: ${{ inputs.host_ip }}
@@ -177,7 +176,7 @@ jobs:
           ssh cloudways "mkdir -p ${{ inputs.deployment_path }}/release/.deployment"
           ssh cloudways "cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
 
-      - name: Remote - Run Scripts
+      - name: Remote - Run Scripts with Password
         if: ${{ inputs.deployment_auth_type == 'pass' }}
         id: execute_bash_pass
         run: |

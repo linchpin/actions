@@ -81,8 +81,8 @@ fi
 cd "$RELEASE_DIR"
 
 # rsync latest release to public folder.
-rsync -arxcO --delete ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
-rsync -arxcO --delete ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
+rsync -arxcO --delete --no-perms --no-times ${RELEASE_DIR}/plugins/. ${PUBLIC_DIR}/wp-content/plugins
+rsync -arxcO --delete --no-perms --no-times ${RELEASE_DIR}/themes/. ${PUBLIC_DIR}/wp-content/themes
 
 # Only sync MU Plugins if we have them
 if [ -d "${RELEASE_DIR}/mu-plugins/" ] ; then
