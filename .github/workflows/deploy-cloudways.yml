@@ -136,6 +136,8 @@ jobs:
             User $SSH_USER
             StrictHostKeyChecking no
           END
+
+          sudo apt-get install sshpass
         env:
           SSH_USER: ${{ secrets.deployment_ssh_user }}
           SSH_HOST: ${{ inputs.host_ip }}
@@ -151,16 +153,21 @@ jobs:
           ssh cloudways "mkdir -p ${{ inputs.deployment_path }}"
           rsync --rsh="ssh -v -p 22 -i $SSH_KEY_PRIVATE_PATH -o StrictHostKeyChecking=no" -zrxc --delete "${{ steps.folder.outputs.folder }}.zip" "${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }}:${{ inputs.deployment_path }}"
 
-      - name: Upload Assets
-        if: ${{ inputs.deployment_auth_type == 'pass' }}
-        id: upload_assets_pass
+      - name: Upload Assets with Password
         run: |
           SSH_PATH="$HOME/.ssh"
           KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
           mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
-          sshpass -p "${{ secrets.deployment_ssh_pass }}" ssh cloudways "mkdir -p ${{ inputs.deployment_path }}"
-          sshpass -p "${{ secrets.deployment_ssh_pass }}" rsync --rsh="ssh -v -p 22 -i $SSH_KEY_PRIVATE_PATH -o StrictHostKeyChecking=no" -zrxc --delete "${{ steps.folder.outputs.folder }}.zip" "${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }}:${{ inputs.deployment_path }}"
-    
+          ssh-keyscan -H ${{ inputs.host_ip }} >> "$KNOWN_HOSTS_PATH"
+          chmod 700 "$SSH_PATH"
+          chmod 644 "$KNOWN_HOSTS_PATH"
+          sshpass -p "${{ secrets.deployment_ssh_pass }}" ssh -o StrictHostKeyChecking=no ${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }} "mkdir -p ${{ inputs.deployment_path }}"
+          sshpass -p "${{ secrets.deployment_ssh_pass }}" rsync --rsh="ssh -o StrictHostKeyChecking=no" -zrxc --delete "${{ steps.folder.outputs.folder }}.zip" "${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }}:${{ inputs.deployment_path }}"
+        env:
+          SSH_USER: ${{ secrets.deployment_ssh_user }}
+          SSH_HOST: ${{ inputs.host_ip }}
+          SSH_PASSWORD: ${{ secrets.deployment_ssh_pass }}
+
       - name: Remote - Run Scripts
         if: ${{ inputs.deployment_auth_type == 'key' }}
         id: execute_bash
@@ -174,10 +181,10 @@ jobs:
         if: ${{ inputs.deployment_auth_type == 'pass' }}
         id: execute_bash_pass
         run: |
-          sshpass -p "${{ secrets.deployment_ssh_pass }}" ssh cloudways "rm -rf ${{ inputs.deployment_path }}/release"
-          sshpass -p "${{ secrets.deployment_ssh_pass }}" ssh cloudways "unzip -o -q ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
-          sshpass -p "${{ secrets.deployment_ssh_pass }}" ssh cloudways "mkdir -p ${{ inputs.deployment_path }}/release/.deployment"
-          sshpass -p "${{ secrets.deployment_ssh_pass }}" ssh cloudways "cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
+          sshpass -p "${{ secrets.deployment_ssh_pass }}" ssh ${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }} "rm -rf ${{ inputs.deployment_path }}/release"
+          sshpass -p "${{ secrets.deployment_ssh_pass }}" ssh ${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }} "unzip -o -q ${{ inputs.deployment_path }}/${{ steps.folder.outputs.folder }}.zip -d ${{ inputs.deployment_path }}"
+          sshpass -p "${{ secrets.deployment_ssh_pass }}" ssh ${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }} "mkdir -p ${{ inputs.deployment_path }}/release/.deployment"
+          sshpass -p "${{ secrets.deployment_ssh_pass }}" ssh ${{ secrets.deployment_ssh_user }}@${{ inputs.host_ip }} "cd ${{ inputs.deployment_path }}/release/.deployment && wget -O entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/cloudways-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
         env:
           SSH_USER: ${{ secrets.deployment_ssh_user }}
           SSH_HOST: ${{ inputs.host_ip }}
