@@ -193,7 +193,9 @@ jobs:
       - name: Upload Dependencies
         uses: actions/upload-artifact@v4
         with:
+          name: composer
           path: composer.tar.gz
+          retention-days: 1
 
   # Loop through all themes passed from inputs.themes
   theme_setup:
@@ -277,7 +279,9 @@ jobs:
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         uses: actions/upload-artifact@v4
         with:
+          name: theme-${{ matrix.theme }}
           path: theme-${{ matrix.theme }}.tar.gz
+          retention-days: 1
 
   # Loop through all plugins passed from input.plugins
   plugin_setup:
@@ -350,9 +354,11 @@ jobs:
 
       - name: Upload Plugin
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
+          name: plugin-${{ matrix.plugin }} 
           path: plugin-${{ matrix.plugin }}.tar.gz
+          retention-days: 1
 
   build:
     name: Zip
