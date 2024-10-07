@@ -162,7 +162,7 @@ jobs:
     needs: preflight
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: 'build'
 
@@ -191,7 +191,7 @@ jobs:
           tar -zcf composer.tar.gz ./build
 
       - name: Upload Dependencies
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: composer.tar.gz
 
@@ -275,7 +275,7 @@ jobs:
 
       - name: Upload Theme
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: theme-${{ matrix.theme }}.tar.gz
 
@@ -401,7 +401,7 @@ jobs:
           zip -r release.zip release
 
       - name: Upload Release Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: release
           path: release.zip
