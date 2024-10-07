@@ -370,7 +370,8 @@ jobs:
         id: artifacts
         uses: actions/download-artifact@v4.1.7
         with:
-          path: ./
+          path: ./artifact
+          merge-multiple: true
 
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
