@@ -13,7 +13,7 @@ cd "$GITHUB_WORKSPACE/build"
 # If there's no .distignore file, write a default one into place
 if [ ! -e "$GITHUB_WORKSPACE/build/.distignore" ]; then
   echo "::warning::ℹ︎ Loading default .distignore from github.com/linchpin/actions, you should add one to your project"
-  wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/main/default.distignore
+  wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/v3/default.distignore
 fi;
 
 # $1 = the GitHub action input remote_plugin_install

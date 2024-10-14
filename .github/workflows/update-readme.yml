@@ -28,41 +28,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Get Branch Names
         id: branch
-        uses: tj-actions/branch-names@v7.0.7
-        
-      - name: Get WordPress plugins and themes for install
-        id: parse_composer_lock
-        run: |
-          output_data="["
-
-          # Read the composer.lock file and loop through each package
-          jq '.packages[]' composer.lock | while read -r package; do
-            # Extract the name, type, and version from the package
-            name=$(echo "$package" | jq -r '.name')
-            type=$(echo "$package" | jq -r '.type')
-            version=$(echo "$package" | jq -r '.version')
-
-            # Check if the type is wordpress-plugin or wordpress-theme
-            if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
-              # Get the slug by splitting the name at the /
-              slug=${name#*/}
-
-              # Add the slug, type, and version to the output data
-              output_data+="$(jq -n --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
-            fi
-          done
-
-          # Remove the trailing comma and close the JSON array
-          output_data="${output_data%,}]"
-
-          # Set the output variable
-          echo "parsed_data=$output_data" >> $GITHUB_OUTPUT
-          
-      - name: Update README.md with parsed data
+        uses: tj-actions/branch-names@v7
+     
+      - name: Update README.md with parsed README.md data
         run: ./deployment/update_readme.sh "${{ steps.parse_composer_lock.outputs.parsed_data }}"
         
       - name: Commit changes to README.md
@@ -83,7 +55,7 @@ jobs:
         id: commit_changes
 
       - name: Create or Update Pull Request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         id: create-pr
         with:
           commit-message: "[automated] Update Plugin List"

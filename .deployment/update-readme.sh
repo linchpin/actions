@@ -6,6 +6,43 @@
 README_FILE="README.md"
 PARSED_DATA="${1}"
 
+output_data="["
+
+# Read the composer.lock file and loop through each package
+jq '.packages[]' composer.lock | while read -r package; do
+  # Extract the name, type, and version from the package
+  name=$(echo "$package" | jq -r '.name')
+  type=$(echo "$package" | jq -r '.type')
+  version=$(echo "$package" | jq -r '.version')
+
+  # Check if the type is wordpress-plugin or wordpress-theme
+  if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
+    # Get the slug by splitting the name at the /
+    slug=${name#*/}
+
+    # Add the slug, type, and version to the output data
+    output_data+="$(jq -n --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
+  fi
+done
+
+# Remove the trailing comma and close the JSON array
+output_data="${output_data%,}]"
+
+# Debugging: Print the JSON data
+echo "Received JSON data: $PARSED_DATA"
+
+# Check if the JSON data is empty
+if [[ -z "$PARSED_DATA" ]]; then
+  echo "Error: No JSON data provided."
+  exit 1
+fi
+
+# Validate JSON data
+if ! echo "$PARSED_DATA" | jq empty; then
+  echo "Error: Invalid JSON data."
+  exit 1
+fi
+
 table_output="| Plugin | Version |\n"
 table_output+="|--------|---------|\n"
 
