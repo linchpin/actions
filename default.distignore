@@ -1,5 +1,4 @@
 # Default distignore used if a project doesn't provide it's own (it should!).
-
 .DS_Store
 .git
 .distignore
@@ -28,7 +27,6 @@ phpcs.xml
 bower_components/
 node_modules/
 scss/
-
 
 # WordPress specific
 uploads/
