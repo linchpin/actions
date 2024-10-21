@@ -177,7 +177,7 @@ jobs:
     steps:
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: 'build'
 
@@ -209,9 +209,11 @@ jobs:
         run: tar -zvcf composer.tar.gz ./build
 
       - name: Upload Dependencies
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
+          name: composer
           path: composer.tar.gz
+          retention-days: 1
 
   # Loop through all themes passed from inputs.themes
   theme_setup:
@@ -293,9 +295,11 @@ jobs:
 
       - name: Upload Theme
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
+          name: theme-${{ matrix.theme }}
           path: theme-${{ matrix.theme }}.tar.gz
+          retention-days: 1
 
   # Loop through all plugins passed from input.plugins
   plugin_setup:
@@ -377,9 +381,11 @@ jobs:
 
       - name: Upload Plugin
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
+          name: plugin-${{ matrix.plugin }} 
           path: plugin-${{ matrix.plugin }}.tar.gz
+          retention-days: 1
 
   build:
     name: Zip
@@ -388,28 +394,28 @@ jobs:
     steps:
 
       - name: Download All Artifacts
-        uses: actions/download-artifact@v3
+        id: artifacts
+        uses: actions/download-artifact@v4.1.7
         with:
-          path: ./
+          path: ./artifact
+          merge-multiple: true
 
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
-          tar -xzf ./artifact/composer.tar.gz -C ./
+          tar -xzf ${{ steps.artifacts.outputs['download-path'] }}/composer.tar.gz -C ./
 
       - name: Decompress Theme Artifacts
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
-          mkdir -p ./build
-          for file in ./artifact/theme-*.tar.gz; do tar -zxf "$file" -C ./build; done
+          for file in ${{ steps.artifacts.outputs['download-path'] }}/theme-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Decompress Plugin Artifacts
         if: ${{ inputs.plugins != '["none"]' }} # skip this step if no themes are included.
         id: decompress_plugin_artifacts
         run: |
-          mkdir -p ./build
-          for file in ./artifact/plugin-*.tar.gz; do tar -zxf "$file" -C ./build; done
+          for file in ${{ steps.artifacts.outputs['download-path'] }}/plugin-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Clean Build Files/Folders
         id: clean_build_ff
@@ -430,7 +436,7 @@ jobs:
           zip -r release.zip release
 
       - name: Upload Release Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: release
           path: release.zip
