@@ -15,12 +15,12 @@ on:
         type: string
       php_version:
         description: 'PHP version used during build (Default 7.4.x)'
-        default: 7.4
+        default: 8.0
         required: false
         type: number
       node_version:
         description: 'Node version used during build (Default 14.x)'
-        default: 14
+        default: 20
         required: false
         type: number
       skip_create_release:
@@ -38,23 +38,16 @@ on:
         default: false
         required: false
         type: boolean
-      theme_package_manager:
-        description: 'Package manager npm/yarn'
-        default: 'yarn'
-        type: string
-      plugin_package_manager:
-        description: 'Package manager npm/yarn'
-        default: 'yarn'
-        type: string
       plugin_composer_install:
-        description: 'Run composer install on the functionality level'
+        description: 'Run composer install on the functionality plugin'
         default: false
         required: false
         type: boolean
-      package_manager:
-        description: 'Package manager npm/yarn'
-        default: 'yarn'
-        type: string
+      build_theme_js:
+        description: 'Build the theme JS'
+        default: false
+        required: false
+        type: boolean
     secrets:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
@@ -69,39 +62,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: 'build'
 
       - name: Authenticate Packagist
         run: echo '${{ secrets.packagist_auth }}' > ./build/auth.json
 
-      - name: Cache Composer dependencies
-        uses: actions/cache@v3
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: |
+          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v4
         with:
-          path: /tmp/composer-cache
-          key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
 
       - name: Composer Install
-        uses: php-actions/composer@v6
-        with:
-          working_dir: ./build
-          dev: no
-          php_version: ${{ inputs.php_version }}
+        run: composer install --no-dev --no-interaction --no-progress --no-suggest --optimize-autoloader
 
       - name: Remove Packagist Authentication
         run: rm -f ./build/auth.json
 
-      - name: Compress Composer Artifact
-        id: composer_compression_artifact
-        run: |
-          tar -zcf composer.tar.gz ./build
-
       - name: Upload Dependencies
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          path: composer.tar.gz
+          name: composer
+          path: |
+            ./build/
+            !./build/**/node_modules
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
+          overwrite: true
+          include-hidden-files: true
+          compression-level: 9
 
   theme_setup:
     name: Build WordPress Theme(s)
@@ -110,211 +106,117 @@ jobs:
       matrix:
         theme: ${{ fromJSON( inputs.themes ) }}
     steps:
-      - name: Theme Setup
-        id: individal_theme
+      - name: Theme Setup Confirmation
+        id: theme-setup-confirmation
         if: ${{ matrix.theme == 'none' }}
         run: |
-          echo "::warning::Skipping Theme Build"
+          echo "::warning::Skipping Theme Build, no theme defined"
 
-      - name: Checkout code
-        if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
-        uses: actions/checkout@v3
+      - name: Composer Update for ${{ matrix.theme }} theme
+        id: theme-composer-update
+        # Make sure we have a theme, the theme uses composer and the composer.json exists
+        if: ${{ matrix.theme != 'none' && inputs.theme_composer_install && hashFiles('themes/${{ matrix.theme }}/composer.json') != '' }} # skip this step if no themes are included.
+        run: composer update --working-dir=themes/${{ matrix.theme }}
 
-      - name: Composer Theme Update
-        id: composer-theme-update
-        if: ${{ matrix.theme != 'none' && inputs.theme_composer_install }} # skip this step if no themes are included.
-        run: |
-          cd themes/${{ matrix.theme }}
-          test -f composer.json && composer update
-
-      - name: Setup Node.js
-        if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
-        uses: actions/setup-node@v3.6.0
+      - name: Setup Node for ${{ matrix.theme }} theme
+        id: theme-node-setup
+        # Make sure we have a theme, the theme uses npm and the composer.json exists
+        if: ${{ matrix.theme != 'none' && hashFiles( 'themes/${{ matrix.theme }}/package-lock.json' ) != '' }}
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node_version }}
+          cache: 'npm'
+          cache-dependency-path: themes/${{ matrix.theme }}/package-lock.json
 
-      - name: Get yarn cache directory path
-        if: ${{ matrix.theme != 'none' && inputs.theme_package_manager == 'yarn' }} # skip this step if no themes are included.
-        id: yarn-cache-dir-path
-        run: echo "::set-output name=dir::$(yarn cache dir)"
-        
-      - name: Get npm cache directory
-        id: npm-cache-dir
-        if: ${{ matrix.theme != 'none' && inputs.theme_package_manager == 'npm' }} # skip this step if no themes are included.
-        shell: bash
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - name: Cache yarn cache
-        if: ${{ matrix.theme != 'none' && inputs.theme_package_manager == 'yarn' }} # skip this step if no themes are included.
-        uses: actions/cache@v3
-        id: cache-yarn-cache
-        with:
-          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
-
-      - name: Build Theme with yarn
-        if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' && inputs.theme_package_manager == 'yarn' }} # skip this step if no themes are included or we tell it to skip
-        id: build-theme
-        run: |
-          cd themes/${{ matrix.theme }}
-          yarn install # @todo exclude dev libraries (make initial non cached build faster)
-          yarn build
-
-      - name: Build Theme with npm
-        if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' && inputs.theme_package_manager == 'npm' }} # skip this step if no themes are included or we tell it to skip
+      - name: Build WordPress Theme (${{ matrix.theme }}) using npm
+        if: ${{ matrix.theme != 'none' && inputs.build_theme_js != 'false' && hashFiles( 'themes/${{ matrix.theme }}/package-lock.json' ) != '' }}
         id: build-theme-npm
         run: |
           cd themes/${{ matrix.theme }}
-          npm install # @todo exclude dev libraries (make initial non cached build faster)
+          npm config set cache $(npm config get cache)
+          npm install --production
           npm run build
 
-      - name: Compress Theme Artifact
-        id: compress_theme_artifact
-        if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
-        run: |
-          tar -zcf theme-${{ matrix.theme }}.tar.gz --exclude "node_modules" themes/${{ matrix.theme }}
-
-      - name: Upload Theme
-        uses: actions/upload-artifact@v3
+      - name: Upload WordPress Theme (${{ matrix.theme }}) Artifact
+        uses: actions/upload-artifact@v4
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         with:
-          path: theme-${{ matrix.theme }}.tar.gz
+          path: |
+            themes/${{ matrix.theme }}/
+            !themes/${{ matrix.theme }}/**/node_modules
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
 
   # Loop through all plugins passed from inputs.plugins
   plugin_setup:
-    name: Plugin(s)
+    name: WordPress Plugin(s) Setup
     runs-on: ubuntu-latest
     strategy:
       matrix:
         plugin: ${{ fromJSON( inputs.plugins ) }}
     steps:
-      # check if we have a theme to build. If None output and skip the rest of the steps.
-      - name: Plugin Setup
+      # check if we have a plugin to build. If None output and skip the rest of the steps.
+      - name: Plugin Setup Confirmation
         id: individual_plugin
         if: ${{ matrix.plugin == 'none' }}
         run: |
-          echo "::warning::Skipping Plugin Build"
+          echo "::warning::Skipping Plugin Build, no plugin defined"
 
-      - name: Checkout code
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
-        uses: actions/checkout@v3
+      - name: Composer Update for ${{ matrix.plugin }} plugin
+        id: composer-plugin-update
+        # Make sure we have a plugin, the plugin uses composer and the composer.json exists
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_composer_install && hashFiles( 'plugins/${{ matrix.plugin }}composer.json ' ) != '' }} # skip this step if no themes are included.
+        run: composer update --working-dir=plugins/${{ matrix.plugin }}
 
-      - name: Composer Theme Update
-        id: composer-theme-update
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_composer_install }} # skip this step if no themes are included.
-        run: |
-          cd plugins/${{ matrix.plugin }}
-          test -f composer.json && composer update
-
-      - name: Setup Node.js
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
-        uses: actions/setup-node@v3.6.0
+      - name: Setup Node for ${{ matrix.plugin }} WordPress plugin
+        if: ${{ matrix.plugin != 'none' && hashFiles( 'themes/${{ matrix.theme }}/package-lock.json' ) != '' }} # skip this step if no themes are included.
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node_version }}
+          cache: 'npm'
+          cache-dependency-path: themes/${{ matrix.plugin }}/package-lock.json
 
-      - name: Get yarn cache directory path
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'yarn' }} # skip this step if no plugins are included.
-        id: yarn-cache-dir-path
-        run: echo "::set-output name=dir::$(yarn cache dir)"
-
-      - name: Get npm cache directory
-        id: npm-cache-dir
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'npm' }} # skip this step if no plugins are included.
-        shell: bash
-        run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
-
-      - name: Cache yarn cache
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'yarn' }} # skip this step if no plugins are included.
-        uses: actions/cache@v3
-        id: cache-yarn-cache
-        with:
-          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
-
-      - name: Build Plugin with yarn
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'yarn' }} # skip this step if no plugins are included.
-        id: build-plugin
-        run: |
-          cd plugins/${{ matrix.plugin }}
-          yarn install # @todo exclude dev libraries (make initial non cached build faster)
-          yarn build
-          
-      - name: Build Plugin with npm
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_package_manager == 'npm' }} # skip this step if no plugins are included.
+      - name: Build WordPress Plugin (${{ matrix.plugin }}) using npm
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
         id: build-plugin-npm
         run: |
           cd plugins/${{ matrix.plugin }}
-          npm install # @todo exclude dev libraries (make initial non cached build faster)
+          npm install --production
           npm run build
 
-      - name: Compress Plugin Artifact
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
-        id: compress_plugin_artifact
-        run: 
-          tar -zcf plugin-${{ matrix.plugin }}.tar.gz --exclude "node_modules" plugins/${{ matrix.plugin }}
-
-      - name: Upload Plugin
+      - name: Upload WordPress Theme (${{ matrix.plugin }}) Artifact
+        uses: actions/upload-artifact@v4
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
-        uses: actions/upload-artifact@v3
         with:
-          path: plugin-${{ matrix.plugin }}.tar.gz
+          path: |
+            plugins/${{ matrix.plugin }}/
+            !plugins/${{ matrix.plugin }}/**/node_modules
+          retention-days: 1 # since we keep a release we do not need to store an artifact too long
 
   build:
     name: Build Release Zip
     runs-on: ubuntu-latest
-    needs: [dependency_setup,theme_setup,plugin_setup]
+    needs: [ dependency_setup, theme_setup, plugin_setup ]
     steps:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4.1.7
         with:
-          path: ./
-      - name: Decompress Composer Artifacts
-        id: decompress_composer_artifacts
-        run: |
-          tar -xzf ./artifact/composer.tar.gz -C ./
-      - name: Decompress Theme Artifacts
-        if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
-        id: decompress_theme_artifacts
-        run: |
-          cd ./artifact
-          cat theme-*.tar.gz | tar -xzf - -i -C ../build/
-          cd ../
-          
-      - name: Decompress Plugin Artifacts
-        if: ${{ inputs.plugins != '["none"]' }} # skip this step if no themes are included.
-        id: decompress_plugin_artifacts
-        run: |
-          cd ./artifact
-          cat plugin-*.tar.gz | tar -xzf - -i -C ../build/
-          cd ../
-     
+          path: ./build
+          merge-multiple: true # Download all artifacts into the same directory
+
       - name: Clean Build Files/Folders
         id: clean_build_ff
         run: |
           mkdir -p ./build/.deployment/
           cd ./build/.deployment/
-          wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/main/.deployment/cleanup.sh
+          wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/cleanup.sh
           chmod +x ./cleanup.sh
           sh ./cleanup.sh
           cd ../../
           rm -rf ./build/.deployment/
+          
       - name: Get Current Version
         id: version
-        run: |
-          echo ::set-output name=tag::${GITHUB_REF#refs/tags/v}
-      # Latest changelog entry is based on version. If not found, fall back to the last version
-      - name: Get Latest CHANGELOG.md Entry
-        id: changelog_reader
-        uses: mindsers/changelog-reader-action@v2
-        with:
-          validation_depth: 10
-          version: ${{ steps.version.current }}
-          path: ./build/CHANGELOG.md
+        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - name: Combine Assets for Release
         id: compression
@@ -322,16 +224,25 @@ jobs:
           zip -r release.zip ./temp_archive
 
       - name: Upload Release Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: release
           path: release.zip
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
 
+      # Latest changelog entry is based on version. If not found, fall back to the last version
+      - name: Get Latest CHANGELOG.md Entry
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_depth: 10
+          version: ${{ steps.version.outputs.tag }}
+          path: ./build/CHANGELOG.md
+
       - name: Create Release
         id: create_release
-        if: ${{ ! inputs.skip_github_release }}
-        uses: softprops/action-gh-release@v1
+        if: ${{ ! inputs.skip_github_release && startsWith( github.ref, 'refs/tags/' ) }}
+        uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ github.ref }}

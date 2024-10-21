@@ -44,6 +44,14 @@ jobs:
 | [js.json](js.json)               | Shared config for javascript projects (gulp builds, etc )  |
 
 
+## Make deployments faster/more automated. Especially when using Smart Plugin Manager, Autopilot, Cloudways Plugin Updates
+
+| File | Description |
+| ---- | ----------- |
+| [remote-plugin-install](.deployment/remote-plugin-install.php) | A bash script to load plugins via the WP CLI  including a remote satispress packagist |
+
+| [remmote-plugin-install]
+
 ## More Useful Configs
 
 | File                                     | Description                                                                                                                    |

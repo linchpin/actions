@@ -1,0 +1,76 @@
+name: Update README.md
+
+on:
+  workflow_call:
+    inputs:
+      base:
+        description: 'Where the branch is based from. Typically release please'
+        required: false
+        default: 'release-please--branches--main'
+        type: string
+      branch:
+          description: 'What branch do we create when updating hte readme'
+          required: false
+          default: 'release-please--branches--main--readme'
+          type: string
+    secrets:
+      bot_token:
+        description: 'Override Bot Token'
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-readme:
+    name: Update Readme
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get Branch Names
+        id: branch
+        uses: tj-actions/branch-names@v7
+     
+      - name: Update README.md with parsed README.md data
+        run: ./deployment/update_readme.sh "${{ steps.parse_composer_lock.outputs.parsed_data }}"
+        
+      - name: Commit changes to README.md
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          git add README.md
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            echo "skip_pr=true" >> $GITHUB_OUTPUT
+            
+          else
+            git commit -m "Update README.md with plugin list"
+            echo "skip_pr=false" >> $GITHUB_OUTPUT
+          fi
+        id: commit_changes
+
+      - name: Create or Update Pull Request
+        uses: peter-evans/create-pull-request@v7
+        id: create-pr
+        with:
+          commit-message: "[automated] Update Plugin List"
+          title: "[Maintenance] Update README.md WordPress Plugin List"
+          body-path: README.md
+          base: 'release-please--branches--main' # Use the same branch for PR updates
+          branch: 'release-please--branches--main--readme' # Use the same branch for PR updates
+          labels: |
+            wordpress
+            automated pr
+            maintenance
+          token: ${{ secrets.GITHUB_TOKEN }}
+  
+      - name: Automerge Pull Request
+        if: steps.create-pr.outputs.pull-request-number != null
+        run: gh pr merge --merge --auto "${{ steps.create-pr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
