@@ -43,7 +43,7 @@ jobs:
         run: |
           git config --global user.name 'Linchpin Bot'
           git config --global user.email 'dev@linchpin.com'
-          git checkout -b ${{ github.event.pull_request.head.ref }}-phpcbf
+          git checkout -b ${{ github.ref_name }}-phpcbf
 
       - name: Install Composer dependencies
         run: |
@@ -62,7 +62,7 @@ jobs:
           git commit -m "ci(NO-TASK): PHPCBF Auto Fix"
 
       - name: Push changes
-        run: git push origin ${{ github.event.pull_request.head.ref }}-phpcbf
+        run: git push origin ${{ github.ref_name }}-phpcbf
 
       - name: Read PHPCBF report
         id: read_report
@@ -74,14 +74,14 @@ jobs:
 
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.bot_token }}
           commit-message: PHPCBF Auto Fix
           committer: Linchpin Bot <dev@linchpin.com>
           author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
           signoff: false
-          branch: ${{ github.event.pull_request.head.ref }}-phpcbf
+          branch: ${{ github.ref_name }}-phpcbf
           delete-branch: true
           title: 'Auto Fix Formatting'
           body: |
