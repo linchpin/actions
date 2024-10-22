@@ -23,8 +23,12 @@ jobs:
 
       - name: Parse commit message
         id: parse_commit_message
-        run: echo "message=$(git log --format=%B -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
-
+        run: |
+          commit_message="$(git log --format=%B -n 1 ${{ github.sha }})"
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo "$commit_message" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+  
       - name: Check commit message
         id: check_commit_message
         run: |
