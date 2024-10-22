@@ -17,13 +17,17 @@ jobs:
   phpcbf-fixer:
     runs-on: ubuntu-latest-lg
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
 
       - name: Parse commit message
         id: parse_commit_message
-        run: echo "message=$(git log --format=%B -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
+        run: |
+          commit_message="$(git log --format=%B -n 1 ${{ github.sha }})"
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo "$commit_message" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Check commit message
         id: check_commit_message
@@ -69,15 +73,14 @@ jobs:
         run: |
           rm ./auth.json
 
-
       - name: PHP Lint 8.0+
-        if: "inputs.php_version == 8.0 && steps.check_commit_message.outputs.skip_lint != 'true'" 
+        if: ( ${{ inputs.php_version }} == 8.0 || ${{ inputs.php_version }} == 8.2 ) && ${{ steps.check_commit_message.outputs.skip_lint }} != 'true'" 
         uses: overtrue/phplint@9.0
         with:
           path: .
 
       - name: PHP Lint 7.4
-        if: "inputs.php_version == 7.4 && steps.check_commit_message.outputs.skip_lint != 'true'"
+        if: ${{ inputs.php_version }} == 7.4 && ${{ steps.check_commit_message.outputs.skip_lint }} != 'true'"
         uses: overtrue/phplint@3.4.0
         with:
           path: .
