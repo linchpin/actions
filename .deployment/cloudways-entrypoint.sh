@@ -42,7 +42,7 @@ cd "$PUBLIC_DIR"
 
 # Start maintenance mode
 
-wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/maintenance.php
+wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/v3/maintenance.php
 wp maintenance-mode activate
 
 # Backup our database
@@ -51,18 +51,6 @@ wp maintenance-mode activate
 # Cleanup symlinks (from legacy deployment process)
 
 cd "$PUBLIC_DIR/wp-content"
-
-if [ -L "$PUBLIC_DIR/wp-content/plugins" ]; then
-  unlink plugins
-fi
-
-if [ -L "$PUBLIC_DIR/wp-content/themes" ]; then
-  unlink themes
-fi
-
-if [ -L "$PUBLIC_DIR/wp-content/mu-plugins" ]; then
-  unlink mu-plugins
-fi
 
 if [ -f "$PUBLIC_DIR/wp-content/themes" ]; then
     rm -rf "$PUBLIC_DIR/wp-content/themes"
@@ -89,7 +77,7 @@ if [ -d "${RELEASE_DIR}/mu-plugins/" ] ; then
 
   if [ ! -e "${RELEASE_DIR}/.distignore" ]; then
     echo "::warning::ℹ︎ Loading default .distignore from github.com/linchpin/actions, you should add one to your project"
-    wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/main/default.distignore
+    wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/v3/default.distignore
   fi;
 
   rsync -rxc --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
@@ -109,7 +97,7 @@ cd "$PUBLIC_DIR"
 
 # End maintenance mode, reset 
 
-MAINTENANCE_FILE="./maintenance.php"
+MAINTENANCE_FILE="$PUBLIC_DIR/maintenance.php"
 
 if [[ -e $FILE ]]; then
   rm MAINTENANCE_FILE

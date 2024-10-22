@@ -7,12 +7,12 @@ on:
         description: 'PHP version used during build (Default 7.4.x)'
         required: false
         type: string
-        default: '7.4'
+        default: '8.2'
       node_version:
-        desciption: 'Node version used during build (Default 14.x)'
+        description: 'Node version used during build (Default 14.x)'
         required: false
         type: number
-        default: 14
+        default: 20
     secrets:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
@@ -25,47 +25,47 @@ jobs:
   phpcbf-fixer:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
 
-      - name: Install PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ inputs.php_version }}
-          coverage: none
-          tools: cs2pr, composer
+      # - name: Install PHP
+      #   uses: shivammathur/setup-php@v2
+      #   with:
+      #     php-version: ${{ inputs.php_version }}
+      #     coverage: none
+      #     tools: cs2pr, composer
 
-      - name: Authenticate packagist.linchpin.com
-        run: echo '${{ secrets.packagist_auth }}' > ./auth.json
+      # - name: Authenticate packagist.linchpin.com
+      #   run: echo '${{ secrets.packagist_auth }}' > ./auth.json
 
-      - name: Install Composer dependencies
-        run: |
-          composer update
-          rm -f ./auth.json
+      # - name: Install Composer dependencies
+      #   run: |
+      #     composer update
+      #     rm -f ./auth.json
 
-      # Check the code-style consistency of the PHP files.
-      - name: Fix PHP code style
-        id: codestyle
-        continue-on-error: true
-        run: ${{ github.workspace }}/vendor/squizlabs/php_codesniffer/bin/phpcbf . --standard=${{ github.workspace }}/phpcs.xml
+      # # Check the code-style consistency of the PHP files.
+      # - name: Fix PHP code style
+      #   id: codestyle
+      #   continue-on-error: true
+      #   run: ${{ github.workspace }}/vendor/squizlabs/php_codesniffer/bin/phpcbf . --standard=${{ github.workspace }}/phpcs.xml
 
-      - name: Create Pull Request
-        id: cpr
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.bot_token }}
-          commit-message: PHPCBF Auto Fix
-          committer: Linchpin Bot <dev@linchpin.com>
-          author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
-          signoff: false
-          branch: ${{ github.event.pull_request.head.ref }}-phpcbf
-          delete-branch: true
-          title: 'Auto Fix Formatting'
-          body: |
-            Update Formatting
-          labels: |
-            phpcs
-            automated pr
-          milestone: 1
-          draft: false
+      # - name: Create Pull Request
+      #   id: cpr
+      #   uses: peter-evans/create-pull-request@v5
+      #   with:
+      #     token: ${{ secrets.bot_token }}
+      #     commit-message: PHPCBF Auto Fix
+      #     committer: Linchpin Bot <dev@linchpin.com>
+      #     author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+      #     signoff: false
+      #     branch: ${{ github.event.pull_request.head.ref }}-phpcbf
+      #     delete-branch: true
+      #     title: 'Auto Fix Formatting'
+      #     body: |
+      #       Update Formatting
+      #     labels: |
+      #       phpcs
+      #       automated pr
+      #     milestone: 1
+      #     draft: false

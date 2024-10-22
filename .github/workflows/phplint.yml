@@ -4,8 +4,8 @@ on:
   workflow_call:
     inputs:
       php_version:
-        description: 'PHP version used during build (Default 7.4.x)'
-        default: '7.4'
+        description: 'PHP version used during build (Default 8.2)'
+        default: '8.2'
         required: false
         type: string
     secrets:
@@ -17,9 +17,7 @@ jobs:
   phpcbf-fixer:
     runs-on: ubuntu-latest-lg
     steps:
-      - uses: actions/checkout@v3
-        with:
-          ref: ${{ github.head_ref }}
+      - uses: actions/checkout@v4
 
       - name: Parse commit message
         id: parse_commit_message
@@ -29,7 +27,7 @@ jobs:
         id: check_commit_message
         run: |
           commit_message="${{ steps.parse_commit_message.outputs.message }}"
-          if [[ $commit_message == *"#skip-lint"* ]]; then
+          if [[ "$commit_message" == *"#skip-lint"* ]]; then
             echo "Commit message contains #skip-lint. Skipping linting..."
             echo "skip_lint=true" >> $GITHUB_OUTPUT
           else
@@ -37,47 +35,30 @@ jobs:
             echo "skip_lint=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Install PHP
-        if: steps.check_commit_message.outputs.skip_lint != 'true'
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ inputs.php_version }}
-          coverage: none
-          tools: cs2pr, composer
-
       - name: Authenticate packagist.linchpin.com
         run: echo '${{ secrets.packagist_auth }}' > ./auth.json
         
-      - name: Get composer cache directory
-        if: steps.check_commit_message.outputs.skip_lint != 'true'
-        id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-
-      - name: Cache dependencies
-        if: steps.check_commit_message.outputs.skip_lint != 'true'
-        uses: actions/cache@v3
+      - name: Cache Composer dependencies
+        if: ${{ steps.check_commit_message.outputs.skip_lint != 'true' && hashFiles( './build/composer') }}
+        uses: actions/cache@v4
         with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
+          path: /tmp/composer-cache
+          key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
 
-      - name: Install dependencies
+      - name: Composer Install
+        uses: php-actions/composer@v6
         if: steps.check_commit_message.outputs.skip_lint != 'true'
-        run: composer install --prefer-dist
+        with:
+          working_dir: ./
+          php_version: ${{ inputs.php_version }}
 
       - name: Cleanup Auth
         run: |
           rm ./auth.json
 
-
       - name: PHP Lint 8.0+
-        if: "inputs.php_version == 8.0 && steps.check_commit_message.outputs.skip_lint != 'true'" 
+        if: steps.check_commit_message.outputs.skip_lint != 'true'
         uses: overtrue/phplint@9.0
         with:
-          path: .
+          path: ./
 
-      - name: PHP Lint 7.4
-        if: "inputs.php_version == 7.4 && steps.check_commit_message.outputs.skip_lint != 'true'"
-        uses: overtrue/phplint@3.4.0
-        with:
-          path: .
