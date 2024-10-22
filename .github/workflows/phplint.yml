@@ -15,19 +15,23 @@ on:
 
 jobs:
   phpcbf-fixer:
-    runs-on: ubuntu-latest-lg
+    runs-on: "${{ matrix.operating-system }}"
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        operating-system:
+          - "ubuntu-latest-lg"
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Parse commit message
-        id: parse_commit_message
-        run: echo "message=$(git log --format=%B -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
-
-      - name: Check commit message
+      - name: Check commit message for #skip-lint
         id: check_commit_message
         run: |
-          commit_message="${{ steps.parse_commit_message.outputs.message }}"
-          if [[ "$commit_message" == *"#skip-lint"* ]]; then
+          commit_message="$(git log --format=%B -n 1 ${{ github.sha }})"
+          if [[ $commit_message == *"#skip-lint"* ]]; then
             echo "Commit message contains #skip-lint. Skipping linting..."
             echo "skip_lint=true" >> $GITHUB_OUTPUT
           else
@@ -39,7 +43,7 @@ jobs:
         run: echo '${{ secrets.packagist_auth }}' > ./auth.json
         
       - name: Cache Composer dependencies
-        if: ${{ steps.check_commit_message.outputs.skip_lint != 'true' && hashFiles( './build/composer') }}
+        if: ${{ steps.check_commit_message.outputs.skip_lint != 'true' }} && hashFiles( './build/composer.lock') !== ''
         uses: actions/cache@v4
         with:
           path: /tmp/composer-cache
@@ -47,7 +51,7 @@ jobs:
 
       - name: Composer Install
         uses: php-actions/composer@v6
-        if: steps.check_commit_message.outputs.skip_lint != 'true'
+        if: ${{ steps.check_commit_message.outputs.skip_lint }} != 'true'
         with:
           working_dir: ./
           php_version: ${{ inputs.php_version }}
@@ -56,9 +60,26 @@ jobs:
         run: |
           rm ./auth.json
 
-      - name: PHP Lint 8.0+
-        if: steps.check_commit_message.outputs.skip_lint != 'true'
-        uses: overtrue/phplint@9.0
+      - name: PHP Lint 8.3
+        if: ${{ inputs.php_version }} == '8.3' && ${{ steps.check_commit_message.outputs.skip_lint }} != 'true'
+        uses: overtrue/phplint@main
         with:
           path: ./
 
+      - name: PHP Lint 8.2
+        if: ${{ inputs.php_version }} == '8.2' && ${{ steps.check_commit_message.outputs.skip_lint }} != 'true'
+        uses: overtrue/phplint@v9.5
+        with:
+          path: ./
+
+      - name: PHP Lint 8.1
+        if: ${{ inputs.php_version }} == '8.1' && ${{ steps.check_commit_message.outputs.skip_lint }} != 'true'
+        uses: overtrue/phplint@v9.4
+        with:
+          path: ./
+
+      - name: PHP Lint 8.0
+        if: ${{ inputs.php_version }} == '8.2' && ${{ steps.check_commit_message.outputs.skip_lint }} != 'true'
+        uses: overtrue/phplint@v9.0
+        with:
+          path: ./
