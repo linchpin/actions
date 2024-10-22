@@ -29,43 +29,68 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
 
-      # - name: Install PHP
-      #   uses: shivammathur/setup-php@v2
-      #   with:
-      #     php-version: ${{ inputs.php_version }}
-      #     coverage: none
-      #     tools: cs2pr, composer
+      - name: Install PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php_version }}
+          coverage: none
+          tools: cs2pr, composer
 
-      # - name: Authenticate packagist.linchpin.com
-      #   run: echo '${{ secrets.packagist_auth }}' > ./auth.json
+      - name: Authenticate packagist.linchpin.com
+        run: echo '${{ secrets.packagist_auth }}' > ./auth.json
 
-      # - name: Install Composer dependencies
-      #   run: |
-      #     composer update
-      #     rm -f ./auth.json
+      - name: Create a new branch
+        run: |
+          git config --global user.name 'Linchpin Bot'
+          git config --global user.email 'dev@linchpin.com'
+          git checkout -b ${{ github.event.pull_request.head.ref }}-phpcbf
 
-      # # Check the code-style consistency of the PHP files.
-      # - name: Fix PHP code style
-      #   id: codestyle
-      #   continue-on-error: true
-      #   run: ${{ github.workspace }}/vendor/squizlabs/php_codesniffer/bin/phpcbf . --standard=${{ github.workspace }}/phpcs.xml
+      - name: Install Composer dependencies
+        run: |
+          composer update
+          rm -f ./auth.json
 
-      # - name: Create Pull Request
-      #   id: cpr
-      #   uses: peter-evans/create-pull-request@v5
-      #   with:
-      #     token: ${{ secrets.bot_token }}
-      #     commit-message: PHPCBF Auto Fix
-      #     committer: Linchpin Bot <dev@linchpin.com>
-      #     author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
-      #     signoff: false
-      #     branch: ${{ github.event.pull_request.head.ref }}-phpcbf
-      #     delete-branch: true
-      #     title: 'Auto Fix Formatting'
-      #     body: |
-      #       Update Formatting
-      #     labels: |
-      #       phpcs
-      #       automated pr
-      #     milestone: 1
-      #     draft: false
+      # Check the code-style consistency of the PHP files.
+      - name: Fix PHP code style
+        id: codestyle
+        continue-on-error: true
+        run: ${{ github.workspace }}/vendor/squizlabs/php_codesniffer/bin/phpcbf . --standard=${{ github.workspace }}/phpcs.xml > phpcbf-report.txt
+
+      - name: Commit changes
+        run: |
+          git add .
+          git commit -m "ci(NO-TASK): PHPCBF Auto Fix"
+
+      - name: Push changes
+        run: git push origin ${{ github.event.pull_request.head.ref }}-phpcbf
+
+      - name: Read PHPCBF report
+        id: read_report
+        run: |
+          REPORT=$(cat phpcbf-report.txt)
+          echo "report<<EOF" >> $GITHUB_ENV
+          echo "$REPORT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.bot_token }}
+          commit-message: PHPCBF Auto Fix
+          committer: Linchpin Bot <dev@linchpin.com>
+          author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
+          signoff: false
+          branch: ${{ github.event.pull_request.head.ref }}-phpcbf
+          delete-branch: true
+          title: 'Auto Fix Formatting'
+          body: |
+            **PHPCBF Report:**
+            ```
+            ${{ env.report }}
+            ```
+          labels: |
+            phpcs
+            automated pr
+          milestone: 1
+          draft: false
