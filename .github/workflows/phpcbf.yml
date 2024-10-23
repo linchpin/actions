@@ -9,7 +9,7 @@ on:
         type: string
         default: '7.4'
       node_version:
-        desciption: 'Node version used during build (Default 14.x)'
+        description: 'Node version used during build (Default 14.x)'
         required: false
         type: number
         default: 14
