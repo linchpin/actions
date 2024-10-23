@@ -87,7 +87,7 @@ jobs:
           body: |
             **PHPCBF Report:**
             ```
-            ${{ env.report }}
+            ${{ env.REPORT }}
             ```
           labels: |
             phpcs
