@@ -4,12 +4,12 @@ on:
   workflow_call:
     inputs:
       php_version:
-        description: 'PHP version used during build (Default 7.4.x)'
+        description: 'PHP version used during build (Default 8.2)'
         required: false
         type: string
         default: '8.2'
       node_version:
-        description: 'Node version used during build (Default 14.x)'
+        description: 'Node version used during build (Default 20.X)'
         required: false
         type: number
         default: 20
