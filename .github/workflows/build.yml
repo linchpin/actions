@@ -198,7 +198,7 @@ jobs:
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         uses: actions/checkout@v4
 
-      - name: Install Theme Composer Dependencies
+      - name: Install Theme ${{ matrix.theme }} Composer Dependencies
         if: ${{ matrix.theme != 'none' && inputs.theme_uses_composer == true && hashFiles(format('themes/{0}/composer.lock', matrix.theme)) }} # skip this step if no themes are included or we don't have a composer file
         id: install-theme-composer
         uses: php-actions/composer@v6
