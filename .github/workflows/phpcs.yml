@@ -2,10 +2,6 @@ name: WordPress Coding Standards Inspections
 
 on:
   workflow_call:
-    secrets:
-      bot_token:
-        description: 'Github Bot Token'
-        required: true
 
 jobs:
   runPHPCSInspection:
@@ -17,4 +13,4 @@ jobs:
       - name: Run PHPCS inspection
         uses: rtCamp/action-phpcs-code-review@v3
         env:
-          GH_BOT_TOKEN: ${{ secrets.bot_token }}
+          GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

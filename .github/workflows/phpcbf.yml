@@ -2,24 +2,6 @@ name: WordPress Autofixer
 
 on:
   workflow_call:
-    inputs:
-      php_version:
-        description: 'PHP version used during build (Default 8.2)'
-        required: false
-        type: string
-        default: '8.2'
-      node_version:
-        description: 'Node version used during build (Default 20.X)'
-        required: false
-        type: number
-        default: 20
-    secrets:
-      packagist_auth:
-        description: 'Authentication for private satis/packagist'
-        required: true
-      bot_token:
-        description: 'Github Bot Token'
-        required: true
 
 jobs:
   phpcbf-fixer:
@@ -32,12 +14,12 @@ jobs:
       - name: Install PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ inputs.php_version }}
+          php-version: ${{ vars.PHP_VERSION }}
           coverage: none
           tools: cs2pr, composer
 
       - name: Authenticate packagist.linchpin.com
-        run: echo '${{ secrets.packagist_auth }}' > ./auth.json
+        run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > ./auth.json
 
       - name: Create a new branch
         run: |
@@ -76,7 +58,7 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.bot_token }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
           commit-message: PHPCBF Auto Fix
           committer: Linchpin Bot <dev@linchpin.com>
           author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
