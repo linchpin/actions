@@ -15,6 +15,7 @@ on:
 
 jobs:
   phpcbf-fixer:
+
     runs-on: "${{ matrix.operating-system }}"
 
     strategy:
@@ -26,6 +27,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Check commit message for "#skip-lint"
         id: check_commit_message
@@ -38,10 +41,11 @@ jobs:
             echo "Commit message does not contain #skip-lint. Running linting..."
             echo "skip_lint=false" >> $GITHUB_OUTPUT
           fi
-
+  
+      - name: Check commit message
       - name: Authenticate packagist.linchpin.com
         run: echo '${{ secrets.packagist_auth }}' > ./auth.json
-        
+
       - name: Cache Composer dependencies
         if: steps.check_commit_message.outputs.skip_lint == false && hashFiles( './build/composer.lock') != ''
         uses: actions/cache@v4
