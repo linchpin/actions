@@ -2,16 +2,6 @@ name: PHP Lint
 
 on:
   workflow_call:
-    inputs:
-      php_version:
-        description: 'PHP version used during build (Default 8.2)'
-        default: '8.2'
-        required: false
-        type: string
-    secrets:
-      packagist_auth:
-        description: 'Authentication for private satis/packagist'
-        required: true
 
 jobs:
   phpcbf-fixer:
@@ -42,9 +32,8 @@ jobs:
             echo "skip_lint=false" >> $GITHUB_OUTPUT
           fi
   
-      - name: Check commit message
       - name: Authenticate packagist.linchpin.com
-        run: echo '${{ secrets.packagist_auth }}' > ./auth.json
+        run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > ./auth.json
 
       - name: Cache Composer dependencies
         if: steps.check_commit_message.outputs.skip_lint == false && hashFiles( './build/composer.lock') != ''
@@ -58,32 +47,32 @@ jobs:
         if: steps.check_commit_message.outputs.skip_lint == false
         with:
           working_dir: ./
-          php_version: ${{ inputs.php_version }}
+          php_version: ${{ vars.PHP_VERSION }}
 
       - name: Cleanup Auth
         run: |
           rm ./auth.json
 
       - name: PHP Lint 8.3
-        if: ${{ inputs.php_version == '8.3' }} && steps.check_commit_message.outputs.skip_lint == false
+        if: ${{ vars.PHP_VERSION == '8.3' }} && steps.check_commit_message.outputs.skip_lint == false
         uses: overtrue/phplint@main
         with:
           path: ./
 
       - name: PHP Lint 8.2
-        if: ${{ inputs.php_version == '8.2' }} && steps.check_commit_message.outputs.skip_lint == false
+        if: ${{ vars.PHP_VERSION == '8.2' }} && steps.check_commit_message.outputs.skip_lint == false
         uses: overtrue/phplint@9.5
         with:
           path: ./
 
       - name: PHP Lint 8.1
-        if: ${{ inputs.php_version == '8.1' }} && steps.check_commit_message.outputs.skip_lint == false
+        if: ${{ vars.PHP_VERSION == '8.1' }} && steps.check_commit_message.outputs.skip_lint == false
         uses: overtrue/phplint@9.4
         with:
           path: ./
 
       - name: PHP Lint 8.0
-        if: ${{ inputs.php_version == '8.0' }} && steps.check_commit_message.outputs.skip_lint == false
+        if: ${{ vars.PHP_VERSION == '8.0' }} && steps.check_commit_message.outputs.skip_lint == false
         uses: overtrue/phplint@9.0
         with:
           path: ./

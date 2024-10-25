@@ -25,6 +25,7 @@ To learn more [about secrets](https://docs.github.com/en/actions/security-for-gi
 | SSH_HOST   |         | The SSH IP or Host Name |
 | SATISPRESS_USER | | Authenticate with Private Packagist |
 | SATISPRESS_PASSWORD | | Authenticate with Private Packagist |
+| PACKAGIST_COMPOSER_AUTH_JSON | | Alternative Authentication with Private Packagist |
  
 ### Variables
 
@@ -41,7 +42,10 @@ To learn more [about variables](https://docs.github.com/en/actions/writing-workf
 | REMOTE_PLUGIN_INSTALL | false | Whether or not to use the WP CLI to install and/or update plugins on the remote environment instead of using linchpin.packagist.com or wpackagist.org |
 | BRANCH | staging | The default branch associated with the workflow, this is also impacted by Environment Setup in GitHub |
 | INSTALL_NAME | | Install name when project is hosted on WP Engine |
-
+| THEMES | | A JSON formatted array of themes to build Ex `["linchpin-theme", "linchpin-child-theme"]` |
+| PLUGINS | | A JSON formatted array of plugins to build Ex `["linchpin-functionality"]` |
+| THEME_USES_COMPOSER | false | Do the theme(s) use composer to load dependencies |
+| PLUGIN_USES_COMPOSER | true | Do the plugins(s) use composer to load dependencies |
 
 ## Breaking Changes from `main` or `v2`
 
