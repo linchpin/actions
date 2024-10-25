@@ -1,4 +1,4 @@
-name: Deploy to ${{ vars.HOST }}
+name: Continue Deploy to Pressable from API Call
 
 on:
   workflow_call:
@@ -6,7 +6,7 @@ on:
       deployment_path:
         description: 'Provide if the deployment path is non standard'
         required: false
-        default: '_wpeprivate/releases'
+        default: '/tmp/releases'
         type: string
       deployment_id:
         description: 'The deployment ID from previous jobs'
@@ -16,36 +16,42 @@ on:
         description: 'Workflow Run ID to get artifacts from'
         required: true
         type: string
-      # do_backup:
-      # @todo implement remote backups on WP Engine 
-      #   description: 'Backup the current site before deploying'
-      #   required: false
-      #   default: false
-      #   type: boolean
+      do_backup:
+        description: 'Backup the current site before deploying'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   deploy:
-    name: To ${{ vars.HOST }}
+    name: To Pressable
     runs-on: ubuntu-latest
     environment:
       name: ${{ vars.ENVIRONMENT }}
       url: ${{ vars.SITE_URL }}
     steps:
-      - name: Deployment In Progress
-        id: in_progress_deployment
-        uses: octokit/request-action@v2
-        with:
-          route: POST /repos/{repo}/deployments/{deployment}/statuses
-          repo: ${{ github.repository }}
-          deployment: ${{ inputs.deployment }}
-          environment: ${{ vars.ENVIRONMENT }}
-          environment_url: ${{ vars.SITE_URL }}
-          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          state: in_progress
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Download All Artifacts
+      - name: Get Current Version
+        id: version
+        run: echo "current=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Get branch name
+        id: branch
+        uses: tj-actions/branch-names@v7
+          
+      - name: Authenticate Pressable API
+        id: authenticate
+        run: |
+            response=$(curl --location --request POST 'https://my.pressable.com/auth/token' \
+            --form 'grant_type="client_credentials"' \
+            --form 'client_id="${{ secrets.PRESSABLE_API_CLIENT_ID }}"' \
+            --form 'client_secret="${{ secrets.PRESSABLE_API_CLIENT_SECRET }}"')
+            access_token=$(echo $response | jq -r '.access_token')
+            echo "ACCESS_TOKEN=$access_token" >> $GITHUB_ENV
+
+      - name: Download All Artifacts # Download our artifacts, may need to pass in the workflow_run_id
         uses: actions/download-artifact@v4
         id: download
         with:
@@ -57,33 +63,38 @@ jobs:
         run: |
           echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT  
 
-      - name: Configure SSH Connection with WP Engine
-        uses: linchpin/actions-wpengine-ssh@main
+      - name: Configure SSH Connection with Pressable
+        uses: linchpin/actions-pressable-ssh@main
         with:
-          ssh_user: ${{ vars.INSTALL_NAME }}
-          ssh_key: ${{ secrets.SSH_KEY }}
-          ssh_host: "${{ vars.INSTALL_NAME }}.ssh.wpengine.net"
+          ssh_user: ${{ secrets.deployment_ssh_user }}
+          ssh_key: ${{ secrets.deployment_ssh_key }}
+          ssh_host: ${{ secrets.deployment_ssh_host }}
 
       - name: Upload Assets
         id: upload_assets
         run: |
           mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
-          ssh wpengine "mkdir -p ~/sites/${{ vars.INSTALL_NAME }}/${{ inputs.deployment_path }}/"
-          rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" wpengine:~/sites/"${{ vars.INSTALL_NAME }}"/"${{ inputs.deployment_path }}"
+          ssh pressable "mkdir -p ${{ inputs.deployment_path }}/"
+          rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" pressable:${{ inputs.deployment_path }}"
+
+      - name: Enable Maintenance Mode
+        if: ${{ steps.authenticate.outputs.access_token }} # make sure we have an access token
+        run: |
+          curl --location --request PUT 'https://my.pressable.com/v1/sites/${{ vars.SITE_ID }}/maintenance-mode' \
+          --header 'Authorization: Bearer ${{ github.env.ACCESS_TOKEN }}' \
 
       - name: Execute Commands On Server
         id: execute_bash
         run: |
-          ssh wpengine "cd ~/sites/${{ vars.INSTALL_NAME }}/${{ inputs.deployment_path }}/ && wget -O ./entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.folder.outputs.folder }}"
+          ssh pressable "cd ${{ inputs.deployment_path }}/ && wget -O ./entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/pressable-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.folder.outputs.folder }}"
 
 
-  # Loop through all plugins passed from inputs.plugins
+  # Loop through all themes passed from inputs.themes
   plugin_install:
     name: WordPress Plugin Install(s)
     runs-on: ubuntu-latest
     needs: deploy
     steps:
-
       # When installing the plugins we only need the lock file
       - name: Checkout code
         uses: actions/checkout@v4
@@ -98,13 +109,6 @@ jobs:
         with:
           php-version: ${{ vars.PHP_VERSION }}
 
-      - name: Configure SSH Connection with ${{ vars.HOST }}
-        uses: linchpin/actions-wpengine-ssh@main
-        with:
-          ssh_user: ${{ vars.INSTALL_NAME }}
-          ssh_key: ${{ secrets.SSH_KEY }}
-          ssh_host: "${{ vars.INSTALL_NAME }}.ssh.wpengine.net"
-
       - name: Remote Plugin Install
         if: ${{ vars.REMOTE_PLUGIN_INSTALL != false }}
         id: parse_composer_lock
@@ -112,30 +116,24 @@ jobs:
         run: |
           wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/remote-plugin-install.sh
           chmod +x ./remote-plugin-install.sh
-          bash ./remote-plugin-install.sh ${{ vars.INSTALL_NAME }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
-
+          bash ./remote-plugin-install.sh ${{ vars.SITE_ID }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
 
   status:
     name: Deploy Status
     runs-on: ubuntu-latest
-    needs: [deploy, plugin_install]
+    needs: [ deploy, plugin_install ]
     steps:
-      - name: Configure SSH Connection with WP Engine
-        uses: linchpin/actions-wpengine-ssh@main
+      - name: Configure SSH Connection with Pressable
+        uses: linchpin/actions-pressable-ssh@main
         with:
-          ssh_user: ${{ vars.INSTALL_NAME }}
-          ssh_key: ${{ secrets.SSH_KEY }}
-          ssh_host: "${{ vars.INSTALL_NAME }}.ssh.wpengine.net"
+          ssh_user: ${{ secrets.SSH_USER }}
+          ssh_ssh: ${{ secrets.SSH_PASS }}
+          ssh_host: ${{ secrets.SSH_HOST }}
 
       - name: Cleanup Maintenance
         id: cleanup_maintenance
         run: |
-          ssh wpengine "cd ~/sites/${{ vars.INSTALL_NAME }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O endpoint.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/wpengine-endpoint.sh && chmod +x ./endpoint.sh && bash ./endpoint.sh"
-    
-    # - name: Clear Page and Object Cache
-      # if: ${{ always() && 'production' == vars.ENVIRONMENT }}
-      # run: |
-        # ssh wpengine "cd ~/sites/${{ vars.INSTALL_NAME }} && wp cache flush && wp page-cache flush"
+          ssh pressable "cd ${{ inputs.deployment_path }}/release/.deployment/ && wget -O endpoint.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/pressable-endpoint.sh && chmod +x ./endpoint.sh && bash ./endpoint.sh"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
@@ -143,7 +141,7 @@ jobs:
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
-          deployment: ${{ inputs.deployment }}
+          deployment: ${{ inputs.deployment_id }}
           environment: ${{ vars.ENVIRONMENT }}
           environment_url: ${{ vars.SITE_URL }}
           log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -157,7 +155,7 @@ jobs:
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
-          deployment: ${{ inputs.deployment }}
+          deployment: ${{ inputs.deployment_id }}
           environment: ${{ vars.ENVIRONMENT }}
           environment_url: ${{ vars.SITE_URL }}
           log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

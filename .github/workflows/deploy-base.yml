@@ -1,0 +1,142 @@
+name: Deploy to ${{ vars.HOST }} ${{ vars.ENVIRONMENT }}
+
+# This is the base deployment workflow that is called by other Workflows
+
+on:
+  workflow_call:
+    inputs:
+      skip_lint:
+        description: 'Skip the linting process'
+        required: false
+        default: false
+        type: boolean
+      do_backup:
+        description: 'Backup the current site before deploying'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  preflight:
+    name: Preflight Setup
+    runs-on: ubuntu-latest
+    environment: 
+      name: ${{ vars.ENVIRONMENT }}
+      url: ${{ vars.SITE_URL }}
+    outputs:
+      gh_deployment_id: ${{ steps.gh_deployment_data.outputs.id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # This creates a "deployment" in GitHub, this helps track the progress
+      # of the deployment in the GitHub UI, it is purely for visual purposes
+      # and does not technically impact the "deployment" of the code.
+      - name: Create Deployment
+        id: create_deployment
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repo}/deployments
+          repo: ${{ github.repository }}
+          ref: ${{ vars.BRANCH }}
+          environment: ${{ vars.ENVIRONMENT }}
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      # Stores the deployment ID so it can be referenced by other workflows, jobs and steps
+      # We use this to update the deployment status as we progress through the deployment.
+      - name: GitHub Deployment Data
+        id: gh_deployment_data
+        run: |
+          echo "id=${{ fromJson( steps.create_deployment.outputs.data ).id }}" >> $GITHUB_OUTPUT
+
+      - name: Set Deployment Status to Pending
+        id: start_deployment
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repo}/deployments/:deployment/statuses
+          repo: ${{ github.repository }}
+          deployment: ${{ steps.gh_deployment.outputs.id }}
+          environment: ${{ vars.ENVIRONMENT }}
+          environment_url: ${{ vars.SITE_URL }}
+          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          state: pending
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+  lint:
+    if: ${{ !inputs.skip_lint }}
+    name: Lint Release
+    uses: ./.github/workflows/phplint.yml
+    with:
+      php_version: ${{ vars.PHP_VERSION }}
+    secrets:
+      packagist_auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+
+  build:
+    name: Build Project
+    uses: ./.github/workflows/build.yml
+    needs: [ preflight ]
+
+  deploy:
+    # This is the main deployment job that is called by other workflows
+    # depending on what vars.HOST is set to, it will call the appropriate deployment workflow
+    name: Deploy to ${{ vars.ENVIRONMENT }}
+    if: ${{ vars.HOST != '' }}
+    uses: ./.github/workflows/deploy-${{ vars.HOST }}.yml # pressable, wpengine, cloudways
+    needs: [ preflight, build ]
+    with:
+      deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
+      workflow_run_id: ${{ github.run_id }}
+      do_backup: ${{ inputs.do_backup }}
+
+  deploy_finish:
+    name: Complete Deploy to ${{ vars.ENVIRONMENT }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ vars.ENVIRONMENT }}
+      url: ${{ vars.SITE_URL }}
+    if: ${{ always() }} # No matter if the needs are met still finish. Could be success or fail
+    needs: [ preflight, deploy ]
+    steps:
+      - name: Set Deployment Status as Successful
+        if: ${{ success() }}
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repo}/deployments/{deployment}/statuses
+          repo: ${{ github.repository }}
+          deployment: ${{ needs.preflight.outputs.gh_deployment_id }}
+          environment: ${{ vars.ENVIRONMENT }}
+          environment_url: ${{ vars.SITE_URL }}
+          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          state: success
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Set Deployment Status as Successful
+        if: ${{ success() }}
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repo}/deployments/{deployment}/statuses
+          repo: ${{ github.repository }}
+          deployment: ${{ needs.preflight.outputs.gh_deployment_id }}
+          environment: ${{ vars.ENVIRONMENT }}
+          environment_url: ${{ vars.SITE_URL }}
+          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          state: success
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Set Deployment Status as Failboat
+        if: ${{ failure() }}
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repo}/deployments/{deployment}/statuses
+          repo: ${{ github.repository }}
+          deployment: ${{ needs.preflight.outputs.gh_deployment_id }}
+          environment: ${{ vars.ENVIRONMENT }}
+          environment_url: ${{ vars.SITE_URL }}
+          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          state: failure
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
