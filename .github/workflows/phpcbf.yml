@@ -4,15 +4,15 @@ on:
   workflow_call:
     inputs:
       php_version:
-        description: 'PHP version used during build (Default 7.4.x)'
+        description: 'PHP version used during build (Default 8.2)'
         required: false
         type: string
-        default: '7.4'
+        default: '8.2'
       node_version:
-        description: 'Node version used during build (Default 14.x)'
+        description: 'Node version used during build (Default 20.X)'
         required: false
         type: number
-        default: 14
+        default: 20
     secrets:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
@@ -25,7 +25,7 @@ jobs:
   phpcbf-fixer:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
 
@@ -39,6 +39,12 @@ jobs:
       - name: Authenticate packagist.linchpin.com
         run: echo '${{ secrets.packagist_auth }}' > ./auth.json
 
+      - name: Create a new branch
+        run: |
+          git config --global user.name 'Linchpin Bot'
+          git config --global user.email 'dev@linchpin.com'
+          git checkout -b ${{ github.ref_name }}-phpcbf
+
       - name: Install Composer dependencies
         run: |
           composer update
@@ -48,22 +54,41 @@ jobs:
       - name: Fix PHP code style
         id: codestyle
         continue-on-error: true
-        run: ${{ github.workspace }}/vendor/squizlabs/php_codesniffer/bin/phpcbf . --standard=${{ github.workspace }}/phpcs.xml
+        run: ${{ github.workspace }}/vendor/squizlabs/php_codesniffer/bin/phpcbf . --standard=${{ github.workspace }}/phpcs.xml > phpcbf-report.txt
+
+      - name: Commit changes
+        run: |
+          git add .
+          git commit -m "ci(NO-TASK): PHPCBF Auto Fix"
+
+      - name: Push changes
+        run: git push origin ${{ github.ref_name }}-phpcbf
+
+      - name: Read PHPCBF report
+        id: read_report
+        run: |
+          REPORT=$(cat phpcbf-report.txt)
+          echo "report<<EOF" >> $GITHUB_ENV
+          echo "$REPORT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.bot_token }}
           commit-message: PHPCBF Auto Fix
           committer: Linchpin Bot <dev@linchpin.com>
           author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
           signoff: false
-          branch: ${{ github.event.pull_request.head.ref }}-phpcbf
+          branch: ${{ github.ref_name }}-phpcbf
           delete-branch: true
           title: 'Auto Fix Formatting'
           body: |
-            Update Formatting
+            **PHPCBF Report:**
+            ```
+            ${{ env.REPORT }}
+            ```
           labels: |
             phpcs
             automated pr
