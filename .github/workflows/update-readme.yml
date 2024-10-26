@@ -39,9 +39,13 @@ jobs:
 
       - name: Update README.md with parsed README.md data
         run: |
+          pwd
+          ls -all
           wget -O update-readme.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/update-readme.sh
-          chmod +x ./update-readme.sh
-          sh ./update-readme.sh
+          chmod +x update-readme.sh
+          ls -all
+          bash ./update-readme.sh
+        shell: bash
         
       - name: Commit changes to README.md
         run: |

@@ -7,7 +7,7 @@ README_FILE="README.md"
 COMPOSER_LOCK_FILE="composer.lock"
 
 # Check if composer.lock file exists
-if [ ! -f "$COMPOSER_LOCK_FILE" ]; then
+if [[ ! -f "$COMPOSER_LOCK_FILE" ]]; then
   echo "Error: $COMPOSER_LOCK_FILE not found."
   exit 1
 fi
@@ -22,7 +22,7 @@ jq '.packages[]' "$COMPOSER_LOCK_FILE" | while read -r package; do
   version=$(echo "$package" | jq -r '.version')
 
   # Check if the type is wordpress-plugin or wordpress-theme
-  if [ "$type" = "wordpress-plugin" || "$type" = "wordpress-theme" ]; then
+  if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
     # Get the slug by splitting the name at the /
     slug=${name#*/}
 
@@ -38,7 +38,7 @@ output_data="${output_data%,}]"
 echo "Received JSON data: $output_data"
 
 # Check if the JSON data is empty
-if [ -z "$output_data" ]; then
+if [[ -z "$output_data" ]]; then
   echo "Error: No JSON data provided."
   exit 1
 fi
@@ -57,9 +57,9 @@ while IFS= read -r line; do
   version=$(echo "$line" | jq -r '.version')
   slug=$(echo "$line" | jq -r '.slug')
 
-  if [ $name = wpackagist-plugin/* ]; then
+  if [[ $name == wpackagist-plugin/* ]]; then
     link="https://wordpress.org/plugins/$slug/"
-  elif [ $name = wpackagist-theme/* ]; then
+  elif [[ $name == wpackagist-theme/* ]]; then
     link="https://wordpress.org/themes/$slug/"
   else
     homepage=$(echo "$line" | jq -r '.homepage // empty')
@@ -67,7 +67,7 @@ while IFS= read -r line; do
     link="${homepage:-$author_homepage}"
   fi
 
-  if [ -z $link ]; then
+  if [[ -z $link ]]; then
     table_output+="| $slug | $version |\n"
   else
     table_output+="| [$slug]($link) | $version |\n"
