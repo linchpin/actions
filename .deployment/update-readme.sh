@@ -12,67 +12,22 @@ if [[ ! -f "$COMPOSER_LOCK_FILE" ]]; then
   exit 1
 fi
 
-output_data="["
+# Extract relevant packages and build the markdown table
+table_output=$(jq -r '
+    .packages[] |
+    select((.name | contains("wpackagist") or contains("linchpin")) and 
+           (.type == "wordpress-plugin" or .type == "wordpress-theme")) |
+    "| \(.name | split("/")[1]) | \(.version) |"
+' "$COMPOSER_LOCK_FILE")
 
-# Read the composer.lock file and loop through each package
-jq '.packages[]' "$COMPOSER_LOCK_FILE" | while read -r package; do
-  # Extract the name, type, and version from the package
-  name=$(echo "$package" | jq -r '.name')
-  type=$(echo "$package" | jq -r '.type')
-  version=$(echo "$package" | jq -r '.version')
-
-  # Check if the type is wordpress-plugin or wordpress-theme
-  if [[ "$type" == "wordpress-plugin" || "$type" == "wordpress-theme" ]]; then
-    # Get the slug by splitting the name at the /
-    slug=${name#*/}
-
-    # Add the slug, type, and version to the output data
-    output_data+="$(jq -n --arg slug "$slug" --arg type "$type" --arg version "$version" '{slug: $slug, type: $type, version: $version}'),"
-  fi
-done
-
-# Remove the trailing comma and close the JSON array
-output_data="${output_data%,}]"
-
-# Debugging: Print the JSON data
-echo "Received JSON data: $output_data"
-
-# Check if the JSON data is empty
-if [[ -z "$output_data" ]]; then
-  echo "Error: No JSON data provided."
+# Check if the table_output is empty
+if [[ -z "$table_output" ]]; then
+  echo "Error: No relevant packages found."
   exit 1
 fi
 
-# Validate JSON data
-if ! echo "$output_data" | jq empty; then
-  echo "Error: Invalid JSON data."
-  exit 1
-fi
-
-table_output="| Plugin | Version |\n"
-table_output+="|--------|---------|\n"
-
-while IFS= read -r line; do
-  name=$(echo "$line" | jq -r '.name')
-  version=$(echo "$line" | jq -r '.version')
-  slug=$(echo "$line" | jq -r '.slug')
-
-  if [[ $name == wpackagist-plugin/* ]]; then
-    link="https://wordpress.org/plugins/$slug/"
-  elif [[ $name == wpackagist-theme/* ]]; then
-    link="https://wordpress.org/themes/$slug/"
-  else
-    homepage=$(echo "$line" | jq -r '.homepage // empty')
-    author_homepage=$(echo "$line" | jq -r '.author.homepage // empty')
-    link="${homepage:-$author_homepage}"
-  fi
-
-  if [[ -z $link ]]; then
-    table_output+="| $slug | $version |\n"
-  else
-    table_output+="| [$slug]($link) | $version |\n"
-  fi
-done < <(echo "$output_data" | jq -c '.[] | select(.type == "wordpress-plugin" or .type == "wordpress-theme")')
+# Add table headers
+table_output="| Name | Version |\n|------|---------|\n$table_output"
 
 # Replace the content between the comments in the Markdown file
 sed -i.bak -e "/<!-- x-linchpin-process-readme-start -->/,/<!-- x-linchpin-process-readme-end -->/c\\<!-- x-linchpin-process-readme-start -->\n$table_output\n<!-- x-linchpin-process-readme-end -->" "$README_FILE"
