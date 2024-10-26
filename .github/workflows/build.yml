@@ -18,7 +18,7 @@ jobs:
         run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
-        if: ${{ vars.REMOTE_PLUGIN_INSTALL == false && hashFiles( './build/composer') }}
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == false && hashFiles( './build/composer') != '' }}
         uses: actions/cache@v4
         with:
           path: /tmp/composer-cache
@@ -30,10 +30,10 @@ jobs:
         with:
           working_dir: ./build
           dev: no
-          php_version: ${{ inputs.php_version }}
+          php_version: ${{ vars.PHP_VERSION }}
 
       - name: Remove Packagist Authentication
-        if: ${{ inputs.remote_plugin_install == false }}
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == false }}
         run: rm -f $GITHUB_WORKSPACE/build/auth.json
 
       - name: Upload Dependencies
@@ -67,7 +67,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Theme ${{ matrix.theme }} Composer Dependencies
-        if: ${{ matrix.theme != 'none' && vars.THEME_USES_COMPOSER == true && hashFiles( format( 'themes/{0}/composer.lock', matrix.theme )) }} # skip this step if no themes are included or we don't have a composer file
+        if: ${{ matrix.theme != 'none' && vars.THEME_USES_COMPOSER == true && hashFiles( format( 'themes/{0}/composer.lock', matrix.theme ) ) != '' }} # skip this step if no themes are included or we don't have a composer file
         id: install-theme-composer
         uses: php-actions/composer@v6
         with:
@@ -83,12 +83,12 @@ jobs:
         
       - name: Get npm cache directory
         id: npm-cache-dir
-        if: ${{ matrix.theme != 'none' && hashFiles( format( 'themes/{0}/package-lock.json', matrix.theme ) ) }}
+        if: ${{ matrix.theme != 'none' && hashFiles( format( 'themes/{0}/package-lock.json', matrix.theme ) ) != '' }}
         shell: bash
         run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
       - name: Build Theme with npm
-        if: ${{ matrix.theme != 'none' && vars.BUILD_THEME_JS != 'false' && hashFiles(format('themes/{0}/package-lock.json', matrix.theme)) }} # skip this step if no themes are included or we tell it to skip
+        if: ${{ matrix.theme != 'none' && vars.BUILD_THEME_JS != 'false' && hashFiles(format('themes/{0}/package-lock.json', matrix.theme ) ) != '' }} # skip this step if no themes are included or we tell it to skip
         id: build-theme-npm
         run: |
           cd themes/${{ matrix.theme }}
@@ -132,7 +132,7 @@ jobs:
         run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
           
       - name: Build Plugin with npm
-        if: ${{ matrix.plugin != 'none' && hashFiles( format( 'themes/{0}/package-lock.json', matrix.plugin ) ) }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && hashFiles( format( 'themes/{0}/package-lock.json', matrix.plugin ) ) != '' }} # skip this step if no plugins are included.
         id: build-plugin-npm
         run: |
           cd plugins/${{ matrix.plugin }}
@@ -141,7 +141,7 @@ jobs:
           npm run build --production
 
       - name: Install Plugin Composer Dependencies
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_uses_composer == true && hashFiles(format('themes/{0}/composer.lock', matrix.plugin)) }} # skip this step if no themes are included or we don't have a composer file
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_uses_composer == true && hashFiles(format('themes/{0}/composer.lock', matrix.plugin ) ) != '' }} # skip this step if no themes are included or we don't have a composer file
         id: install-plugin-composer
         uses: php-actions/composer@v6
         with:
