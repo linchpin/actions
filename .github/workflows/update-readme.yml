@@ -38,7 +38,7 @@ jobs:
 
       - name: Update README.md with parsed README.md data
         run: |
-          wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/update-readme.sh
+          wget -O update-readme.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/update-readme.sh
           chmod +x ./update-readme.sh
           sh ./update-readme.sh
         
