@@ -37,7 +37,10 @@ jobs:
         uses: tj-actions/branch-names@v7
 
       - name: Update README.md with parsed README.md data
-        run: ./deployment/update-readme.sh
+        run: |
+          wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/update-readme.sh
+          chmod +x ./update-readme.sh
+          sh ./update-readme.sh
         
       - name: Commit changes to README.md
         run: |
