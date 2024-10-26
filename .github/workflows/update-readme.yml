@@ -37,7 +37,7 @@ jobs:
         uses: tj-actions/branch-names@v7
 
       - name: Update README.md with parsed README.md data
-        run: ./deployment/update-readme.sh"
+        run: ./deployment/update-readme.sh
         
       - name: Commit changes to README.md
         run: |
