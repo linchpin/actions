@@ -4,7 +4,6 @@
 # and themes installed via composer
 
 README_FILE="README.md"
-PARSED_DATA="${1}"
 
 output_data="["
 

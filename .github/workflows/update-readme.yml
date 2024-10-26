@@ -23,15 +23,21 @@ jobs:
     name: Update Readme
     runs-on: ubuntu-latest
     steps:
+      # Checkout just the README.md file since that's all we're adjusting
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          sparse-checkout: |
+            README.md
+          sparse-checkout-cone-mode: false
 
       - name: Get Branch Names
         id: branch
         uses: tj-actions/branch-names@v7
-     
+
       - name: Update README.md with parsed README.md data
-        run: ./deployment/update_readme.sh "${{ steps.parse_composer_lock.outputs.parsed_data }}"
+        run: ./deployment/update-readme.sh"
         
       - name: Commit changes to README.md
         run: |
