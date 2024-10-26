@@ -2,15 +2,20 @@ name: Yaml Lint
 
 on:
   push:
-    branch:
-      - 'main' # Push events to matching v*, i.e. v1.0, v20.15.10
+    branches:
+      - main
+      - develop
+      - v3
+      - v2
+
 
 jobs:
   yaml_lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: lint
+      - uses: actions/checkout@v4
+      - name: YML Lint
+        id: lint
         uses: ibiqlik/action-yamllint@v3
         with:
           file_or_dir: .github/workflows/
