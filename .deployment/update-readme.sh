@@ -4,11 +4,18 @@
 # and themes installed via composer
 
 README_FILE="README.md"
+COMPOSER_LOCK_FILE="composer.lock"
+
+# Check if composer.lock file exists
+if [[ ! -f "$COMPOSER_LOCK_FILE" ]]; then
+  echo "Error: $COMPOSER_LOCK_FILE not found."
+  exit 1
+fi
 
 output_data="["
 
 # Read the composer.lock file and loop through each package
-jq '.packages[]' composer.lock | while read -r package; do
+jq '.packages[]' "$COMPOSER_LOCK_FILE" | while read -r package; do
   # Extract the name, type, and version from the package
   name=$(echo "$package" | jq -r '.name')
   type=$(echo "$package" | jq -r '.type')
@@ -28,16 +35,16 @@ done
 output_data="${output_data%,}]"
 
 # Debugging: Print the JSON data
-echo "Received JSON data: $PARSED_DATA"
+echo "Received JSON data: $output_data"
 
 # Check if the JSON data is empty
-if [[ -z "$PARSED_DATA" ]]; then
+if [[ -z "$output_data" ]]; then
   echo "Error: No JSON data provided."
   exit 1
 fi
 
 # Validate JSON data
-if ! echo "$PARSED_DATA" | jq empty; then
+if ! echo "$output_data" | jq empty; then
   echo "Error: Invalid JSON data."
   exit 1
 fi
@@ -65,7 +72,7 @@ while IFS= read -r line; do
   else
     table_output+="| [$slug]($link) | $version |\n"
   fi
-done < <(echo "${PARSED_DATA}" | jq -c '.[] | select(.type == "wordpress-plugin" or .type == "wordpress-theme")')
+done < <(echo "$output_data" | jq -c '.[] | select(.type == "wordpress-plugin" or .type == "wordpress-theme")')
 
 # Replace the content between the comments in the Markdown file
 sed -i.bak -e "/<!-- x-linchpin-process-readme-start -->/,/<!-- x-linchpin-process-readme-end -->/c\\<!-- x-linchpin-process-readme-start -->\n$table_output\n<!-- x-linchpin-process-readme-end -->" "$README_FILE"
