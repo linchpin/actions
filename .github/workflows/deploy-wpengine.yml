@@ -1,52 +1,88 @@
-name: Deploy to ${{ vars.HOST }}
+name: Deploy to WP Engine
 
 on:
   workflow_call:
     inputs:
+      install_name:
+        description: 'The name of the install on WP Engine we are deploying to'
+        required: true
+        type: string
+      site_url:
+        description: 'The site url we are deploying to (full url)'
+        required: true
+        type: string
+      environment:
+        description: 'The environment we are deploying to (production, staging, dev)'
+        required: false
+        default: 'staging'
+        type: string
+      branch:
+        description: 'The branch we are deploying to'
+        required: false
+        default: 'staging'
+        type: string
+      deployment:
+        description: 'The deployment ID from previous jobs'
+        required: true
+        type: string
       deployment_path:
         description: 'Provide if the deployment path is non standard'
         required: false
         default: '_wpeprivate/releases'
         type: string
-      deployment_id:
-        description: 'The deployment ID from previous jobs'
-        required: true
-        type: string
       workflow_run_id:
         description: 'Workflow Run ID to get artifacts from'
         required: true
         type: string
-      # do_backup:
-      # @todo implement remote backups on WP Engine 
-      #   description: 'Backup the current site before deploying'
-      #   required: false
-      #   default: false
-      #   type: boolean
+      remote_plugin_install:
+        description: 'Remotely install plugins instead of using composer'
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      deployment_ssh_key:
+        description: 'WP Engine SSH Key needed for deployment'
+        required: true
+      gh_bot_token:
+        description: 'Bot Access to Private repo'
+        required: true
 
 jobs:
   deploy:
-    name: To ${{ vars.HOST }}
+    name: To WP Engine
     runs-on: ubuntu-latest
     environment:
-      name: ${{ vars.ENVIRONMENT }}
-      url: ${{ vars.SITE_URL }}
+      name: ${{ inputs.environment }}
+      url: ${{ inputs.site_url }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get Current Version
+        id: version
+        run: echo "current=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Get branch name
+        id: branch
+        uses: tj-actions/branch-names@v7
+    
       - name: Deployment In Progress
         id: in_progress_deployment
-        uses: octokit/request-action@v2
+        uses: octokit/request-action@v2.x
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
           deployment: ${{ inputs.deployment }}
-          environment: ${{ vars.ENVIRONMENT }}
-          environment_url: ${{ vars.SITE_URL }}
+          environment: ${{ inputs.environment }}
+          environment_url: ${{ inputs.site_url }}
           log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           state: in_progress
+          mediaType: '{"previews": ["flash", "ant-man"]}'
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.7
         id: download
         with:
           name: 'release'
@@ -60,24 +96,24 @@ jobs:
       - name: Configure SSH Connection with WP Engine
         uses: linchpin/actions-wpengine-ssh@main
         with:
-          ssh_user: ${{ vars.INSTALL_NAME }}
-          ssh_key: ${{ secrets.SSH_KEY }}
-          ssh_host: "${{ vars.INSTALL_NAME }}.ssh.wpengine.net"
+          ssh_user: ${{ inputs.install_name }}
+          ssh_key: ${{ secrets.deployment_ssh_key }}
+          ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
 
       - name: Upload Assets
         id: upload_assets
         run: |
           mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
-          ssh wpengine "mkdir -p ~/sites/${{ vars.INSTALL_NAME }}/${{ inputs.deployment_path }}/"
-          rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" wpengine:~/sites/"${{ vars.INSTALL_NAME }}"/"${{ inputs.deployment_path }}"
+          ssh wpengine "mkdir -p ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/"
+          rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" wpengine:~/sites/"${{ inputs.install_name }}"/"${{ inputs.deployment_path }}"
 
       - name: Execute Commands On Server
         id: execute_bash
         run: |
-          ssh wpengine "cd ~/sites/${{ vars.INSTALL_NAME }}/${{ inputs.deployment_path }}/ && wget -O ./entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.folder.outputs.folder }}"
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/ && wget -O ./entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/wpengine-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.folder.outputs.folder }}"
 
 
-  # Loop through all plugins passed from inputs.plugins
+  # Loop through all themes passed from inputs.themes
   plugin_install:
     name: WordPress Plugin Install(s)
     runs-on: ubuntu-latest
@@ -86,7 +122,7 @@ jobs:
 
       # When installing the plugins we only need the lock file
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           path: 'build'
           sparse-checkout: |
@@ -96,23 +132,23 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ vars.PHP_VERSION }}
+          php-version: '8.2'
 
-      - name: Configure SSH Connection with ${{ vars.HOST }}
+      - name: Configure SSH Connection with WP Engine
         uses: linchpin/actions-wpengine-ssh@main
         with:
-          ssh_user: ${{ vars.INSTALL_NAME }}
-          ssh_key: ${{ secrets.SSH_KEY }}
-          ssh_host: "${{ vars.INSTALL_NAME }}.ssh.wpengine.net"
+          ssh_user: ${{ inputs.install_name }}
+          ssh_key: ${{ secrets.deployment_ssh_key }}
+          ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
 
       - name: Remote Plugin Install
-        if: ${{ vars.REMOTE_PLUGIN_INSTALL != false }}
+        if: ${{ inputs.remote_plugin_install != false }}
         id: parse_composer_lock
         shell: bash
         run: |
-          wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/remote-plugin-install.sh
+          wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/remote-plugin-install.sh
           chmod +x ./remote-plugin-install.sh
-          bash ./remote-plugin-install.sh ${{ vars.INSTALL_NAME }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
+          bash ./remote-plugin-install.sh ${{ inputs.install_name }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
 
 
   status:
@@ -123,19 +159,19 @@ jobs:
       - name: Configure SSH Connection with WP Engine
         uses: linchpin/actions-wpengine-ssh@main
         with:
-          ssh_user: ${{ vars.INSTALL_NAME }}
-          ssh_key: ${{ secrets.SSH_KEY }}
-          ssh_host: "${{ vars.INSTALL_NAME }}.ssh.wpengine.net"
+          ssh_user: ${{ inputs.install_name }}
+          ssh_key: ${{ secrets.deployment_ssh_key }}
+          ssh_host: "${{ inputs.install_name }}.ssh.wpengine.net"
 
       - name: Cleanup Maintenance
         id: cleanup_maintenance
         run: |
-          ssh wpengine "cd ~/sites/${{ vars.INSTALL_NAME }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O endpoint.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/wpengine-endpoint.sh && chmod +x ./endpoint.sh && bash ./endpoint.sh"
+          ssh wpengine "cd ~/sites/${{ inputs.install_name }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O endpoint.sh https://raw.githubusercontent.com/linchpin/actions/v2/.deployment/wpengine-endpoint.sh && chmod +x ./endpoint.sh && bash ./endpoint.sh"
     
     # - name: Clear Page and Object Cache
-      # if: ${{ always() && 'production' == vars.ENVIRONMENT }}
+      # if: ${{ always() && 'production' == inputs.environment }}
       # run: |
-        # ssh wpengine "cd ~/sites/${{ vars.INSTALL_NAME }} && wp cache flush && wp page-cache flush"
+        # ssh wpengine "cd ~/sites/${{ inputs.install_name }} && wp cache flush && wp page-cache flush"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
@@ -144,10 +180,11 @@ jobs:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
           deployment: ${{ inputs.deployment }}
-          environment: ${{ vars.ENVIRONMENT }}
-          environment_url: ${{ vars.SITE_URL }}
+          environment: ${{ inputs.environment }}
+          environment_url: ${{ inputs.site_url }}
           log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           state: success
+          mediaType: '{"previews": ["flash", "ant-man"]}'
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
@@ -158,9 +195,10 @@ jobs:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
           deployment: ${{ inputs.deployment }}
-          environment: ${{ vars.ENVIRONMENT }}
-          environment_url: ${{ vars.SITE_URL }}
+          environment: ${{ inputs.environment }}
+          environment_url: ${{ inputs.site_url }}
           log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           state: failure
+          mediaType: '{"previews": ["flash", "ant-man"]}'
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"

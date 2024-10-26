@@ -48,11 +48,6 @@ on:
         default: false
         required: false
         type: boolean
-      skip_github_release:
-        description: 'Skip creating a GitHub release'
-        default: false
-        required: false
-        type: boolean
     secrets:
       packagist_auth:
         description: 'Authentication for private satis/packagist'
@@ -75,13 +70,13 @@ jobs:
         run: echo '${{ secrets.packagist_auth }}' > ./build/auth.json
 
       - name: Get Composer Cache Directory
-        id: composer_cache
+        id: composer-cache
         run: |
           echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
       - uses: actions/cache@v4
         with:
-          path: ${{ steps.composer_cache.outputs.dir }}
+          path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-composer-
@@ -102,7 +97,7 @@ jobs:
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
           overwrite: true
           include-hidden-files: true
-          compression-level: 8
+          compression-level: 9
 
   theme_setup:
     name: Build WordPress Theme(s)
@@ -119,14 +114,14 @@ jobs:
 
       - name: Composer Update for ${{ matrix.theme }} theme
         id: theme-composer-update
-        # Make sure we have a theme, the theme uses composer and the composer.lock exists
-        if: ${{ matrix.theme != 'none' && inputs.theme_composer_install && hashFiles(format('themes/{0}/composer.lock', matrix.theme))  }} # skip this step if no themes are included.
+        # Make sure we have a theme, the theme uses composer and the composer.json exists
+        if: ${{ matrix.theme != 'none' && inputs.theme_composer_install && hashFiles('themes/${{ matrix.theme }}/composer.json') != '' }} # skip this step if no themes are included.
         run: composer update --working-dir=themes/${{ matrix.theme }}
 
       - name: Setup Node for ${{ matrix.theme }} theme
         id: theme-node-setup
-        # Make sure we have a theme, the theme uses npm and the package-lock.json exists
-        if: ${{ matrix.theme != 'none' && hashFiles(format('themes/{0}/package-lock.json', matrix.theme)) != '' }}
+        # Make sure we have a theme, the theme uses npm and the composer.json exists
+        if: ${{ matrix.theme != 'none' && hashFiles( 'themes/${{ matrix.theme }}/package-lock.json' ) != '' }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node_version }}
@@ -203,7 +198,7 @@ jobs:
     needs: [ dependency_setup, theme_setup, plugin_setup ]
     steps:
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.7
         with:
           path: ./build
           merge-multiple: true # Download all artifacts into the same directory
