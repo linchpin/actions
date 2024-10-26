@@ -30,6 +30,7 @@ jobs:
           ref: ${{ github.head_ref }}
           sparse-checkout: |
             README.md
+            composer.lock
           sparse-checkout-cone-mode: false
 
       - name: Get Branch Names
