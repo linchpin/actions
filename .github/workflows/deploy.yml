@@ -100,21 +100,7 @@ jobs:
     needs: [ preflight, deploy ]
     steps:
       - name: Set Deployment Status as Successful
-        if: ${{ success() }}
-        uses: octokit/request-action@v2.x
-        with:
-          route: POST /repos/{repo}/deployments/{deployment}/statuses
-          repo: ${{ github.repository }}
-          deployment: ${{ needs.preflight.outputs.gh_deployment_id }}
-          environment: ${{ vars.ENVIRONMENT }}
-          environment_url: ${{ vars.SITE_URL }}
-          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          state: success
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Set Deployment Status as Successful
-        if: ${{ success() }}
+        if: ${{ success() && ! inputs.do_backup }} # if we are not doing a backup, continue the deployment, otherwise wait for the backup to finish
         uses: octokit/request-action@v2.x
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Default shell script used when deploying to WP Engine unless provided within the project directly.
+# Default shell script used when deploying to Pressable unless provided within the project directly.
 # This shell script will take the following actions:
-# 1. Sync from the _wpeprivate folder to the public directory
+# 1. Sync from the /tmp/release/ folder to the public directory
 # 2. Backup the database
 # 3. Cleanup any older releases
 
@@ -103,13 +103,9 @@ cd "$PUBLIC_DIR"
 
 echo "::notice::ℹ︎ Maintenance Complete::"
 
-rm maintenance.php
-
 # Check if the WP-CLI command exists
 if wp cli has-command page-cache; then
     wp page-cache flush
 fi
-
-wp maintenance-mode deactivate
 
 echo "::notice::ℹ︎ Maintenance Mode Removed::"

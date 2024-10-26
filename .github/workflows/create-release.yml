@@ -219,9 +219,17 @@ jobs:
           cd ../../
           rm -rf ./build/.deployment/
           
-      - name: Get Current Version
+      - name: Get Version From Tag
+        id: get_version
+        uses: linchpin/action-get-latest-tag@v2.0.0
+        with:
+          semver_only: true
+  
+      - name: Latest Version
         id: version
-        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          TAG=${{ steps.get_version.outputs.tag }}
+          echo "VERSION=${TAG#v}" >> $GITHUB_OUTPUT
 
       - name: Combine Assets for Release
         id: compression
@@ -234,6 +242,15 @@ jobs:
           name: release
           path: release.zip
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
+
+      - name: Upload files to the Release Tag
+        uses: svenstaro/upload-release-action@2.9.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: release.zip
+          tag: ${{ steps.get_version.outputs.tag }}
+          asset_name: release.zip
+          overwrite: true
 
       # Latest changelog entry is based on version. If not found, fall back to the last version
       - name: Get Latest CHANGELOG.md Entry

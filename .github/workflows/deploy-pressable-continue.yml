@@ -24,7 +24,7 @@ on:
 
 jobs:
   deploy:
-    name: To Pressable
+    name: To ${{ vars.HOST }}
     runs-on: ubuntu-latest
     environment:
       name: ${{ vars.ENVIRONMENT }}
@@ -66,9 +66,9 @@ jobs:
       - name: Configure SSH Connection with Pressable
         uses: linchpin/actions-pressable-ssh@main
         with:
-          ssh_user: ${{ secrets.deployment_ssh_user }}
-          ssh_key: ${{ secrets.deployment_ssh_key }}
-          ssh_host: ${{ secrets.deployment_ssh_host }}
+          ssh_user: ${{ secrets.SSH_USER }}
+          ssh_pass: ${{ secrets.SSH_PASS }}
+          ssh_host: ${{ secrets.SSH_HOST }}
 
       - name: Upload Assets
         id: upload_assets
