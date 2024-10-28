@@ -6,12 +6,12 @@ on:
   workflow_call:
     inputs:
       skip_lint:
-        description: 'Skip the linting process'
+        description: "Skip the linting process"
         required: false
         default: false
         type: boolean
       do_backup:
-        description: 'Backup the current site before deploying'
+        description: "Backup the current site before deploying"
         required: false
         default: true
         type: boolean
@@ -20,7 +20,7 @@ jobs:
   preflight:
     name: Preflight Setup
     runs-on: ubuntu-latest
-    environment: 
+    environment:
       name: ${{ vars.ENVIRONMENT }}
       url: ${{ vars.SITE_URL }}
     outputs:
@@ -76,7 +76,7 @@ jobs:
   build:
     name: Build Project
     uses: ./.github/workflows/build.yml
-    needs: [ preflight ]
+    needs: [preflight]
 
   deploy:
     # This is the main deployment job that is called by other workflows
@@ -84,7 +84,7 @@ jobs:
     name: Deploy to ${{ vars.ENVIRONMENT }}
     if: ${{ vars.HOST != '' }}
     uses: ./.github/workflows/deploy-${{ vars.HOST }}.yml # pressable, wpengine, cloudways
-    needs: [ preflight, build ]
+    needs: [preflight, build]
     with:
       deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
       workflow_run_id: ${{ github.run_id }}
@@ -97,7 +97,7 @@ jobs:
       name: ${{ vars.ENVIRONMENT }}
       url: ${{ vars.SITE_URL }}
     if: ${{ always() }} # No matter if the needs are met still finish. Could be success or fail
-    needs: [ preflight, deploy ]
+    needs: [preflight, deploy]
     steps:
       - name: Set Deployment Status as Successful
         if: ${{ success() && ! inputs.do_backup }} # if we are not doing a backup, continue the deployment, otherwise wait for the backup to finish

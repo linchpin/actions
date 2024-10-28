@@ -5,6 +5,7 @@
 
 README_FILE="README.md"
 COMPOSER_LOCK_FILE="composer.lock"
+TEMP_FILE="table_output.tmp"
 
 # Check if composer.lock file exists
 if [[ ! -f "$COMPOSER_LOCK_FILE" ]]; then
@@ -15,7 +16,7 @@ fi
 # Extract relevant packages and build the markdown table
 table_output=$(jq -r '
     .packages[] |
-    select((.name | contains("wpackagist") or contains("linchpin")) and 
+    select((.name | contains("wpackagist") or contains("linchpin")) and
            (.type == "wordpress-plugin" or .type == "wordpress-theme")) |
     "| \(.name | split("/")[1]) | \(.version) |"
 ' "$COMPOSER_LOCK_FILE")
@@ -27,20 +28,32 @@ if [[ -z "$table_output" ]]; then
 fi
 
 # Add table headers
-table_output="| Name | Version |\n|------|---------|\n$table_output"
+table_output=$(printf "| Plugin Name | Version |\n|------|---------|\n%s" "$table_output")
+
+# Write the table_output to a temporary file
+echo "$table_output" > "$TEMP_FILE"
 
 # Replace the content between the comments in the Markdown file
-sed -i.bak -e "/<!-- x-linchpin-process-readme-start -->/,/<!-- x-linchpin-process-readme-end -->/c\\<!-- x-linchpin-process-readme-start -->\n$table_output\n<!-- x-linchpin-process-readme-end -->" "$README_FILE"
-
-# Support for additional comment tags
-sed -i.bak -e "/<!-- x-linchpin-update-readme-start -->/,/<!-- x-linchpin-update-readme-end -->/c\\<!-- x-linchpin-update-readme-start -->\n$table_output\n<!-- x-linchpin-update-readme-end -->" "$README_FILE"
-
-# Support for plugin list
-sed -i.bak -e "/<!-- x-linchpin-plugin-list-start -->/,/<!-- x-linchpin-plugin-list-end -->/c\\<!-- x-linchpin-plugin-list-start -->\n$table_output\n<!-- x-linchpin-plugin-list-end -->" "$README_FILE"
+awk -v temp_file="$TEMP_FILE" '
+  BEGIN { RS = ""; ORS = "\n" }
+  {
+    if ($0 ~ /<!-- x-linchpin-plugin-list-start -->/) {
+      while ((getline line < temp_file) > 0) {
+        sub(/<!-- x-linchpin-plugin-list-start -->.*<!-- x-linchpin-plugin-list-end -->/, "<!-- x-linchpin-plugin-list-start -->\n" line "\n<!-- x-linchpin-plugin-list-end -->")
+      }
+      close(temp_file)
+    }
+    print
+  }
+' "$README_FILE" > temp && mv temp "$README_FILE"
 
 # Update the release date
-current_date=$(date +"[%m/%d/%Y]")
-sed -i.bak -e "/<!-- x-linchpin-release-date-start -->/,/<!-- x-linchpin-release-date-end -->/c\\<!-- x-linchpin-release-date-start -->$current_date<!-- x-linchpin-release-date-end -->" "$README_FILE"
-
-# Remove the backup file created by sed
-rm "${README_FILE}.bak"
+current_date=$(date +"%m/%d/%Y")
+awk -v date="$current_date" '
+  {
+    if ($0 ~ /<!-- x-linchpin-release-date-start -->/) {
+      sub(/<!-- x-linchpin-release-date-start -->.*<!-- x-linchpin-release-date-end -->/, "<!-- x-linchpin-release-date-start -->" date "<!-- x-linchpin-release-date-end -->")
+    }
+    print
+  }
+' "$README_FILE" > temp && mv temp "$README_FILE"
