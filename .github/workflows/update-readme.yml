@@ -13,10 +13,6 @@ on:
         required: false
         default: "release-please--branches--main--readme"
         type: string
-    secrets:
-      token:
-        description: "GitHub Token"
-        required: true
 
 permissions:
   contents: write
@@ -81,10 +77,10 @@ jobs:
             wordpress
             automated pr
             maintenance
-          token: ${{ secrets.token }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Automerge Pull Request
         if: ${{ steps.create_pr.outputs.pull-request-number != null }}
         run: gh pr merge --merge --auto "${{ steps.create_pr.outputs.pull-request-number }}"
         env:
-          GH_TOKEN: ${{ secrets.token }}
+          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

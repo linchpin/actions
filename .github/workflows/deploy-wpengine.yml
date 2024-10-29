@@ -22,16 +22,6 @@ on:
       #   required: false
       #   default: false
       #   type: boolean
-    secrets:
-      ssh_key:
-        description: "SSH Key for WP Engine"
-        required: true
-      satispress_user:
-        description: "SatisPress Username"
-        required: true
-      satispress_password:
-        description: "SatisPress Password"
-        required: true
 
 jobs:
   deploy:
@@ -71,7 +61,7 @@ jobs:
         uses: linchpin/actions-wpengine-ssh@main
         with:
           ssh_user: ${{ vars.INSTALL_NAME }}
-          ssh_key: ${{ secrets.ssh_key }}
+          ssh_key: ${{ secrets.SSH_KEY }}
           ssh_host: "${{ vars.INSTALL_NAME }}.ssh.wpengine.net"
 
       - name: Upload Assets
@@ -110,7 +100,7 @@ jobs:
         uses: linchpin/actions-wpengine-ssh@main
         with:
           ssh_user: ${{ vars.INSTALL_NAME }}
-          ssh_key: ${{ secrets.ssh_key }}
+          ssh_key: ${{ secrets.SSH_KEY }}
           ssh_host: "${{ vars.INSTALL_NAME }}.ssh.wpengine.net"
 
       - name: Remote Plugin Install
@@ -120,7 +110,7 @@ jobs:
         run: |
           wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/remote-plugin-install.sh
           chmod +x ./remote-plugin-install.sh
-          bash ./remote-plugin-install.sh ${{ vars.INSTALL_NAME }} ${{ secrets.satispress_user }} ${{ secrets.satispress_password }}
+          bash ./remote-plugin-install.sh ${{ vars.INSTALL_NAME }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
 
   status:
     name: Deploy Status
@@ -132,7 +122,7 @@ jobs:
         with:
           ssh_host: "${{ vars.INSTALL_NAME }}.ssh.wpengine.net"
           ssh_user: ${{ vars.INSTALL_NAME }}
-          ssh_key: ${{ secrets.ssh_key }}
+          ssh_key: ${{ secrets.SSH_KEY }}
 
       - name: Cleanup Maintenance
         id: cleanup_maintenance

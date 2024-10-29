@@ -2,13 +2,6 @@ name: WordPress Autofixer
 
 on:
   workflow_call:
-    secrets:
-      token:
-        description: "GitHub Token"
-        required: true
-      packagist_composer_auth_json:
-        description: "Composer Auth JSON for Packagist"
-        required: true
 
 jobs:
   phpcbf-fixer:
@@ -26,7 +19,7 @@ jobs:
           tools: cs2pr, composer
 
       - name: Authenticate packagist.linchpin.com
-        run: echo '${{ secrets.packagist_composer_auth_json }}' > ./auth.json
+        run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > ./auth.json
 
       - name: Create a new branch
         run: |
@@ -65,7 +58,7 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.token }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
           commit-message: PHPCBF Auto Fix
           committer: Linchpin Bot <dev@linchpin.com>
           author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>

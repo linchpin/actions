@@ -2,10 +2,6 @@ name: PHP Lint
 
 on:
   workflow_call:
-    secrets:
-      packagist_composer_auth_json:
-        description: "Packagist Auth JSON"
-        required: true
 
 jobs:
   phpcbf-fixer:
@@ -36,7 +32,7 @@ jobs:
           fi
 
       - name: Authenticate packagist.linchpin.com
-        run: echo '${{ secrets.packagist_composer_auth_json }}' > ./auth.json
+        run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > ./auth.json
 
       - name: Cache Composer dependencies
         if: steps.check_commit_message.outputs.skip_lint == false && hashFiles( './build/composer.lock') != ''
