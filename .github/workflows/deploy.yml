@@ -1,4 +1,4 @@
-name: Deploy to ${{ vars.HOST }} ${{ vars.ENVIRONMENT }}
+name: ${{ format( 'Deploy to {0} {1}', vars.HOST, vars.ENVIRONMENT ) }}
 
 # This is the base deployment workflow that is called by other Workflows
 
@@ -82,7 +82,7 @@ jobs:
     # depending on what vars.HOST is set to, it will call the appropriate deployment workflow
     name: Deploy to ${{ vars.ENVIRONMENT }}
     if: ${{ vars.HOST != '' }}
-    uses: ./.github/workflows/deploy-${{ vars.HOST }}.yml # pressable, wpengine, cloudways
+    uses: ${{ format( './.github/workflows/deploy-{0}.yml', vars.HOST ) }} # pressable, wpengine, cloudways
     needs: [preflight, build]
     secrets: inherit
     with:
