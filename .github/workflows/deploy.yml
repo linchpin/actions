@@ -15,6 +15,19 @@ on:
         required: false
         default: true
         type: boolean
+    secrets:
+      packagist_auth_json:
+        description: "Composer Auth JSON for Packagist"
+        required: true
+      pressable_api_client_id:
+        description: "Pressable API Client ID"
+        required: false
+      pressable_api_client_secret:
+        description: "Pressable API Client Secret"
+        required: false
+      site_id:
+        description: "Pressable Site ID"
+        required: false
 
 jobs:
   preflight:
@@ -71,7 +84,7 @@ jobs:
     with:
       php_version: ${{ vars.PHP_VERSION }}
     secrets:
-      packagist_auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+      packagist_auth: ${{ secrets.packagist_auth_json }}
 
   build:
     name: Build Project

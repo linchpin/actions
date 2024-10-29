@@ -57,3 +57,6 @@ awk -v date="$current_date" '
     print
   }
 ' "$README_FILE" > temp && mv temp "$README_FILE"
+
+# remove the temporary file
+rm "$TEMP_FILE"

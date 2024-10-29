@@ -4,15 +4,19 @@ on:
   workflow_call:
     inputs:
       base:
-        description: 'Where the branch is based from. Typically release please'
+        description: "Where the branch is based from. Typically release please"
         required: false
-        default: 'release-please--branches--main'
+        default: "release-please--branches--main"
         type: string
       branch:
-        description: 'What branch do we create when updating the readme'
+        description: "What branch do we create when updating the readme"
         required: false
-        default: 'release-please--branches--main--readme'
+        default: "release-please--branches--main--readme"
         type: string
+    secrets:
+      token:
+        description: "GitHub Token"
+        required: true
 
 permissions:
   contents: write
@@ -46,7 +50,7 @@ jobs:
           ls -all
           bash ./update-readme.sh
         shell: bash
-        
+
       - name: Commit changes to README.md
         run: |
           git config --local user.email "linchpin-bot@github.com"
@@ -71,16 +75,16 @@ jobs:
           commit-message: "[automated] Update Plugin List"
           title: "[Maintenance] Update README.md WordPress Plugin List"
           body-path: README.md
-          base: 'release-please--branches--main' # Use the same branch for PR updates
-          branch: 'release-please--branches--main--readme' # Use the same branch for PR updates
+          base: "release-please--branches--main" # Use the same branch for PR updates
+          branch: "release-please--branches--main--readme" # Use the same branch for PR updates
           labels: |
             wordpress
             automated pr
             maintenance
-          token: ${{ secrets.GH_BOT_TOKEN }}
-  
+          token: ${{ secrets.token }}
+
       - name: Automerge Pull Request
-        if: steps.create_pr.outputs.pull-request-number != null
+        if: ${{ steps.create_pr.outputs.pull-request-number != null }}
         run: gh pr merge --merge --auto "${{ steps.create_pr.outputs.pull-request-number }}"
         env:
-          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+          GH_TOKEN: ${{ secrets.token }}
