@@ -3,13 +3,8 @@ name: Deploy to Pressable
 on:
   workflow_call:
     inputs:
-      deployment_path:
-        description: "Provide if the deployment path is non standard"
-        required: false
-        default: "/tmp/releases"
-        type: string
       deployment_id:
-        description: "The deployment ID from previous jobs"
+        description: "The deployment ID from the ancestor job(s)"
         required: true
         type: string
       workflow_run_id:
@@ -21,26 +16,11 @@ on:
         required: false
         default: false
         type: boolean
-    secrets:
-      pressable_api_client_id:
-        description: "Pressable API Client ID"
-        required: true
-      pressable_api_client_secret:
-        description: "Pressable API Client Secret"
-        required: true
-      site_id:
-        description: "Pressable Site ID"
-        required: true
-      ssh_user:
-        description: "SSH User for Pressable Install"
-        required: true
-      ssh_host:
-        description: "SSH Host for Pressable Install"
-        required: true
-      ssh_key:
-        description: "SSH Key for Pressable Install if password isn't being used"
-      ssh_pass:
-        description: "SSH Password for Pressable Install if key isn't being used"
+      deployment_path:
+        description: "Provide if the deployment path is non standard"
+        required: false
+        default: "/tmp/releases"
+        type: string
 
 jobs:
   deploy:
@@ -62,15 +42,15 @@ jobs:
         run: |
           response=$(curl --location --request POST 'https://my.pressable.com/auth/token' \
           --form 'grant_type="client_credentials"' \
-          --form 'client_id="${{ secrets.pressable_api_client_id }}"' \
-          --form 'client_secret="${{ secrets.pressable_api_client_secret }}"')
+          --form 'client_id="${{ secrets.PRESSABLE_API_CLIENT_ID }}"' \
+          --form 'client_secret="${{ secrets.PRESSABLE_API_CLIENT_SECRET }}"')
           access_token=$(echo $response | jq -r '.access_token')
           echo "access_token=$access_token" >> $GITHUB_OUTPUT
 
       - name: Do Backup
         if: ${{ inputs.do_backup == true && steps.authenticate.outputs.access_token }}
         run: |
-          curl --location --request GET 'https://my.pressable.com/v1/sites/${{ secrets.site_id }}/ondemand-backups' \
+          curl --location --request GET 'https://my.pressable.com/v1/sites/${{ vars.SITE_ID }}/ondemand-backups' \
           --header 'Authorization: Bearer ${{ github.env.ACCESS_TOKEN }}' \
           --header 'Content-Type: application/json' \
 
@@ -80,7 +60,7 @@ jobs:
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
-          deployment: ${{ inputs.deployment_id }}
+          deployment: ${{ inputs.deployment }}
           environment: ${{ vars.ENVIRONMENT }}
           environment_url: ${{ vars.SITE_URL }}
           log_url: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -92,6 +72,14 @@ jobs:
         id: continue_deploy
         if: ${{ inputs.do_backup != true }} # if we are not doing a backup, continue the deployment
         uses: ./.github/workflows/deploy-pressable-continue.yml # continue the deployment process
+        secrets: inherit
         with:
+          site_id: ${{ vars.SITE_ID }}
+          site_url: ${{ vars.SITE_URL }}
+          environment: ${{ vars.ENVIRONMENT }}
+          branch: ${{ steps.branch.outputs.branch }}
+          version: ${{ steps.version.outputs.current }}
+          deployment: ${{ inputs.deployment }}
+          deployment_path: ${{ inputs.deployment_path }}
           workflow_run_id: ${{ inputs.workflow_run_id }}
-          deployment: ${{ inputs.deployment_id }}
+          remote_plugin_install: ${{ inputs.remote_plugin_install }}

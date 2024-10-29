@@ -16,11 +16,6 @@ on:
         description: "Workflow Run ID to get artifacts from"
         required: true
         type: string
-      do_backup:
-        description: "Backup the current site before deploying"
-        required: false
-        default: false
-        type: boolean
 
 jobs:
   deploy:

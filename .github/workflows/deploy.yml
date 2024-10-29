@@ -70,8 +70,7 @@ jobs:
     uses: ./.github/workflows/phplint.yml
     with:
       php_version: ${{ vars.PHP_VERSION }}
-    secrets:
-      packagist_auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+    secrets: inherit
 
   build:
     name: Build Project
@@ -85,6 +84,7 @@ jobs:
     if: ${{ vars.HOST != '' }}
     uses: ./.github/workflows/deploy-${{ vars.HOST }}.yml # pressable, wpengine, cloudways
     needs: [preflight, build]
+    secrets: inherit
     with:
       deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
       workflow_run_id: ${{ github.run_id }}
