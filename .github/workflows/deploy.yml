@@ -65,6 +65,7 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
   lint:
+    needs: [preflight]
     if: ${{ !inputs.skip_lint }}
     name: Lint Release
     uses: ./.github/workflows/phplint.yml
@@ -73,14 +74,14 @@ jobs:
     secrets: inherit
 
   build:
+    needs: [preflight, lint]
     name: Build Project
     uses: ./.github/workflows/build.yml
-    needs: [preflight]
 
   deploy:
     # This is the main deployment job that is called by other workflows
     # depending on what vars.HOST is set to, it will call the appropriate deployment workflow
-    name: Deploy to ${{ vars.ENVIRONMENT }}
+    name: ${{ format( 'Deploy to {0} on {1}', vars.ENVIRONMENT, vars.HOST ) }}
     if: ${{ vars.HOST != '' }}
     uses: ${{ format( './.github/workflows/deploy-{0}.yml', vars.HOST ) }} # pressable, wpengine, cloudways
     needs: [preflight, build]
@@ -91,7 +92,7 @@ jobs:
       do_backup: ${{ inputs.do_backup }}
 
   deploy_finish:
-    name: Complete Deploy to ${{ vars.ENVIRONMENT }}
+    name: ${{ format( 'Complete Deploy to {0} on {1}', vars.ENVIRONMENT, vars.HOST ) }}
     runs-on: ubuntu-latest
     environment:
       name: ${{ vars.ENVIRONMENT }}
