@@ -72,7 +72,6 @@ jobs:
         id: continue_deploy
         if: ${{ inputs.do_backup != true }} # if we are not doing a backup, continue the deployment
         uses: ./.github/workflows/deploy-pressable-continue.yml # continue the deployment process
-        secrets: inherit
         with:
           site_id: ${{ vars.SITE_ID }}
           site_url: ${{ vars.SITE_URL }}
