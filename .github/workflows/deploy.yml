@@ -82,7 +82,6 @@ jobs:
   deploy_pressable:
     needs: [build]
     name: Deploy to Staging on Pressable
-    needs: [build ]
     if: ${{ vars.HOST == 'pressable' }}
     uses: ./.github/workflows/deploy-pressable.yml
     secrets: inherit
@@ -120,7 +119,8 @@ jobs:
       name: ${{ vars.ENVIRONMENT }}
       url: ${{ vars.SITE_URL }}
     if: ${{ always() }} # No matter if the needs are met still finish. Could be success or fail
-    needs: [preflight, build, deploy_pressable, deploy_cloudways, deploy_wpengine ]
+    needs:
+      [preflight, build, deploy_pressable, deploy_cloudways, deploy_wpengine]
     steps:
       - name: Set Deployment Status as Successful
         if: ${{ success() && ! inputs.do_backup }} # if we are not doing a backup, continue the deployment, otherwise wait for the backup to finish
