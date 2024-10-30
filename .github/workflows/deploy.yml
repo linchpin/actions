@@ -15,14 +15,18 @@ on:
         required: false
         default: true
         type: boolean
+      environment:
+        description: "The environment to deploy to"
+        required: true
+        type: string
+        default: "staging"
 
 jobs:
   preflight:
     name: Preflight Setup
     runs-on: ubuntu-latest
     environment:
-      name: ${{ vars.ENVIRONMENT }}
-      url: ${{ vars.SITE_URL }}
+      name: ${{ inputs.environment }}
     outputs:
       gh_deployment_id: ${{ steps.gh_deployment_data.outputs.id }}
     steps:
