@@ -42,12 +42,14 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Get Deployment Status for Environment
+      - name: Get Latest Deployment Status for Environment
         id: get_deployment_status
         uses: octokit/request-action@v2.4.0
         with:
           route: GET /repos/{repo}/deployments/${{ fromJson( steps.get_deployments.outputs.data )[0].id }}/statuses
           repo: ${{ github.repository }}
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Cancel Existing Deployment
         if: ${{ fromJson( steps.get_deployments.outputs.data )[0].id != '' && fromJson( steps.get_deployment_status.outputs.data )[0].state != 'success' }}
