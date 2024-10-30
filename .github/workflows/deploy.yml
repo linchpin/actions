@@ -33,6 +33,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Get Deployments for Environment
+        id: get_deployments
+        uses: octokit/request-action@v2.4.0
+        with:
+          route: GET /repos/{repo}/deployments?environment=${{ inputs.environment }}&per_page=1
+          repo: ${{ github.repository }}
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Get Deployment Status for Environment
+        id: get_deployment_status
+        uses: octokit/request-action@v2.4.0
+        with:
+          route: GET /repos/{repo}/deployments/${{ fromJson( steps.get_deployments.outputs.data )[0].id }}/statuses
+          repo: ${{ github.repository }}
+
+      - name: Cancel Existing Deployment
+        if: ${{ fromJson( steps.get_deployments.outputs.data )[0].id != '' && fromJson( steps.get_deployment_status.outputs.data )[0].state != 'success' }}
+        id: cancel_deployment
+        uses: octokit/request-action@v2.4.0
+        with:
+          route: POST /repos/{repo}/deployments/${{ fromJson( steps.get_deployments.outputs.data )[0].id }}/statuses
+          repo: ${{ github.repository }}
+          state: inactive
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
       # This creates a "deployment" in GitHub, this helps track the progress
       # of the deployment in the GitHub UI, it is purely for visual purposes
       # and does not technically impact the "deployment" of the code.
