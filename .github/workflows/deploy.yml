@@ -29,17 +29,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Var Output
+        run: |
+          echo "${{ vars.BRANCH }}"
+          echo "${{ vars.ENVIRONMENT }}"
+          echo "${{ vars.SITE_URL }}"
+          echo "${{ github.repository }}"
+
       # This creates a "deployment" in GitHub, this helps track the progress
       # of the deployment in the GitHub UI, it is purely for visual purposes
       # and does not technically impact the "deployment" of the code.
       - name: Create Deployment
         id: create_deployment
-        uses: octokit/request-action@v2.x
+        uses: octokit/request-action@v2.4.0
         with:
           route: POST /repos/{repo}/deployments
           repo: ${{ github.repository }}
           ref: ${{ vars.BRANCH }}
           environment: ${{ vars.ENVIRONMENT }}
+          description: "Deploying to ${{ vars.ENVIRONMENT }} on ${{ vars.HOST }}"
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
@@ -118,12 +126,12 @@ jobs:
     environment:
       name: ${{ vars.ENVIRONMENT }}
       url: ${{ vars.SITE_URL }}
-    if: ${{ always() }} # No matter if the needs are met still finish. Could be success or fail
+    if: ${{ always() && needs.preflight.outputs.gh_deployment_id != '' }} # No matter if the needs are met still finish. Could be success or fail
     needs:
       [preflight, build, deploy_pressable, deploy_cloudways, deploy_wpengine]
     steps:
       - name: Set Deployment Status as Successful
-        if: ${{ success() && ! inputs.do_backup }} # if we are not doing a backup, continue the deployment, otherwise wait for the backup to finish
+        if: ${{ success() && ! inputs.do_backup && needs.preflight.outputs.gh_deployment_id != '' }} # if we are not doing a backup, continue the deployment, otherwise wait for the backup to finish
         uses: octokit/request-action@v2.x
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
@@ -137,7 +145,7 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Set Deployment Status as Failboat
-        if: ${{ failure() }}
+        if: ${{ failure() || needs.preflight.outputs.gh_deployment_id == '' }} # if the deployment failed or the deployment ID is not set, mark the deployment as failed
         uses: octokit/request-action@v2.x
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
