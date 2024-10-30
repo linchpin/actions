@@ -24,8 +24,6 @@ on:
 
 jobs:
   deploy:
-        environment:
-      name: ${{ inputs.environment }}
     name: To Pressable
     runs-on: ubuntu-latest
     environment:
