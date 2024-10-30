@@ -33,13 +33,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Var Output
-        run: |
-          echo "${{ vars.BRANCH }}"
-          echo "${{ vars.ENVIRONMENT }}"
-          echo "${{ vars.SITE_URL }}"
-          echo "${{ github.repository }}"
-
       # This creates a "deployment" in GitHub, this helps track the progress
       # of the deployment in the GitHub UI, it is purely for visual purposes
       # and does not technically impact the "deployment" of the code.
@@ -68,7 +61,7 @@ jobs:
         with:
           route: POST /repos/{repo}/deployments/:deployment/statuses
           repo: ${{ github.repository }}
-          deployment: ${{ steps.gh_deployment.outputs.id }}
+          deployment: ${{ steps.gh_deployment_data.outputs.id }}
           environment: ${{ vars.ENVIRONMENT }}
           environment_url: ${{ vars.SITE_URL }}
           log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
