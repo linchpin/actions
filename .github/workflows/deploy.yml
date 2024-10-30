@@ -69,13 +69,14 @@ jobs:
     if: ${{ !inputs.skip_lint }}
     name: Lint Release
     uses: ./.github/workflows/phplint.yml
+    secrets: inherit
     with:
       php_version: ${{ vars.PHP_VERSION }}
-    secrets: inherit
 
   build:
     needs: [preflight, lint]
     name: Build Project
+    secrets: inherit
     uses: ./.github/workflows/build.yml
 
   deploy_pressable:
