@@ -1,22 +1,22 @@
-name: Deploy to ${{ vars.HOST }} ${{ vars.ENVIRONMENT }}
+name: Deploy to Cloudways
 
 on:
   workflow_call:
     inputs:
       deployment_path:
-        description: 'Provide if the deployment path is non standard'
+        description: "Provide if the deployment path is non standard"
         required: false
-        default: '~/private_html/releases'
+        default: "~/private_html/releases"
         type: string
       deployment_id:
-        description: 'The deployment ID from previous jobs'
+        description: "The deployment ID from previous jobs"
         required: true
         type: string
       workflow_run_id:
-        description: 'Workflow Run ID to get artifacts from'
+        description: "Workflow Run ID to get artifacts from"
         required: true
         type: string
-      # @todo do a backup during the deployment process  
+      # @todo do a backup during the deployment process
       # do_backup:
       #   description: 'Backup the current site before deploying'
       #   required: false
@@ -49,7 +49,7 @@ jobs:
         uses: actions/download-artifact@v4
         id: download
         with:
-          name: 'release'
+          name: "release"
           path: ./
 
       - name: Generate release zip

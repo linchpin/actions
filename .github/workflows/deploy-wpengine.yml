@@ -1,4 +1,4 @@
-name: Deploy to ${{ vars.HOST }}
+name: Deploy to WP Engine
 
 on:
   workflow_call:
