@@ -24,11 +24,13 @@ on:
 
 jobs:
   deploy:
+        environment:
+      name: ${{ inputs.environment }}
     name: To Pressable
     runs-on: ubuntu-latest
     environment:
-      name: ${{ github.env.ENVIRONMENT }}
-      url: ${{ github.env.SITE_URL }}
+      name: ${{ vars.ENVIRONMENT }}
+      url: ${{ vars.SITE_URL }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -54,8 +56,24 @@ jobs:
           --header 'Authorization: Bearer ${{ github.env.ACCESS_TOKEN }}' \
           --header 'Content-Type: application/json' \
 
+      - name: Deployment In Queue
+        id: in_queue_deployment
+        if: ${{ inputs.do_backup == true }} # if we are not doing a backup, continue the deployment
+        uses: octokit/request-action@v2
+        with:
+          route: POST /repos/{repo}/deployments/{deployment}/statuses
+          repo: ${{ github.repository }}
+          deployment: ${{ inputs.deployment }}
+          environment: ${{ vars.ENVIRONMENT }}
+          environment_url: ${{ vars.SITE_URL }}
+          log_url: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          state: queued
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
       - name: Deployment In Progress
         id: in_progress_deployment
+        if: ${{ inputs.do_backup != true }} # if we are not doing a backup, continue the deployment
         uses: octokit/request-action@v2
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses

@@ -73,7 +73,7 @@ jobs:
           repo: ${{ github.repository }}
           ref: ${{ vars.BRANCH }}
           environment: ${{ vars.ENVIRONMENT }}
-          description: "Deploying to ${{ vars.ENVIRONMENT }} on ${{ vars.HOST }}"
+          required_contexts: "[]"
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
@@ -100,7 +100,7 @@ jobs:
 
   lint:
     needs: [preflight]
-    if: ${{ !inputs.skip_lint }}
+    if: ${{ inputs.skip_lint != true }}
     name: Lint Release
     uses: ./.github/workflows/phplint.yml
     secrets: inherit
