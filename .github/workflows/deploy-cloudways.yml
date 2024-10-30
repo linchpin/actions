@@ -17,11 +17,11 @@ on:
         required: true
         type: string
       # @todo do a backup during the deployment process
-      # do_backup:
-      #   description: 'Backup the current site before deploying'
-      #   required: false
-      #   default: false
-      #   type: boolean
+      do_backup:
+        description: "Backup the current site before deploying"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   deploy:
