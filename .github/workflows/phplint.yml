@@ -2,6 +2,11 @@ name: PHP Lint
 
 on:
   workflow_call:
+    inputs:
+      php_version:
+        description: "The PHP version to lint"
+        required: true
+        type: string
 
 jobs:
   phpcbf-fixer:
@@ -46,32 +51,32 @@ jobs:
         if: steps.check_commit_message.outputs.skip_lint == false
         with:
           working_dir: ./
-          php_version: ${{ vars.PHP_VERSION }}
+          php_version: ${{ inputs.php_version }}
 
       - name: Cleanup Auth
         run: |
           rm ./auth.json
 
       - name: PHP Lint 8.3
-        if: ${{ vars.PHP_VERSION == '8.3' && steps.check_commit_message.outputs.skip_lint == false }}
+        if: ${{ inputs.php_version == '8.3' && steps.check_commit_message.outputs.skip_lint == false }}
         uses: overtrue/phplint@main
         with:
           path: ./
 
       - name: PHP Lint 8.2
-        if: ${{ vars.PHP_VERSION == '8.2' && steps.check_commit_message.outputs.skip_lint == false }}
+        if: ${{ inputs.php_version == '8.2' && steps.check_commit_message.outputs.skip_lint == false }}
         uses: overtrue/phplint@9.5
         with:
           path: ./
 
       - name: PHP Lint 8.1
-        if: ${{ vars.PHP_VERSION == '8.1' && steps.check_commit_message.outputs.skip_lint == false }}
+        if: ${{ inputs.php_version == '8.1' && steps.check_commit_message.outputs.skip_lint == false }}
         uses: overtrue/phplint@9.4
         with:
           path: ./
 
       - name: PHP Lint 8.0
-        if: ${{ vars.PHP_VERSION == '8.0' && steps.check_commit_message.outputs.skip_lint == false }}
+        if: ${{ inputs.php_version == '8.0' && steps.check_commit_message.outputs.skip_lint == false }}
         uses: overtrue/phplint@9.0
         with:
           path: ./

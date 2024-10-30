@@ -2,6 +2,11 @@ name: WordPress Autofixer
 
 on:
   workflow_call:
+    inputs:
+      php_version:
+        description: "PHP Version to use"
+        required: true
+        type: string
 
 jobs:
   phpcbf-fixer:
@@ -14,7 +19,7 @@ jobs:
       - name: Install PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ vars.PHP_VERSION }}
+          php-version: ${{ inputs.php_version }}
           coverage: none
           tools: cs2pr, composer
 
