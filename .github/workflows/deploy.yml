@@ -73,7 +73,7 @@ jobs:
           repo: ${{ github.repository }}
           ref: ${{ vars.BRANCH }}
           environment: ${{ vars.ENVIRONMENT }}
-          required_contexts: "[]"
+          required_contexts: "[]" # This allows for the deployment to run within all contexts passing
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
@@ -112,6 +112,16 @@ jobs:
     name: Build Project
     secrets: inherit
     uses: ./.github/workflows/build.yml
+
+  var_output:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+    name: Var Output
+    steps:
+      - name: Var Output
+        run: echo "${{ vars.HOST }}"
+          echo "PHP Version: ${{ vars.PHP_VERSION }}"
 
   deploy_pressable:
     needs: [build]
