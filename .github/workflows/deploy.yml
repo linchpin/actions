@@ -120,7 +120,8 @@ jobs:
     name: Var Output
     steps:
       - name: Var Output
-        run: echo "${{ vars.HOST }}"
+        run: |
+          echo "${{ vars.HOST }}"
           echo "PHP Version: ${{ vars.PHP_VERSION }}"
 
   deploy_pressable:
