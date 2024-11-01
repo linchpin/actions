@@ -5,8 +5,9 @@ on:
     inputs:
       php_version:
         description: "PHP Version to use"
-        required: true
+        required: false
         type: string
+        default: "8.2"
 
 jobs:
   phpcbf-fixer:
@@ -19,7 +20,7 @@ jobs:
       - name: Install PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ inputs.php_version }}
+          php-version: ${{ vars.PHP_VERSION }}
           coverage: none
           tools: cs2pr, composer
 
