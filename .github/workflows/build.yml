@@ -283,6 +283,7 @@ jobs:
         run: |
           cd themes/${{ matrix.theme }}
           npm install # @todo exclude dev libraries (make initial non cached build faster)
+          npm require sass-embedded-linux-x64 # sass-embedded dependency required for workflow actions
           npm run build
 
       - name: Compress Theme Artifact
