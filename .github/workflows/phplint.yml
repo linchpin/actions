@@ -5,7 +5,8 @@ on:
     inputs:
       php_version:
         description: "The PHP version to lint against"
-        required: true
+        required: false
+        default: "8.2"
         type: string
 
 jobs:
