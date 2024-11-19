@@ -26,22 +26,22 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
 
-      - name: Check commit message for "#skip-lint"
-        id: check_commit_message
-        run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
-          else
-            COMMIT_SHA="${{ github.sha }}"
-          fi
-          commit_message="$(git log --format=%B -n 1 $COMMIT_SHA)"
-          if [[ $commit_message == *"#skip-lint"* ]]; then
-            echo "Commit message contains #skip-lint. Skipping linting..."
-            echo "skip_lint=true" >> $GITHUB_OUTPUT
-          else
-            echo "Commit message does not contain #skip-lint. Running linting..."
-            echo "skip_lint=false" >> $GITHUB_OUTPUT
-          fi
+#      - name: Check commit message for "#skip-lint"
+#        id: check_commit_message
+#        run: |
+#          if [ "${{ github.event_name }}" == "pull_request" ]; then
+#            COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+#          else
+#            COMMIT_SHA="${{ github.sha }}"
+#          fi
+#          commit_message="$(git log --format=%B -n 1 $COMMIT_SHA)"
+#          if [[ $commit_message == *"#skip-lint"* ]]; then
+#            echo "Commit message contains #skip-lint. Skipping linting..."
+#            echo "skip_lint=true" >> $GITHUB_OUTPUT
+#          else
+#            echo "Commit message does not contain #skip-lint. Running linting..."
+#            echo "skip_lint=false" >> $GITHUB_OUTPUT
+#          fi
 
       - name: Authenticate packagist.linchpin.com
         run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > ./auth.json
