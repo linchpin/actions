@@ -54,5 +54,7 @@ if [[ -n "$table_output" ]]; then
   ' "$README_FILE" > temp && mv temp "$README_FILE"
 fi
 
-# remove the temporary file
-rm "$TEMP_FILE"
+if [[ -f "$TEMP_FILE" ]]; then
+  # remove the temporary file
+  rm "$TEMP_FILE"
+fi
