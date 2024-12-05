@@ -45,6 +45,7 @@ jobs:
           chmod +x update-readme.sh
           ls -all
           bash ./update-readme.sh
+          rm update-readme.sh
         shell: bash
 
       - name: Commit changes to README.md
