@@ -124,33 +124,15 @@ jobs:
           echo "${{ vars.HOST }}"
           echo "PHP Version: ${{ vars.PHP_VERSION }}"
 
-  deploy_pressable:
+  deploy:
     needs: [build]
-    name: Deploy to Staging on Pressable
-    if: ${{ vars.HOST == 'pressable' }}
-    uses: ./.github/workflows/deploy-pressable.yml
-    secrets: inherit
-    with:
-      deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
-      workflow_run_id: ${{ github.run_id }}
-      do_backup: ${{ inputs.do_backup }}
-
-  deploy_wpengine:
-    needs: [build]
-    name: Deploy to Staging on WP Engine
-    if: ${{ vars.HOST == 'wpengine' }}
-    uses: ./.github/workflows/deploy-wpengine.yml
-    secrets: inherit
-    with:
-      deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
-      workflow_run_id: ${{ github.run_id }}
-      do_backup: ${{ inputs.do_backup }}
-
-  deploy_cloudways:
-    needs: [build]
-    name: Deploy to Staging on Cloudways
-    if: ${{ vars.HOST == 'cloudways' }}
-    uses: ./.github/workflows/deploy-cloudways.yml
+    name: Deploy
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        host: [pressable, wpengine, cloudways]
+    if: ${{ vars.HOST == matrix.host }}
+    uses: ./.github/workflows/deploy-${{ matrix.host }}.yml
     secrets: inherit
     with:
       deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
@@ -165,7 +147,7 @@ jobs:
       url: ${{ vars.SITE_URL }}
     if: ${{ always() && needs.preflight.outputs.gh_deployment_id != '' }} # No matter if the needs are met still finish. Could be success or fail
     needs:
-      [preflight, build, deploy_pressable, deploy_cloudways, deploy_wpengine]
+      [preflight, build, deploy]
     steps:
       - name: Set Deployment Status as Successful
         if: ${{ success() && ! inputs.do_backup && needs.preflight.outputs.gh_deployment_id != '' }} # if we are not doing a backup, continue the deployment, otherwise wait for the backup to finish
