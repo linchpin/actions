@@ -27,12 +27,6 @@ jobs:
       - name: Authenticate packagist.linchpin.com
         run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > ./auth.json
 
-      - name: Create a new branch
-        run: |
-          git config --global user.name 'Linchpin Bot'
-          git config --global user.email 'dev@linchpin.com'
-          git checkout -b ${{ github.ref_name }}-phpcbf
-
       - name: Install Composer dependencies
         run: |
           composer update
@@ -43,11 +37,6 @@ jobs:
         id: codestyle
         continue-on-error: true
         run: ${{ github.workspace }}/vendor/squizlabs/php_codesniffer/bin/phpcbf . --standard=${{ github.workspace }}/phpcs.xml > phpcbf-report.txt
-
-      - name: Commit changes
-        run: |
-          git add .
-          git commit -m "ci(NO-TASK): PHPCBF Auto Fix"
 
       - name: Push changes
         run: git push origin ${{ github.ref_name }}-phpcbf
@@ -69,6 +58,7 @@ jobs:
           committer: Linchpin Bot <dev@linchpin.com>
           author: ${{ github.actor }} <${{ github.actor }}@users.noreply.github.com>
           signoff: false
+          base: ${{ github.ref_name }}
           branch: ${{ github.ref_name }}-phpcbf
           delete-branch: true
           title: "Auto Fix Formatting"
