@@ -27,7 +27,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: "release-please--branches--main"
           sparse-checkout: |
             README.md
             composer.lock
