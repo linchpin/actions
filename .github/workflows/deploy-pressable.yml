@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       deployment_id:
-        description: "The deployment ID from the ancestor job(s)"
+        description: "The deployment ID from the ancestor workflow"
         required: true
         type: string
       workflow_run_id:
@@ -69,6 +69,22 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
+      - name: Trigger Zapier
+        id: trigger_zapier
+        if: ${{ inputs.do_backup == true }} # if we are not doing a backup, continue the deployment
+        run: |
+          curl --location --request POST 'https://hooks.zapier.com/hooks/catch/324051/2zhx9jk' \
+          --header 'Content-Type: application/json' \
+          --data-raw '{
+            "pressable_site_id": "${{ vars.SITE_ID }}",
+            "site_url": "${{ vars.SITE_URL }}",
+            "environment": "${{ vars.ENVIRONMENT }}",
+            "branch": "${{ steps.branch.outputs.branch }}",
+            "deployment_id": "${{ inputs.deployment_id }}",
+            "workflow_run_id": "${{ inputs.workflow_run_id }}"
+            "repository": "${{ github.repository }}"
+          }'
+
       - name: Deployment In Progress
         id: in_progress_deployment
         if: ${{ inputs.do_backup != true }} # if we are not doing a backup, continue the deployment
@@ -76,7 +92,7 @@ jobs:
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
-          deployment: ${{ inputs.deployment }}
+          deployment: ${{ inputs.deployment_id }}
           environment: ${{ vars.ENVIRONMENT }}
           environment_url: ${{ vars.SITE_URL }}
           log_url: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -93,8 +109,7 @@ jobs:
           site_url: ${{ vars.SITE_URL }}
           environment: ${{ vars.ENVIRONMENT }}
           branch: ${{ steps.branch.outputs.branch }}
-          version: ${{ steps.version.outputs.current }}
-          deployment: ${{ inputs.deployment }}
+          deployment_id: ${{ inputs.deployment_id }}
           deployment_path: ${{ inputs.deployment_path }}
           workflow_run_id: ${{ inputs.workflow_run_id }}
           remote_plugin_install: ${{ inputs.remote_plugin_install }}

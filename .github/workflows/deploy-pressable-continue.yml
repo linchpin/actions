@@ -16,11 +16,6 @@ on:
         description: "Workflow Run ID to get artifacts from"
         required: true
         type: string
-      do_backup:
-        description: "Backup the current site before deploying"
-        required: false
-        default: false
-        type: boolean
 
 jobs:
   deploy:
@@ -66,9 +61,9 @@ jobs:
       - name: Configure SSH Connection with Pressable
         uses: linchpin/actions-pressable-ssh@main
         with:
-          ssh_user: ${{ secrets.SSH_USER }}
-          ssh_pass: ${{ secrets.SSH_PASS }}
           ssh_host: ${{ secrets.SSH_HOST }}
+          ssh_user: ${{ secrets.SSH_USER }}
+          ssh_key: ${{ secrets.SSH_KEY }}
 
       - name: Upload Assets
         id: upload_assets
@@ -108,14 +103,15 @@ jobs:
         with:
           php-version: ${{ vars.PHP_VERSION }}
 
-      - name: Remote Plugin Install
-        if: ${{ vars.REMOTE_PLUGIN_INSTALL != false }}
-        id: parse_composer_lock
-        shell: bash
-        run: |
-          wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/remote-plugin-install.sh
-          chmod +x ./remote-plugin-install.sh
-          bash ./remote-plugin-install.sh ${{ vars.SITE_ID }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
+# See about handling this with the API instead of SSH commands
+#      - name: Remote Plugin Install
+#        if: ${{ vars.REMOTE_PLUGIN_INSTALL != false }}
+#        id: parse_composer_lock
+#        shell: bash
+#        run: |
+#          wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/remote-plugin-install.sh
+#          chmod +x ./remote-plugin-install.sh
+#          bash ./remote-plugin-install.sh ${{ vars.SITE_ID }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
 
   status:
     name: Deploy Status
@@ -126,7 +122,7 @@ jobs:
         uses: linchpin/actions-pressable-ssh@main
         with:
           ssh_user: ${{ secrets.SSH_USER }}
-          ssh_ssh: ${{ secrets.SSH_PASS }}
+          ssh_key: ${{ secrets.SSH_KEY }}
           ssh_host: ${{ secrets.SSH_HOST }}
 
       - name: Cleanup Maintenance
