@@ -123,16 +123,14 @@ jobs:
         run: |
           echo "${{ vars.HOST }}"
           echo "PHP Version: ${{ vars.PHP_VERSION }}"
+          echo "${{ needs.preflight.outputs.gh_deployment_id }}"
+          echo "${{ inputs.do_backup }}"
 
   deploy:
+    name: Deploy to ${{ vars.HOST }}
     needs: [build]
-    name: Deploy
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        host: [pressable, wpengine, cloudways]
-    if: ${{ vars.HOST == matrix.host }}
-    uses: ./.github/workflows/deploy-${{ matrix.host }}.yml
+    if: ${{ vars.HOST != '' }}
+    uses: ./.github/workflows/deploy-${{ vars.HOST }}.yml
     secrets: inherit
     with:
       deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
