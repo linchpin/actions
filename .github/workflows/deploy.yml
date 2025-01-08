@@ -15,18 +15,25 @@ on:
         required: false
         default: true
         type: boolean
-      environment:
-        description: "The environment to deploy to"
-        required: true
-        type: string
-        default: "staging"
 
 jobs:
+
+  # Linting should happen before anything else so it can fail quickly
+  lint:
+    if: ${{ inputs.skip_lint != true }}
+    name: Lint Release
+    uses: ./.github/workflows/phplint.yml
+    secrets: inherit
+    fail-fast: true
+    with:
+      php_version: ${{ vars.PHP_VERSION }}
+
   preflight:
+    needs: [lint]
     name: Preflight Setup
     runs-on: ubuntu-latest
     environment:
-      name: ${{ inputs.environment }}
+      name: ${{ vars.ENVIRONMENT }}
     outputs:
       gh_deployment_id: ${{ steps.gh_deployment_data.outputs.id }}
     steps:
@@ -37,7 +44,7 @@ jobs:
         id: get_deployments
         uses: octokit/request-action@v2.4.0
         with:
-          route: GET /repos/{repo}/deployments?environment=${{ inputs.environment }}&per_page=1
+          route: GET /repos/{repo}/deployments?environment=${{ vars.ENVIRONMENT }}&per_page=1
           repo: ${{ github.repository }}
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
@@ -98,15 +105,6 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-  lint:
-    needs: [preflight]
-    if: ${{ inputs.skip_lint != true }}
-    name: Lint Release
-    uses: ./.github/workflows/phplint.yml
-    secrets: inherit
-    with:
-      php_version: ${{ vars.PHP_VERSION }}
-
   build:
     needs: [preflight, lint]
     name: Build Project
@@ -126,11 +124,33 @@ jobs:
           echo "${{ needs.preflight.outputs.gh_deployment_id }}"
           echo "${{ inputs.do_backup }}"
 
-  deploy:
-    name: Deploy to ${{ vars.HOST }}
+  deploy_pressable:
+    name: Deploy to Pressable
     needs: [build]
-    if: ${{ vars.HOST != '' }}
-    uses: ./.github/workflows/deploy-${{ vars.HOST }}.yml
+    if: ${{ github.event_name == 'push' }}
+    uses: ./.github/workflows/deploy-pressable.yml
+    secrets: inherit
+    with:
+      deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
+      workflow_run_id: ${{ github.run_id }}
+      do_backup: ${{ inputs.do_backup }}
+
+  deploy_wpengine:
+    name: Deploy to WPEngine
+    needs: [build]
+    if: ${{ github.event_name == 'push' }}
+    uses: ./.github/workflows/deploy-wpengine.yml
+    secrets: inherit
+    with:
+      deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
+      workflow_run_id: ${{ github.run_id }}
+      do_backup: ${{ inputs.do_backup }}
+
+  deploy_cloudways:
+    name: Deploy to Cloudways
+    needs: [build]
+    if: ${{ github.event_name == 'push' }}
+    uses: ./.github/workflows/deploy-cloudways.yml
     secrets: inherit
     with:
       deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
@@ -145,7 +165,7 @@ jobs:
       url: ${{ vars.SITE_URL }}
     if: ${{ always() && needs.preflight.outputs.gh_deployment_id != '' }} # No matter if the needs are met still finish. Could be success or fail
     needs:
-      [preflight, build, deploy]
+      [preflight, build, deploy_pressable, deploy_wpengine, deploy_cloudways]
     steps:
       - name: Set Deployment Status as Successful
         if: ${{ success() && ! inputs.do_backup && needs.preflight.outputs.gh_deployment_id != '' }} # if we are not doing a backup, continue the deployment, otherwise wait for the backup to finish

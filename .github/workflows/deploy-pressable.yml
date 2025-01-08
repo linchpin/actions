@@ -69,19 +69,20 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Trigger Zapier
-        id: trigger_zapier
+      - name: Save Deployment Details
+        id: save_deployment
         if: ${{ inputs.do_backup == true }} # if we are not doing a backup, continue the deployment
         run: |
-          curl --location --request POST 'https://hooks.zapier.com/hooks/catch/324051/2zhx9jk' \
+          curl --location --request POST 'https://mantle.linchpin.com/api/v1/deployments/start' \
           --header 'Content-Type: application/json' \
+          --header "Authorization: Bearer ${{ secrets.MANTLE_API_BEARER }}" \
           --data-raw '{
             "pressable_site_id": "${{ vars.SITE_ID }}",
             "site_url": "${{ vars.SITE_URL }}",
             "environment": "${{ vars.ENVIRONMENT }}",
             "branch": "${{ steps.branch.outputs.branch }}",
-            "deployment_id": "${{ inputs.deployment_id }}",
-            "workflow_run_id": "${{ inputs.workflow_run_id }}"
+            "deployment_id": ${{ inputs.deployment_id }},
+            "workflow_run_id": ${{ inputs.workflow_run_id }},
             "repository": "${{ github.repository }}"
           }'
 
