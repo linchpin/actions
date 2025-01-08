@@ -53,13 +53,6 @@ on:
         default: false
         required: false
         type: boolean
-    secrets:
-      packagist_auth:
-        description: "Authentication for private satis/packagist"
-        required: true
-      token:
-        description: "Override Bot Token"
-        required: false
 
 jobs:
   dependency_setup:
@@ -72,7 +65,7 @@ jobs:
           path: "build"
 
       - name: Authenticate Packagist
-        run: echo '${{ secrets.packagist_auth }}' > ./build/auth.json
+        run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > ./build/auth.json
 
       - name: Get Composer Cache Directory
         id: composer_cache
