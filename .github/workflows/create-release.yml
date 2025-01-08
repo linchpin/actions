@@ -14,12 +14,12 @@ on:
         required: false
         type: string
       php_version:
-        description: "PHP version used during build (Default 7.4.x)"
+        description: "PHP version used during build (Default 8.0.x)"
         default: '8.0'
         required: false
         type: string
       node_version:
-        description: "Node version used during build (Default 14.x)"
+        description: "Node version used during build (Default 20.x)"
         default: '20'
         required: false
         type: string

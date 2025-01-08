@@ -24,7 +24,6 @@ jobs:
     name: Lint Release
     uses: ./.github/workflows/phplint.yml
     secrets: inherit
-    fail-fast: true
     with:
       php_version: ${{ vars.PHP_VERSION }}
 
