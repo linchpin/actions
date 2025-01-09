@@ -15,6 +15,11 @@ on:
         required: false
         default: true
         type: boolean
+      environment:
+        description: "The environment to deploy to"
+        required: false
+        default: "staging"
+        type: string
 
 jobs:
 
@@ -31,8 +36,7 @@ jobs:
     needs: [lint]
     name: Preflight Setup
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ vars.ENVIRONMENT }}
+    environment: ${{ inputs.environment }}
     outputs:
       gh_deployment_id: ${{ steps.gh_deployment_data.outputs.id }}
     steps:

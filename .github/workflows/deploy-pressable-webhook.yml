@@ -7,15 +7,20 @@ on:
         description: 'The deployment ID from previous jobs'
         required: true
         type: string
+      workflow_run_id:
+        description: 'Workflow Run ID to get artifacts from'
+        required: true
+        type: string
       deployment_path:
         description: 'Provide if the deployment path is non standard'
         required: false
         default: '/tmp/releases'
         type: string
-      workflow_run_id:
-        description: 'Workflow Run ID to get artifacts from'
-        required: true
+      environment:
+        description: 'The environment to deploy to'
+        default: 'staging'
         type: string
+        required: false
 
 jobs:
   deploy:
@@ -28,5 +33,6 @@ jobs:
           deployment_id: ${{ inputs.deployment_id }}
           deployment_path: ${{ inputs.deployment_path }}
           workflow_run_id: ${{ inputs.workflow_run_id }}
+          environment: ${{ inputs.environment }}
 
 

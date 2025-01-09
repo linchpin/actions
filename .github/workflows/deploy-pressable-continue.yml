@@ -16,14 +16,18 @@ on:
         description: "Workflow Run ID to get artifacts from"
         required: true
         type: string
+      environment:
+        description: "The environment to deploy to"
+        required: true
+        default: "staging"
+        type: string
 
 jobs:
   deploy:
     name: To ${{ vars.HOST }}
     runs-on: ubuntu-latest
     environment:
-      name: ${{ vars.ENVIRONMENT }}
-      url: ${{ vars.SITE_URL }}
+      name: ${{ inputs.environment }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
