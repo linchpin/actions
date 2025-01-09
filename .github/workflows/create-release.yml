@@ -273,12 +273,12 @@ jobs:
     steps:
 
       - name: Create Download Target Directory
-         id: create_download_directory
-         run: |
-           echo 'Removing "artifact" directory if it exists to prevent collisions when downloading assets'
-           rm -f ./artifact
-           echo 'Create new empty "artifact" directory for artifact downloads'
-           mkdir -p ./artifact
+        id: create_download_directory
+        run: |
+          echo 'Removing "artifact" directory if it exists to prevent collisions when downloading assets'
+          rm -f ./artifact
+          echo 'Create new empty "artifact" directory for artifact downloads'
+          mkdir -p ./artifact
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
