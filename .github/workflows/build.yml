@@ -400,8 +400,12 @@ jobs:
         id: decompress_composer_artifacts
         run: |
           echo '----- DEBUGGING: START -----'
+          echo 'PWD'
           pwd
-          echo ${{ $GITHUB_WORKSPACE }}
+          echo 'github.workspase'
+          echo ${{ github.workspace }}
+          echo 'GITHUB_WORDSPACE'
+          echo ${{ GITHUB_WORKSPACE }}
           echo '----- DEBUGGING: END -----'
           tar -xzf ./artifact/composer.tar.gz -C ./
 
