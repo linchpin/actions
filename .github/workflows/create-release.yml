@@ -100,7 +100,7 @@ jobs:
       - name: Upload Dependencies
         uses: actions/upload-artifact@v4
         with:
-          name: composer.tar.gz
+          name: composer
           path: composer.tar.gz
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
 
@@ -181,7 +181,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         with:
-          name: theme-${{ matrix.theme }}.tar.gz
+          name: themes
           path: theme-${{ matrix.theme }}.tar.gz
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
 
@@ -263,7 +263,7 @@ jobs:
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         uses: actions/upload-artifact@v4
         with:
-          name: plugin-${{ matrix.plugin }}.tar.gz
+          name: plugins
           path: plugin-${{ matrix.plugin }}.tar.gz
 
   build:
@@ -272,29 +272,30 @@ jobs:
     needs: [dependency_setup,theme_setup,plugin_setup]
     steps:
 
-      - name: Create Download Target Directory
-        id: create_download_directory
-        run: |
-          echo 'Removing "artifact" directory if it exists to prevent collisions when downloading assets'
-          rm -f ./artifact
-          echo 'Create new empty "artifact" directory for artifact downloads'
-          mkdir -p ./artifact
+      # - name: Create Download Target Directory
+      #   id: create_download_directory
+      #   run: |
+      #     echo 'Removing "artifact" directory if it exists to prevent collisions when downloading assets'
+      #     rm -f ./artifact
+      #     echo 'Create new empty "artifact" directory for artifact downloads'
+      #     mkdir -p ./artifact
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./artifact
+          name: artifact
+          path: ./
 
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
-          tar -xzf ./artifact/composer.tar.gz -C ./
+          tar -xzf ./artifact/composer/composer.tar.gz -C ./
 
       - name: Decompress Theme Artifacts
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
         id: decompress_theme_artifacts
         run: |
-          cd ./artifact
+          cd ./artifact/themes
           cat theme-*.tar.gz | tar -xzf - -i -C ../build/
           cd ../
           
@@ -302,7 +303,7 @@ jobs:
         if: ${{ inputs.plugins != '["none"]' }} # skip this step if no themes are included.
         id: decompress_plugin_artifacts
         run: |
-          cd ./artifact
+          cd ./artifact/plugins
           cat plugin-*.tar.gz | tar -xzf - -i -C ../build/
           cd ../
      
