@@ -391,23 +391,23 @@ jobs:
     needs: [preflight,dependency_setup,theme_setup,plugin_setup]
     steps:
 
+      - name: Create Download Target Directory
+        id: create_download_directory
+        run: |
+          echo 'Removing "artifact" directory if it exists to prevent collisions when downloading assets'
+          rm -f ./artifact
+          echo 'Create new empty "artifact" directory for artifact downloads'
+          mkdir -p ./artifact
+
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./
+          path: ./artifact
 
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
-          echo '----- DEBUGGING: START -----'
-          echo 'PWD'
-          pwd
-          echo 'github.workspase'
-          echo ${{ github.workspace }}
-          echo 'GITHUB_WORDSPACE'
-          echo $GITHUB_WORKSPACE
-          echo '----- DEBUGGING: END -----'
-          tar -xzf ./artifact/composer.tar.gz -C ./
+         tar -xzf ./artifact/composer.tar.gz -C ./
 
       - name: Decompress Theme Artifacts
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
