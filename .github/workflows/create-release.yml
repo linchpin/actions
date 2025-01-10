@@ -296,7 +296,7 @@ jobs:
         run: |
           cd ./artifact/themes
           cat theme-*.tar.gz | tar -xzf - -i -C ../build/
-          cd ../
+          cd ../../
           
       - name: Decompress Plugin Artifacts
         if: ${{ inputs.plugins != '["none"]' }} # skip this step if no themes are included.
@@ -304,7 +304,7 @@ jobs:
         run: |
           cd ./artifact/plugins
           cat plugin-*.tar.gz | tar -xzf - -i -C ../build/
-          cd ../
+          cd ../../
      
       - name: Clean Build Files/Folders
         id: clean_build_ff
