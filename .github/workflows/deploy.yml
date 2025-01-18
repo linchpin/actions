@@ -43,11 +43,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Confirm Environment
+        run: |
+          echo ${{ vars.ENVIRONMENT }}
+          echo ${{ inputs.environment }}
+
       - name: Get Deployments for Environment
         id: get_deployments
         uses: octokit/request-action@v2.4.0
         with:
-          route: GET /repos/{repo}/deployments?environment=${{ vars.ENVIRONMENT }}&per_page=1
+          route: GET /repos/{repo}/deployments?environment=${{ inputs.environment }}&per_page=1
           repo: ${{ github.repository }}
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
@@ -108,16 +113,10 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-  build:
-    needs: [preflight, lint]
-    name: Build Project
-    secrets: inherit
-    uses: ./.github/workflows/build.yml
-
   var_output:
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ inputs.environment }}
+    needs: [preflight, lint]
+    environment: ${{ inputs.environment }}
     name: Var Output
     steps:
       - name: Var Output
@@ -126,6 +125,12 @@ jobs:
           echo "PHP Version: ${{ vars.PHP_VERSION }}"
           echo "${{ needs.preflight.outputs.gh_deployment_id }}"
           echo "${{ inputs.do_backup }}"
+
+  build:
+    needs: [preflight, lint]
+    name: Build Project
+    secrets: inherit
+    uses: ./.github/workflows/build.yml
 
   deploy_pressable:
     name: Deploy to Pressable
