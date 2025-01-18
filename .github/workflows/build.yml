@@ -45,7 +45,7 @@ jobs:
       - name: Upload Dependencies
         uses: actions/upload-artifact@v4
         with:
-          name: composer
+          name: composer-${{ vars.ENVIRONMENT }}
           path: |
             ./build
             !./build/**/node_modules
@@ -53,6 +53,8 @@ jobs:
             !./build/**/.git
             !./build/**/.deployment
           retention-days: 1
+          overwrite: false
+          include-hidden-files: false
 
   # Loop through all themes passed from inputs.themes
   theme_setup:
@@ -112,6 +114,8 @@ jobs:
           name: theme-${{ matrix.theme }}
           path: themes/${{ matrix.theme }}
           retention-days: 1
+          overwrite: false
+          include-hidden-files: false
 
   # Loop through all plugins passed from input.plugins
   plugin_setup:
@@ -166,6 +170,8 @@ jobs:
           name: plugin-${{ matrix.plugin }}
           path: plugin/${{ matrix.plugin }}
           retention-days: 1
+          overwrite: false
+          include-hidden-files: false
 
   build:
     name: Zip
@@ -202,3 +208,5 @@ jobs:
           name: release
           path: release
           retention-days: 1
+          overwrite: false
+          include-hidden-files: false
