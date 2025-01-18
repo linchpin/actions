@@ -21,7 +21,7 @@ jobs:
 
       - name: Authenticate Packagist
         if: ${{ vars.REMOTE_PLUGIN_INSTALL == false }}
-        run: echo '${{ secrets.packagist_auth }}' > $GITHUB_WORKSPACE/build/auth.json
+        run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
         if: ${{ vars.REMOTE_PLUGIN_INSTALL == false && hashFiles( './build/composer') != '' && inputs.skip_cache == true }}
@@ -51,6 +51,7 @@ jobs:
             !./build/**/node_modules
             !./build/auth.json
             !./build/**/.git
+            !./build/**/.deployment
           retention-days: 1
 
   # Loop through all themes passed from inputs.themes
@@ -100,8 +101,9 @@ jobs:
           cd themes/${{ matrix.theme }}
           npm config set cache $(npm config get cache)
           npm install sass-embedded-linux-x64
-          npm install --production
+          npm install --omit=dev
           npm run build
+          rm -rf node_modules
 
       - name: Upload Theme
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
@@ -144,8 +146,9 @@ jobs:
         run: |
           cd plugins/${{ matrix.plugin }}
           npm config set cache $(npm config get cache)
-          npm install # @todo exclude dev libraries (make initial non cached build faster)
+          npm install --omit=dev
           npm run build --production
+          rm -rf node_modules # remove node modules after the build
 
       - name: Install Plugin Composer Dependencies
         if: ${{ matrix.plugin != 'none' && inputs.plugin_uses_composer == true && hashFiles(format('themes/{0}/composer.lock', matrix.plugin ) ) != '' }} # skip this step if no themes are included or we don't have a composer file
@@ -192,11 +195,10 @@ jobs:
         id: compression
         run: |
           mv temp_archive release
-          zip -r release.zip release
 
       - name: Upload Release Artifact
         uses: actions/upload-artifact@v4
         with:
           name: release
-          path: release.zip
+          path: release
           retention-days: 1
