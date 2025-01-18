@@ -31,8 +31,7 @@ jobs:
   deploy:
     name: To Pressable
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ inputs.environment }}
+    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
