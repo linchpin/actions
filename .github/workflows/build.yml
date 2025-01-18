@@ -61,6 +61,7 @@ jobs:
   theme_setup:
     name: Theme(s)
     runs-on: ubuntu-latest
+    environment: ${{ vars.ENVIRONMENT }}
     strategy:
       matrix:
         theme: ${{ fromJSON( vars.THEMES ) }}
@@ -122,6 +123,7 @@ jobs:
   plugin_setup:
     name: Plugin(s)
     runs-on: ubuntu-latest
+    environment: ${{ vars.ENVIRONMENT }}
     strategy:
       matrix:
         plugin: ${{ fromJSON( vars.PLUGINS ) }}
@@ -177,6 +179,7 @@ jobs:
   build:
     name: Zip
     runs-on: ubuntu-latest
+    environment: ${{ vars.ENVIRONMENT }}
     needs: [dependency_setup, theme_setup, plugin_setup]
     steps:
       - name: Download All Artifacts
