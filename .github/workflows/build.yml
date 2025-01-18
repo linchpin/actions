@@ -8,16 +8,12 @@ on:
         required: false
         default: false
         type: boolean
-      environment:
-        description: "The environment we are deploying to and gettings env.vars from"
-        required: true
-        type: string
 
 jobs:
   dependency_setup:
     name: Composer
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ vars.ENVIRONMENT }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
