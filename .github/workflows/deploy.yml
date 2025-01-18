@@ -113,19 +113,6 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-  var_output:
-    runs-on: ubuntu-latest
-    needs: [preflight, lint]
-    environment: ${{ inputs.environment }}
-    name: Var Output
-    steps:
-      - name: Var Output
-        run: |
-          echo "${{ vars.HOST }}"
-          echo "PHP Version: ${{ vars.PHP_VERSION }}"
-          echo "${{ needs.preflight.outputs.gh_deployment_id }}"
-          echo "${{ inputs.do_backup }}"
-
   build:
     needs: [preflight, lint]
     name: Build Project
@@ -142,6 +129,7 @@ jobs:
       deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
       workflow_run_id: ${{ github.run_id }}
       do_backup: ${{ inputs.do_backup }}
+      environment: ${{ inputs.environment }}
 
   deploy_wpengine:
     name: Deploy to WP Engine
@@ -153,6 +141,7 @@ jobs:
       deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
       workflow_run_id: ${{ github.run_id }}
       do_backup: ${{ inputs.do_backup }}
+      environment: ${{ inputs.environment }}
 
   deploy_cloudways:
     name: Deploy to Cloudways
@@ -164,13 +153,12 @@ jobs:
       deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
       workflow_run_id: ${{ github.run_id }}
       do_backup: ${{ inputs.do_backup }}
+      environment: ${{ inputs.environment }}
 
   deploy_finish:
     name: Complete Deployment
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ vars.ENVIRONMENT }}
-      url: ${{ vars.SITE_URL }}
+    environment: ${{ inputs.environment }}
     if: ${{ always() && needs.preflight.outputs.gh_deployment_id != '' }} # No matter if the needs are met still finish. Could be success or fail
     needs:
       [preflight, build, deploy_pressable, deploy_wpengine, deploy_cloudways]
