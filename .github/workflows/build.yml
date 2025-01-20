@@ -8,12 +8,17 @@ on:
         required: false
         default: false
         type: boolean
+      environment:
+        description: "Environment is used for our upload artifact"
+        type: "string"
+        required: true
+        default: "dependencies"
 
 jobs:
   dependency_setup:
     name: Composer
     runs-on: ubuntu-latest
-    environment: ${{ vars.ENVIRONMENT }}
+    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
