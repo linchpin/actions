@@ -22,14 +22,17 @@ on:
         required: false
         default: false
         type: boolean
+      environment:
+        description: "The environment we are pushing to"
+        required: true
+        default: "staging"
+        type: string
 
 jobs:
   deploy:
     name: To ${{ vars.HOST }}
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ vars.ENVIRONMENT }}
-      url: ${{ vars.SITE_URL }}
+    environment: ${{ inputs.environment }}
     steps:
       - name: Deployment In Progress
         id: in_progress_deployment
