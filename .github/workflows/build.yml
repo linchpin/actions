@@ -25,6 +25,11 @@ jobs:
         with:
           path: "build"
 
+      - name: Out Environments
+        run: |
+          echo "${{ inputs.environment }}"
+          echo "${{ vars.ENVIRONMENT }}"
+
       - name: Authenticate Packagist
         if: ${{ vars.REMOTE_PLUGIN_INSTALL == false }}
         run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > $GITHUB_WORKSPACE/build/auth.json
@@ -51,7 +56,7 @@ jobs:
       - name: Upload Dependencies
         uses: actions/upload-artifact@v4
         with:
-          name: composer-${{ vars.ENVIRONMENT }}
+          name: composer-${{ inputs.environment }}
           path: |
             ./build
             !./build/**/node_modules
