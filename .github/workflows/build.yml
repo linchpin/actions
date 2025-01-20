@@ -413,6 +413,7 @@ jobs:
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
+          ls -la ./artifact
           tar -xzf ./artifact/composer/composer.tar.gz -C ./
 
   extract_themes:
