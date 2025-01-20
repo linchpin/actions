@@ -291,7 +291,7 @@ jobs:
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         id: compress_theme_artifact
         run: |
-          tar -zcf theme-${{ matrix.theme }}.tar.gz --exclude "node_modules" ${{ matrix.theme }}
+          tar -zcf theme-${{ matrix.theme }}.tar.gz --exclude "node_modules" themes/${{ matrix.theme }}
 
       - name: Upload Theme
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
@@ -376,7 +376,7 @@ jobs:
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         id: compress_plugin_artifact
         run: |
-          tar -zcf plugin-${{ matrix.plugin }}.tar.gz --exclude "node_modules" ${{ matrix.plugin }}
+          tar -zcf plugin-${{ matrix.plugin }}.tar.gz --exclude "node_modules" plugins/${{ matrix.plugin }}
 
       - name: Upload Plugin
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
@@ -407,23 +407,19 @@ jobs:
       - name: Extract Artifacts (Composer)
         id: extract_artifacts_composer
         run: |
-          echo 'Checking working directory'
-          pwd
-          echo 'Checking what is in the current directory'
-          ls -la ./
           tar -xzf ./artifact/composer/composer.tar.gz -C ./
 
       - name: Extract Artifacts (Themes)
         if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
         id: extract_artifacts_themes
         run: |
-          for file in ./artifact/themes/theme-*.tar.gz; do tar -zxf "$file" -C ./build; done
+          for file in ./artifact/theme-*/theme-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Extract Artifacts (Plugins)
         if: ${{ inputs.plugins != '["none"]' }} # skip this step if no plugins are included.
         id: extract_artifacts_plugins
         run: |
-          for file in ./artifact/plugins/plugin-*.tar.gz; do tar -zxf "$file" -C ./build; done
+          for file in ./artifact/plugin-*/plugin-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Clean Build Files/Folders
         id: clean_build_ff
