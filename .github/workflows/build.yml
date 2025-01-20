@@ -413,6 +413,9 @@ jobs:
       - name: Decompress Composer Artifacts
         id: decompress_composer_artifacts
         run: |
+          echo 'Checking working directory'
+          pwd
+          echo 'Checking what is in the current directory'
           ls -la ./
           tar -xzf ./artifact/composer/composer.tar.gz -C ./
 
