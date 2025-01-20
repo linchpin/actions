@@ -101,7 +101,7 @@ jobs:
 
       - name: Set Deployment Status to Pending
         id: start_deployment
-        uses: octokit/request-action@v2.x
+        uses: octokit/request-action@v2.4.0
         with:
           route: POST /repos/{repo}/deployments/:deployment/statuses
           repo: ${{ github.repository }}
@@ -167,7 +167,7 @@ jobs:
     steps:
       - name: Set Deployment Status as Successful
         if: ${{ success() && ! inputs.do_backup && needs.preflight.outputs.gh_deployment_id != '' }} # if we are not doing a backup, continue the deployment, otherwise wait for the backup to finish
-        uses: octokit/request-action@v2.x
+        uses: octokit/request-action@v2.4.0
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
@@ -181,7 +181,7 @@ jobs:
 
       - name: Set Deployment Status as Failboat
         if: ${{ failure() || needs.preflight.outputs.gh_deployment_id == '' }} # if the deployment failed or the deployment ID is not set, mark the deployment as failed
-        uses: octokit/request-action@v2.x
+        uses: octokit/request-action@v2.4.0
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
