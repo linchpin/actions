@@ -291,13 +291,13 @@ jobs:
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         id: compress_theme_artifact
         run: |
-          tar -zcf theme-${{ matrix.theme }}.tar.gz --exclude "node_modules" themes/${{ matrix.theme }}
+          tar -zcf theme-${{ matrix.theme }}.tar.gz --exclude "node_modules" ${{ matrix.theme }}
 
       - name: Upload Theme
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         uses: actions/upload-artifact@v4
         with:
-          name: themes
+          name: theme-${{ matrix.theme }}
           path: theme-${{ matrix.theme }}.tar.gz
 
   # Loop through all plugins passed from input.plugins
@@ -376,13 +376,13 @@ jobs:
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         id: compress_plugin_artifact
         run: |
-          tar -zcf plugin-${{ matrix.plugin }}.tar.gz --exclude "node_modules" plugins/${{ matrix.plugin }}
+          tar -zcf plugin-${{ matrix.plugin }}.tar.gz --exclude "node_modules" ${{ matrix.plugin }}
 
       - name: Upload Plugin
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         uses: actions/upload-artifact@v4
         with:
-          name: plugins
+          name: plugin-${{ matrix.plugin }}
           path: plugin-${{ matrix.plugin }}.tar.gz
 
   download_assets:
