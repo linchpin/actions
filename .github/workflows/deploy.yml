@@ -118,6 +118,8 @@ jobs:
     name: Build Project
     secrets: inherit
     uses: ./.github/workflows/build.yml
+    with:
+      environment: ${{ inputs.environment }}
 
   deploy_pressable:
     name: Deploy to Pressable
