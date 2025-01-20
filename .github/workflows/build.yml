@@ -297,7 +297,7 @@ jobs:
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
         uses: actions/upload-artifact@v4
         with:
-          name: theme-${{ matrix.theme }}
+          name: themes
           path: theme-${{ matrix.theme }}.tar.gz
 
   # Loop through all plugins passed from input.plugins
@@ -382,7 +382,7 @@ jobs:
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         uses: actions/upload-artifact@v4
         with:
-          name: plugin-${{ matrix.plugin }}
+          name: plugins
           path: plugin-${{ matrix.plugin }}.tar.gz
 
   download_assets:
@@ -404,14 +404,8 @@ jobs:
         with:
           path: ./artifact
 
-  extract_dependencies:
-    name: Extract Dependencies (Composer)
-    runs-on: ubuntu-latest
-    needs: [dependency_setup,download_assets]
-    steps:
-
-      - name: Decompress Composer Artifacts
-        id: decompress_composer_artifacts
+      - name: Extract Artifacts (Composer)
+        id: extract_artifacts_composer
         run: |
           echo 'Checking working directory'
           pwd
@@ -419,41 +413,17 @@ jobs:
           ls -la ./
           tar -xzf ./artifact/composer/composer.tar.gz -C ./
 
-  extract_themes:
-    name: Extract Themes
-    runs-on: ubuntu-latest
-    needs: [theme_setup,download_assets]
-    strategy:
-      matrix:
-        theme: ${{ fromJSON( inputs.themes ) }}
-    steps:
-
-      - name: Decompress Theme Artifacts
-        if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
-        id: decompress_theme_artifacts
+      - name: Extract Artifacts (Themes)
+        if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
+        id: extract_artifacts_themes
         run: |
-          tar -xzf ./artifact/theme-${{ matrix.theme }}/theme-${{ matrix.theme }}.tar.gz -C ./build/
+          for file in ./artifact/themes/theme-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
-  extract_plugins:
-    name: Extract Plugins
-    runs-on: ubuntu-latest
-    needs: [plugin_setup,download_assets]
-    strategy:
-      matrix:
-        plugin: ${{ fromJSON( inputs.plugins ) }}
-    steps:
-
-      - name: Decompress Plugin Artifacts
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
-        id: decompress_plugin_artifacts
+      - name: Extract Artifacts (Plugins)
+        if: ${{ inputs.plugins != '["none"]' }} # skip this step if no plugins are included.
+        id: extract_artifacts_plugins
         run: |
-          tar -xzf ./artifact/plugin-${{ matrix.plugin }}/plugin-${{ matrix.plugin }}.tar.gz -C ./build/
-
-  build:
-    name: Zip
-    runs-on: ubuntu-latest
-    needs: [extract_dependencies,extract_themes,extract_plugins]
-    steps:
+          for file in ./artifact/plugins/plugin-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Clean Build Files/Folders
         id: clean_build_ff
