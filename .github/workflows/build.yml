@@ -64,7 +64,7 @@ jobs:
             !./build/**/.git
             !./build/**/.deployment
           retention-days: 1
-          overwrite: false
+          overwrite: true
           include-hidden-files: false
 
   # Loop through all themes passed from inputs.themes
@@ -126,7 +126,7 @@ jobs:
           name: theme-${{ matrix.theme }}
           path: themes/${{ matrix.theme }}
           retention-days: 1
-          overwrite: false
+          overwrite: true
           include-hidden-files: false
 
   # Loop through all plugins passed from input.plugins
@@ -183,7 +183,7 @@ jobs:
           name: plugin-${{ matrix.plugin }}
           path: plugin/${{ matrix.plugin }}
           retention-days: 1
-          overwrite: false
+          overwrite: true
           include-hidden-files: false
 
   build:
@@ -222,5 +222,5 @@ jobs:
           name: release
           path: release
           retention-days: 1
-          overwrite: false
+          overwrite: true
           include-hidden-files: false
