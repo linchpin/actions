@@ -60,7 +60,7 @@ jobs:
       - name: Deployment In Queue
         id: in_queue_deployment
         if: ${{ inputs.do_backup == 'true' }} # if we are not doing a backup, continue the deployment
-        uses: octokit/request-action@v2
+        uses: octokit/request-action@v2.4.0
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
@@ -92,7 +92,7 @@ jobs:
       - name: Deployment In Progress
         id: in_progress_deployment
         if: ${{ inputs.do_backup != true }} # if we are not doing a backup, continue the deployment
-        uses: octokit/request-action@v2
+        uses: octokit/request-action@v2.4.0
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
