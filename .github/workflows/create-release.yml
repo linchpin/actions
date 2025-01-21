@@ -284,53 +284,23 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ./artifact
-
-  extract_dependencies:
-    name: Extract Dependencies (Compoer)
-    runs-on: ubuntu-latest
-    needs: [dependency_setup,download_assets]
-    steps:
-
-      - name: Decompress Composer Artifacts
-        id: decompress_composer_artifacts
+  
+      - name: Extract Artifacts (Composer)
+        id: extract_artifacts_composer
         run: |
           tar -xzf ./artifact/composer/composer.tar.gz -C ./
-
-  extract_themes:
-    name: Extract Themes
-    runs-on: ubuntu-latest
-    needs: [theme_setup,download_assets]
-    strategy:
-      matrix:
-        theme: ${{ fromJSON( inputs.themes ) }}
-    steps:
-
-      - name: Decompress Theme Artifacts
-        if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
-        id: decompress_theme_artifacts
+  
+      - name: Extract Artifacts (Themes)
+        if: ${{ inputs.themes != '["none"]' }} # skip this step if no themes are included.
+        id: extract_artifacts_themes
         run: |
-          tar -xzf ./artifact/theme-${{ matrix.theme }}/theme-${{ matrix.theme }}.tar.gz -C ./build/
-
-  extract_plugins:
-    name: Extract Plugins
-    runs-on: ubuntu-latest
-    needs: [plugin_setup,download_assets]
-    strategy:
-      matrix:
-        plugin: ${{ fromJSON( inputs.plugins ) }}
-    steps:
-
-      - name: Decompress Plugin Artifacts
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
-        id: decompress_plugin_artifacts
+          for file in ./artifact/theme-*/theme-*.tar.gz; do tar -zxf "$file" -C ./build; done
+  
+      - name: Extract Artifacts (Plugins)
+        if: ${{ inputs.plugins != '["none"]' }} # skip this step if no plugins are included.
+        id: extract_artifacts_plugins
         run: |
-          tar -xzf ./artifact/plugin-${{ matrix.plugin }}/plugin-${{ matrix.plugin }}.tar.gz -C ./build/
-
-  build:
-    name: Build Release Zip
-    runs-on: ubuntu-latest
-    needs: [extract_dependencies,extract_themes,extract_plugins]
-    steps:
+          for file in ./artifact/plugin-*/plugin-*.tar.gz; do tar -zxf "$file" -C ./build; done
 
       - name: Clean Build Files/Folders
         id: clean_build_ff
