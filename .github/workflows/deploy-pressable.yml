@@ -37,6 +37,13 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
+      # Only checkout the workflow file. No other files are needed
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/workflows/deploy-pressable-continue.yml
+    
       - name: Authenticate Pressable API
         id: authenticate
         run: |
