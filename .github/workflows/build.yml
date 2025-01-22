@@ -19,13 +19,6 @@ on:
         type: string
 
 jobs:
-  output:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Inherit Build
-        run: |
-          echo ${{ inputs.inherit_build }}
-
   dependency_setup:
     if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && ! inputs.inherit_build }}
     name: Composer Install
@@ -210,7 +203,7 @@ jobs:
           include-hidden-files: false
 
   build:
-    name: Zip
+    name: Create Release and Cleanup
     runs-on: ubuntu-latest
     # If we are inheriting the build from another workflow,
     # no need to continue in the process
@@ -229,18 +222,11 @@ jobs:
         id: clean_build_ff
         run: |
           mkdir -p ./build/.deployment/
-          cd ./build/.deployment/
-          wget -O cleanup.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/cleanup.sh
-          chmod +x ./cleanup.sh
-          sh ./cleanup.sh ${{ vars.REMOTE_PLUGIN_INSTALL }}
-          cd ../../
+          wget -O ./build/.deployment/cleanup.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/cleanup.sh
+          chmod +x ./build/.deployment/cleanup.sh
+          sh ./build/.deployment/cleanup.sh ${{ vars.REMOTE_PLUGIN_INSTALL }}
           rm -rf ./build/.deployment/
-
-      # temp_archive comes from the cleanup_build_ff step
-      - name: Create Release Zip
-        id: compression
-        run: |
-          mv temp_archive release
+          mv temp_archive release         
 
       - name: Upload Release Artifact
         uses: actions/upload-artifact@v4
