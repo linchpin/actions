@@ -207,7 +207,7 @@ jobs:
       - name: Compress Composer Artifact
         id: composer_compression_artifact
         run: |
-          ls -la ./build/plugins/woocommerce-product-feeds
+          ls -la ./build/plugins
           whoami
           groups
           tar -zvcf composer.tar.gz ./build
