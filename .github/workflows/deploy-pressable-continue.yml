@@ -56,14 +56,15 @@ jobs:
           echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT
 
       - name: Configure SSH Connection with Pressable
+        if: ${{ secrets.SSH_USER && secrets.SSH_HOST}}
         run: |
           SSH_PATH="$HOME/.ssh"
           KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
           SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
           mkdir -p "$SSH_PATH"
           mkdir -p "$SSH_PATH/ctl"
-          ssh-keyscan -t rsa "${{ vars.SSH_HOST }}" >> "$KNOWN_HOSTS_PATH"
-          echo "${{ vars.SSH_KEY }}" > "$SSH_KEY_PRIVATE_PATH"
+          ssh-keyscan -t rsa "${{ secrets.SSH_HOST }}" >> "$KNOWN_HOSTS_PATH"
+          echo "${{ secrets.SSH_KEY }}" > "$SSH_KEY_PRIVATE_PATH"
           
           chmod 700 "$SSH_PATH"
           chmod 644 "$KNOWN_HOSTS_PATH"
@@ -71,8 +72,8 @@ jobs:
           
           cat >>~/.ssh/config <<END
             Host pressable
-            HostName ${{ vars.SSH_HOST }}
-            User ${{ vars.SSH_USER }}
+            HostName ${{ secrets.SSH_HOST }}
+            User ${{ secrets.SSH_USER }}
             IdentityFile $SSH_KEY_PRIVATE_PATH
             StrictHostKeyChecking no
             ControlMaster auto
@@ -137,14 +138,15 @@ jobs:
     needs: [deploy] # @todo when uncommenting above also add to needs array plugin_install
     steps:
       - name: Configure SSH Connection with Pressable
+        if: ${{ secrets.SSH_USER && secrets.SSH_HOST}}
         run: |
           SSH_PATH="$HOME/.ssh"
           KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
           SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
           mkdir -p "$SSH_PATH"
           mkdir -p "$SSH_PATH/ctl"
-          ssh-keyscan -t rsa "${{ vars.SSH_HOST }}" >> "$KNOWN_HOSTS_PATH"
-          echo "${{ vars.SSH_KEY }}" > "$SSH_KEY_PRIVATE_PATH"
+          ssh-keyscan -t rsa "${{ secrets.SSH_HOST }}" >> "$KNOWN_HOSTS_PATH"
+          echo "${{ secrets.SSH_KEY }}" > "$SSH_KEY_PRIVATE_PATH"
           
           chmod 700 "$SSH_PATH"
           chmod 644 "$KNOWN_HOSTS_PATH"
@@ -152,8 +154,8 @@ jobs:
           
           cat >>~/.ssh/config <<END
             Host pressable
-            HostName ${{ vars.SSH_HOST }}
-            User ${{ vars.SSH_USER }}
+            HostName ${{ secrets.SSH_HOST }}
+            User ${{ secrets.SSH_USER }}
             IdentityFile $SSH_KEY_PRIVATE_PATH
             StrictHostKeyChecking no
             ControlMaster auto
