@@ -106,6 +106,7 @@ jobs:
     name: Continue Deploy to Pressable
     if: ${{ inputs.do_backup != 'true' }} # if we are not doing a backup, continue the deployment
     uses: linchpin/actions/.github/workflows/deploy-pressable-continue.yml@v3 # continue the deployment process
+    secrets: inherit
     with:
       environment: ${{ inputs.environment }}
       deployment_id: ${{ inputs.deployment_id }}
