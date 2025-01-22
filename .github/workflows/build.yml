@@ -64,7 +64,7 @@ jobs:
         id: clean_composer_install
         run: |
           mkdir -p ./build/.deployment/
-          wget -O ./build/.deployment/cleanup.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/composer-cleanup.sh
+          wget -O ./build/.deployment/cleanup.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/cleanup.sh
           chmod +x ./build/.deployment/cleanup.sh
           sh ./build/.deployment/cleanup.sh
           rm -rf ./build/.deployment/
