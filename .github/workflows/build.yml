@@ -13,10 +13,15 @@ on:
         type: "string"
         required: true
         default: "dependencies"
+      inherit_build:
+        description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
+        required: false
+        type: string
 
 jobs:
   dependency_setup:
-    name: Composer
+    if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && ! inputs.inherit_build }}
+    name: Composer Install
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
@@ -26,18 +31,18 @@ jobs:
           path: "build"
 
       - name: Authenticate Packagist
-        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' }}
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && ! inputs.inherit_build }}
         run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > $GITHUB_WORKSPACE/build/auth.json
 
       - name: Cache Composer dependencies
-        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && hashFiles( './build/composer') != '' && inputs.skip_cache == 'true' }}
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && hashFiles( './build/composer.lock' ) != '' && inputs.skip_cache == 'true' }}
         uses: actions/cache@v4
         with:
           path: /tmp/composer-cache
           key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
 
       - name: Composer Install
-        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' }}
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && ! inputs.inherit_build }}
         uses: php-actions/composer@v6
         with:
           working_dir: ./build
@@ -49,6 +54,7 @@ jobs:
         run: rm -f $GITHUB_WORKSPACE/build/auth.json
 
       - name: Upload Dependencies
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && ! inputs.inherit_build }}
         uses: actions/upload-artifact@v4
         with:
           name: composer-${{ inputs.environment }}
@@ -67,6 +73,7 @@ jobs:
     name: Theme(s)
     runs-on: ubuntu-latest
     environment: ${{ vars.ENVIRONMENT }}
+    if: ${{ ! inputs.inherit_build }}
     strategy:
       matrix:
         theme: ${{ fromJSON( vars.THEMES ) }}
@@ -128,6 +135,7 @@ jobs:
   plugin_setup:
     name: Plugin(s)
     runs-on: ubuntu-latest
+    if: ${{ ! inputs.inherit_build }}
     environment: ${{ vars.ENVIRONMENT }}
     strategy:
       matrix:
@@ -184,6 +192,7 @@ jobs:
   build:
     name: Zip
     runs-on: ubuntu-latest
+    if: ${{ ! inputs.inherit_build }}
     environment: ${{ vars.ENVIRONMENT }}
     needs: [dependency_setup, theme_setup, plugin_setup]
     steps:
