@@ -56,17 +56,37 @@ jobs:
           echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT
 
       - name: Configure SSH Connection with Pressable
-        uses: linchpin/actions-pressable-ssh@main
-        with:
-          ssh_host: ${{ secrets.SSH_HOST }}
-          ssh_user: ${{ secrets.SSH_USER }}
-          ssh_key: ${{ secrets.SSH_KEY }}
+        run: |
+          SSH_PATH="$HOME/.ssh"
+          KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
+          SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
+          mkdir -p "$SSH_PATH"
+          mkdir -p "$SSH_PATH/ctl"
+          ssh-keyscan -t rsa "${{ vars.SSH_HOST }}" >> "$KNOWN_HOSTS_PATH"
+          echo "${{ vars.SSH_KEY }}" > "$SSH_KEY_PRIVATE_PATH"
+          
+          chmod 700 "$SSH_PATH"
+          chmod 644 "$KNOWN_HOSTS_PATH"
+          chmod 600 "$SSH_KEY_PRIVATE_PATH"
+          
+          cat >>~/.ssh/config <<END
+            Host pressable
+            HostName ${{ vars.SSH_HOST }}
+            User ${{ vars.SSH_USER }}
+            IdentityFile $SSH_KEY_PRIVATE_PATH
+            StrictHostKeyChecking no
+            ControlMaster auto
+            ControlPath $SSH_PATH/ctl/%C
+          END
+        shell: bash
 
       - name: Upload Assets
         id: upload_assets
         run: |
-          zip -r ./${{ steps.folder.outputs.folder }}.zip ./release
+          cd ./release
+          zip -r $GITHUB_WORKSPACE/${{ steps.folder.outputs.folder }}.zip ./
           ssh pressable "mkdir -p ${{ inputs.deployment_path }}/"
+          cd $GITHUB_WORKSPACE
           rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" pressable:${{ inputs.deployment_path }}"
 
       - name: Enable Maintenance Mode
@@ -117,11 +137,29 @@ jobs:
     needs: [deploy] # @todo when uncommenting above also add to needs array plugin_install
     steps:
       - name: Configure SSH Connection with Pressable
-        uses: linchpin/actions-pressable-ssh@main
-        with:
-          ssh_user: ${{ secrets.SSH_USER }}
-          ssh_key: ${{ secrets.SSH_KEY }}
-          ssh_host: ${{ secrets.SSH_HOST }}
+        run: |
+          SSH_PATH="$HOME/.ssh"
+          KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
+          SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
+          mkdir -p "$SSH_PATH"
+          mkdir -p "$SSH_PATH/ctl"
+          ssh-keyscan -t rsa "${{ vars.SSH_HOST }}" >> "$KNOWN_HOSTS_PATH"
+          echo "${{ vars.SSH_KEY }}" > "$SSH_KEY_PRIVATE_PATH"
+          
+          chmod 700 "$SSH_PATH"
+          chmod 644 "$KNOWN_HOSTS_PATH"
+          chmod 600 "$SSH_KEY_PRIVATE_PATH"
+          
+          cat >>~/.ssh/config <<END
+            Host pressable
+            HostName ${{ vars.SSH_HOST }}
+            User ${{ vars.SSH_USER }}
+            IdentityFile $SSH_KEY_PRIVATE_PATH
+            StrictHostKeyChecking no
+            ControlMaster auto
+            ControlPath $SSH_PATH/ctl/%C
+          END
+        shell: bash
 
       - name: Cleanup Maintenance
         id: cleanup_maintenance
