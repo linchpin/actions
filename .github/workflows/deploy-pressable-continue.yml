@@ -83,6 +83,7 @@ jobs:
   plugin_install:
     name: WordPress Plugin Install(s)
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     needs: deploy
     steps:
       # When installing the plugins we only need the lock file
@@ -100,14 +101,14 @@ jobs:
           php-version: ${{ vars.PHP_VERSION }}
 
 # See about handling this with the API instead of SSH commands
-#      - name: Remote Plugin Install
-#        if: ${{ vars.REMOTE_PLUGIN_INSTALL != false }}
-#        id: parse_composer_lock
-#        shell: bash
-#        run: |
-#          wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/remote-plugin-install.sh
-#          chmod +x ./remote-plugin-install.sh
-#          bash ./remote-plugin-install.sh ${{ vars.SITE_ID }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
+      - name: Remote Plugin Install
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL != 'false' }}
+        id: parse_composer_lock
+        shell: bash
+        run: |
+          wget -O remote-plugin-install.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/remote-plugin-install.sh
+          chmod +x ./remote-plugin-install.sh
+          bash ./remote-plugin-install.sh ${{ vars.SITE_ID }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
 
   status:
     name: Deploy Status
