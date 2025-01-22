@@ -26,10 +26,14 @@ on:
         required: false
         default: "staging"
         type: string
+      inherit_build:
+        description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
+        required: false
+        type: string
 
 jobs:
   deploy:
-    name: To Pressable
+    name: Deploy To Pressable
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
@@ -51,7 +55,7 @@ jobs:
           echo "access_token=$access_token" >> $GITHUB_OUTPUT
 
       - name: Do Backup
-        if: ${{ inputs.do_backup == true && steps.authenticate.outputs.access_token }}
+        if: ${{ inputs.do_backup == 'true' && steps.authenticate.outputs.access_token }}
         run: |
           curl --location --request GET 'https://my.pressable.com/v1/sites/${{ vars.SITE_ID }}/ondemand-backups' \
           --header 'Authorization: Bearer ${{ github.env.ACCESS_TOKEN }}' \
@@ -74,7 +78,7 @@ jobs:
 
       - name: Save Deployment Details
         id: save_deployment
-        if: ${{ inputs.do_backup == true }} # if we are not doing a backup, continue the deployment
+        if: ${{ inputs.do_backup == 'true' }} # if we are not doing a backup, continue the deployment
         run: |
           curl --location --request POST 'https://mantle.linchpin.com/api/v1/deployments/start' \
           --header 'Content-Type: application/json' \
@@ -91,7 +95,7 @@ jobs:
 
       - name: Deployment In Progress
         id: in_progress_deployment
-        if: ${{ inputs.do_backup != true }} # if we are not doing a backup, continue the deployment
+        if: ${{ inputs.do_backup != 'true' }} # if we are not doing a backup, continue the deployment
         uses: octokit/request-action@v2.4.0
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
@@ -106,7 +110,7 @@ jobs:
 
       - name: Continue Deploy to Pressable
         id: continue_deploy
-        if: ${{ inputs.do_backup != true }} # if we are not doing a backup, continue the deployment
+        if: ${{ inputs.do_backup != 'true' }} # if we are not doing a backup, continue the deployment
         uses: ./.github/workflows/deploy-pressable-continue.yml # continue the deployment process
         with:
           site_id: ${{ vars.SITE_ID }}
@@ -117,3 +121,4 @@ jobs:
           deployment_path: ${{ inputs.deployment_path }}
           workflow_run_id: ${{ inputs.workflow_run_id }}
           remote_plugin_install: ${{ inputs.remote_plugin_install }}
+          inherit_build: ${{ inputs.inherit_build }}
