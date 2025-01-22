@@ -60,6 +60,15 @@ jobs:
         if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' }}
         run: rm -f $GITHUB_WORKSPACE/build/auth.json
 
+      - name: Clean Up Files/Folders
+        id: clean_composer_install
+        run: |
+          mkdir -p ./build/.deployment/
+          wget -O ./build/.deployment/cleanup.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/composer-cleanup.sh
+          chmod +x ./build/.deployment/cleanup.sh
+          sh ./build/.deployment/cleanup.sh
+          rm -rf ./build/.deployment/
+
       - name: Upload Dependencies
         if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && ! inputs.inherit_build }}
         uses: actions/upload-artifact@v4
@@ -69,17 +78,18 @@ jobs:
             ./build
             !./build/**/node_modules
             !./build/auth.json
+            !./build/vendor
             !./build/**/.git
             !./build/**/.deployment
           retention-days: 1
           overwrite: true
-          include-hidden-files: false
+          include-hidden-files: true
 
   # Loop through all themes passed from inputs.themes
   theme_setup:
     name: Theme(s)
     runs-on: ubuntu-latest
-    environment: ${{ vars.ENVIRONMENT }}
+    environment: ${{ inputs.environment }}
     # If we are inheriting the build, or we don't have any themes
     # Skip this step in the process early, no need to loop since
     # it's more efficient to skip the whole job
@@ -100,7 +110,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Theme ${{ matrix.theme }} Composer Dependencies
-        if: ${{ matrix.theme != 'none' && vars.THEME_USES_COMPOSER == true && hashFiles( format( 'themes/{0}/composer.lock', matrix.theme ) ) != '' }} # skip this step if no themes are included or we don't have a composer file
+        if: ${{ matrix.theme != 'none' && vars.THEME_USES_COMPOSER == 'true' && hashFiles( format( 'themes/{0}/composer.lock', matrix.theme ) ) != '' }} # skip this step if no themes are included or we don't have a composer file
         id: install-theme-composer
         uses: php-actions/composer@v6
         with:
@@ -181,7 +191,7 @@ jobs:
           rm -rf node_modules # remove node modules after the build
 
       - name: Install Plugin Composer Dependencies
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_uses_composer == true && hashFiles(format('themes/{0}/composer.lock', matrix.plugin ) ) != '' }} # skip this step if no themes are included or we don't have a composer file
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_uses_composer == 'true' && hashFiles(format('themes/{0}/composer.lock', matrix.plugin ) ) != '' }} # skip this step if no themes are included or we don't have a composer file
         id: install-plugin-composer
         uses: php-actions/composer@v6
         with:
@@ -212,7 +222,7 @@ jobs:
         id: artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./artifact
+          path: ./build
           merge-multiple: true
 
       - name: Clean Build Files/Folders
