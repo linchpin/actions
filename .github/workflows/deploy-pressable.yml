@@ -37,13 +37,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get Current Version
-        id: version
-        run: echo "current=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
       - name: Authenticate Pressable API
         id: authenticate
         run: |
