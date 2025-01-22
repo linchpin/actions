@@ -56,7 +56,6 @@ jobs:
           echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT
 
       - name: Configure SSH Connection with Pressable
-        if: ${{ secrets.SSH_USER && secrets.SSH_HOST}}
         run: |
           SSH_PATH="$HOME/.ssh"
           KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
