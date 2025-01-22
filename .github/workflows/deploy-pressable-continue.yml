@@ -47,11 +47,12 @@ jobs:
         id: download
         with:
           name: "release"
-          path: ./
+          path: ./release
 
       - name: Generate release zip
         id: folder
         run: |
+          ls -all
           echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT
 
       - name: Configure SSH Connection with Pressable
@@ -64,7 +65,7 @@ jobs:
       - name: Upload Assets
         id: upload_assets
         run: |
-          zip ./release ./${{ steps.folder.outputs.folder }}.zip
+          zip -r ./${{ steps.folder.outputs.folder }}.zip ./release
           ssh pressable "mkdir -p ${{ inputs.deployment_path }}/"
           rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" pressable:${{ inputs.deployment_path }}"
 
@@ -100,7 +101,7 @@ jobs:
         with:
           php-version: ${{ vars.PHP_VERSION }}
 
-# See about handling this with the API instead of SSH commands
+      # See about handling this with the API instead of SSH commands
       - name: Remote Plugin Install
         if: ${{ vars.REMOTE_PLUGIN_INSTALL != 'false' }}
         id: parse_composer_lock
