@@ -26,7 +26,6 @@ on:
         type: string
 
 jobs:
-
   # Linting should happen before anything else so it can fail quickly
   lint:
     if: ${{ inputs.skip_lint != true }}
@@ -116,7 +115,7 @@ jobs:
     needs: [preflight, lint]
     name: Build Project
     secrets: inherit
-    if: ${{ inputs.inherit_build }}
+    if: ${{ ! inputs.inherit_build }}
     uses: ./.github/workflows/build.yml
     with:
       environment: ${{ inputs.environment }}
