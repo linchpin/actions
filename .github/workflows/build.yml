@@ -210,6 +210,7 @@ jobs:
           ls -la ./build/plugins
           whoami
           groups
+          sudo chown -R runner:docker ./build/plugins
           tar -zvcf composer.tar.gz ./build
 
       - name: Upload Dependencies
