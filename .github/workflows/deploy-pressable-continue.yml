@@ -64,7 +64,7 @@ jobs:
       - name: Upload Assets
         id: upload_assets
         run: |
-          mv ./release.zip ./${{ steps.folder.outputs.folder }}.zip
+          zip ./release ./${{ steps.folder.outputs.folder }}.zip
           ssh pressable "mkdir -p ${{ inputs.deployment_path }}/"
           rsync -e "ssh -p 22" -W --progress "${{ steps.folder.outputs.folder }}.zip" pressable:${{ inputs.deployment_path }}"
 
