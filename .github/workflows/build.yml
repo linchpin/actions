@@ -80,7 +80,10 @@ jobs:
     name: Theme(s)
     runs-on: ubuntu-latest
     environment: ${{ vars.ENVIRONMENT }}
-    if: ${{ ! inputs.inherit_build }}
+    # If we are inheriting the build, or we don't have any themes
+    # Skip this step in the process early, no need to loop since
+    # it's more efficient to skip the whole job
+    if: ${{ ! inputs.inherit_build || vars.THEMES != '["none"]' }} 
     strategy:
       matrix:
         theme: ${{ fromJSON( vars.THEMES ) }}
@@ -142,7 +145,7 @@ jobs:
   plugin_setup:
     name: Plugin(s)
     runs-on: ubuntu-latest
-    if: ${{ ! inputs.inherit_build }}
+    if: ${{ ! inputs.inherit_build || vars.PLUGINS != '["none"]' }} 
     environment: ${{ vars.ENVIRONMENT }}
     strategy:
       matrix:
@@ -199,8 +202,10 @@ jobs:
   build:
     name: Zip
     runs-on: ubuntu-latest
+    # If we are inheriting the build from another workflow,
+    # no need to continue in the process
     if: ${{ ! inputs.inherit_build }}
-    environment: ${{ vars.ENVIRONMENT }}
+    environment: ${{ inputs.environment }}
     needs: [dependency_setup, theme_setup, plugin_setup]
     steps:
       - name: Download All Artifacts
