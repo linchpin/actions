@@ -20,6 +20,10 @@ on:
         required: false
         default: "staging"
         type: string
+      inherit_build:
+        description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
+        required: false
+        type: string
 
 jobs:
 
@@ -42,11 +46,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Confirm Environment
-        run: |
-          echo ${{ vars.ENVIRONMENT }}
-          echo ${{ inputs.environment }}
 
       - name: Get Deployments for Environment
         id: get_deployments
@@ -117,6 +116,7 @@ jobs:
     needs: [preflight, lint]
     name: Build Project
     secrets: inherit
+    if: ${{ inputs.inherit_build }}
     uses: ./.github/workflows/build.yml
     with:
       environment: ${{ inputs.environment }}
@@ -132,6 +132,7 @@ jobs:
       workflow_run_id: ${{ github.run_id }}
       do_backup: ${{ inputs.do_backup }}
       environment: ${{ inputs.environment }}
+      inherit_build: ${{ inputs.inherit_build }}
 
   deploy_wpengine:
     name: Deploy to WP Engine
@@ -144,6 +145,7 @@ jobs:
       workflow_run_id: ${{ github.run_id }}
       do_backup: ${{ inputs.do_backup }}
       environment: ${{ inputs.environment }}
+      inherit_build: ${{ inputs.inherit_build }}
 
   deploy_cloudways:
     name: Deploy to Cloudways
@@ -156,6 +158,7 @@ jobs:
       workflow_run_id: ${{ github.run_id }}
       do_backup: ${{ inputs.do_backup }}
       environment: ${{ inputs.environment }}
+      inherit_build: ${{ inputs.inherit_build }}
 
   deploy_finish:
     name: Complete Deployment
@@ -163,7 +166,7 @@ jobs:
     environment: ${{ inputs.environment }}
     if: ${{ always() && needs.preflight.outputs.gh_deployment_id != '' }} # No matter if the needs are met still finish. Could be success or fail
     needs:
-      [preflight, build, deploy_pressable, deploy_wpengine, deploy_cloudways]
+      [ preflight, build, deploy_pressable, deploy_wpengine, deploy_cloudways ]
     steps:
       - name: Set Deployment Status as Successful
         if: ${{ success() && ! inputs.do_backup && needs.preflight.outputs.gh_deployment_id != '' }} # if we are not doing a backup, continue the deployment, otherwise wait for the backup to finish
