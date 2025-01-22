@@ -21,13 +21,16 @@ on:
         required: true
         default: "staging"
         type: string
+      inherit_build:
+        description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
+        required: false
+        type: string
 
 jobs:
   deploy:
     name: To ${{ vars.HOST }}
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ inputs.environment }}
+    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -147,8 +150,6 @@ jobs:
           state: success
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-
-      
 
       - name: Set Deployment Status as Failboat
         if: ${{ failure() }}
