@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Inherit Build
         run: |
-          echo '${{ inputs.inherit_build == "" }}'
+          echo ${{ inputs.inherit_build == "" }}
 
   dependency_setup:
     if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && ! inputs.inherit_build }}
