@@ -123,7 +123,7 @@ jobs:
 
   deploy_pressable:
     name: Deploy to Pressable
-    needs: [build]
+    needs: [preflight, build]
     if: ${{ vars.HOST == 'pressable' }}
     uses: ./.github/workflows/deploy-pressable.yml
     secrets: inherit
@@ -136,7 +136,7 @@ jobs:
 
   deploy_wpengine:
     name: Deploy to WP Engine
-    needs: [build]
+    needs: [preflight, build]
     if: ${{ vars.HOST == 'wpengine' }}
     uses: ./.github/workflows/deploy-wpengine.yml
     secrets: inherit
@@ -149,7 +149,7 @@ jobs:
 
   deploy_cloudways:
     name: Deploy to Cloudways
-    needs: [build]
+    needs: [preflight, build]
     if: ${{ vars.HOST == 'cloudways' }}
     uses: ./.github/workflows/deploy-cloudways.yml
     secrets: inherit
