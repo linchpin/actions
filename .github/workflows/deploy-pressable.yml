@@ -43,6 +43,11 @@ jobs:
         with:
           sparse-checkout: |
             .github/workflows/deploy-pressable-continue.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Output Folder contents
+        run: |
+          ls -all
     
       - name: Authenticate Pressable API
         id: authenticate
