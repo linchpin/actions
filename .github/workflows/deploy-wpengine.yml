@@ -26,6 +26,10 @@ on:
         description: "The Environment to deploy and grab env.vars from"
         required: true
         type: string  
+      inherit_build:
+        description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
+        required: false
+        type: string
 
 jobs:
   deploy:
