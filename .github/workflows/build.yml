@@ -206,7 +206,11 @@ jobs:
 
       - name: Compress Composer Artifact
         id: composer_compression_artifact
-        run: tar -zvcf composer.tar.gz ./build
+        run: |
+          ls -la ./build/plugins/woocommerce-product-feeds
+          whoami
+          groups
+          tar -zvcf composer.tar.gz ./build
 
       - name: Upload Dependencies
         uses: actions/upload-artifact@v4
