@@ -19,6 +19,13 @@ on:
         type: string
 
 jobs:
+  output:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inherit Build
+        run: |
+          echo '${{ inputs.inherit_build == "" }}'
+
   dependency_setup:
     if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && ! inputs.inherit_build }}
     name: Composer Install
