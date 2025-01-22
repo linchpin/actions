@@ -40,10 +40,6 @@ jobs:
       # @todo Only checkout the workflow file. No other files are needed
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Output Folder contents
-        run: |
-          ls -all
     
       - name: Authenticate Pressable API
         id: authenticate
