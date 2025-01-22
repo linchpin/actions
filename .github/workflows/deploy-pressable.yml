@@ -105,17 +105,18 @@ jobs:
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Continue Deploy to Pressable
-        id: continue_deploy
-        if: ${{ inputs.do_backup != 'true' }} # if we are not doing a backup, continue the deployment
-        uses: linchpin/actions/.github/workflows/deploy-pressable-continue.yml@v3 # continue the deployment process
-        with:
-          site_id: ${{ vars.SITE_ID }}
-          site_url: ${{ vars.SITE_URL }}
-          environment: ${{ vars.ENVIRONMENT }}
-          branch: ${{ steps.branch.outputs.branch }}
-          deployment_id: ${{ inputs.deployment_id }}
-          deployment_path: ${{ inputs.deployment_path }}
-          workflow_run_id: ${{ inputs.workflow_run_id }}
-          remote_plugin_install: ${{ inputs.remote_plugin_install }}
-          inherit_build: ${{ inputs.inherit_build }}
+  continue_deploy:
+    needs: [deploy]
+    name: Continue Deploy to Pressable
+    if: ${{ inputs.do_backup != 'true' }} # if we are not doing a backup, continue the deployment
+    uses: linchpin/actions/.github/workflows/deploy-pressable-continue.yml@v3 # continue the deployment process
+    with:
+      site_id: ${{ vars.SITE_ID }}
+      site_url: ${{ vars.SITE_URL }}
+      environment: ${{ vars.ENVIRONMENT }}
+      branch: ${{ steps.branch.outputs.branch }}
+      deployment_id: ${{ inputs.deployment_id }}
+      deployment_path: ${{ inputs.deployment_path }}
+      workflow_run_id: ${{ inputs.workflow_run_id }}
+      remote_plugin_install: ${{ inputs.remote_plugin_install }}
+      inherit_build: ${{ inputs.inherit_build }}
