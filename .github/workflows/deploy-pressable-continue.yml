@@ -133,7 +133,8 @@ jobs:
   status:
     name: Deploy Status
     runs-on: ubuntu-latest
-    needs: [deploy] # @todo when uncommenting above also add to needs array plugin_install
+    environment: ${{ inputs.environment }}
+    needs: [deploy, plugin_install]
     steps:
       - name: Configure SSH Connection with Pressable
         run: |
@@ -159,11 +160,6 @@ jobs:
             ControlPath $SSH_PATH/ctl/%C
           END
         shell: bash
-
-      - name: Cleanup Maintenance
-        id: cleanup_maintenance
-        run: |
-          ssh pressable "cd ${{ inputs.deployment_path }}/release/.deployment/ && wget -O endpoint.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/pressable-endpoint.sh && chmod +x ./endpoint.sh && bash ./endpoint.sh"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
