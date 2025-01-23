@@ -37,7 +37,7 @@ else
 	chmod a+r "$RELEASES_DIR/$release_folder_name.zip"
 	chmod g+wx "$RELEASES_DIR"
 	cd "$RELEASES_DIR"
-	unzip -o -q "$release_folder_name.zip"
+	unzip -o "$release_folder_name.zip"
 fi
 
 # Sync Plugins
@@ -51,6 +51,8 @@ if [[ -d "${RELEASE_DIR}/plugins/" ]]; then
 		echo "Syncing Plugin $base"
 		rsync -arxW --inplace --delete "$dir" "${PUBLIC_DIR}/wp-content/plugins/$base"
 	done
+else
+	echo "::error::❌ Plugins directory not found at ${RELEASE_DIR}/plugins/ not found"
 fi
 
 # Sync Themes
@@ -64,6 +66,8 @@ if [[ -d "${RELEASE_DIR}/themes/" ]]; then
 		echo "Syncing Theme: $base"
 		rsync -arxW --inplace --delete "$dir" "${PUBLIC_DIR}/wp-content/themes/$base"
 	done
+else
+	echo "::error::❌ Themes directory not found at ${RELEASE_DIR}/plugins/ not found"
 fi
 
 # Only sync MU Plugins if we have them
