@@ -11,7 +11,7 @@ release_folder_name=$1 # data/timestamp release folder name
 # Shared variables for bash scripts.
 export RELEASES_DIR=$(pwd) # releases
 export PRIVATE_DIR="$(dirname "$RELEASES_DIR")"
-export PUBLIC_DIR="$(dirname "$PRIVATE_DIR")"
+export PUBLIC_DIR="/srv/htdocs"
 export RELEASE_DIR="$RELEASES_DIR/release" # release
 
 echo "Private: $PRIVATE_DIR"
