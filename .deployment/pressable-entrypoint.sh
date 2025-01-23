@@ -14,10 +14,10 @@ export PRIVATE_DIR="$(dirname "$RELEASES_DIR")"
 export PUBLIC_DIR="/srv/htdocs"
 export RELEASE_DIR="$RELEASES_DIR/release" # release
 
-echo "Private: $PRIVATE_DIR"
-echo "Releases: $RELEASES_DIR"
-echo "Release: $RELEASE_DIR"
-echo "Public: $PUBLIC_DIR"
+# echo "Private: $PRIVATE_DIR"
+# echo "Releases: $RELEASES_DIR"
+# echo "Release: $RELEASE_DIR"
+# echo "Public: $PUBLIC_DIR"
 
 # Every release should be cleaned up before we start
 # If it exists, delete it
