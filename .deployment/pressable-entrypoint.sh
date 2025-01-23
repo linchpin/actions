@@ -36,7 +36,7 @@ else
 	# Make sure both the zip file and the directory we created have the proper permissions
 	chmod a+r "$RELEASES_DIR/$release_folder_name.zip"
 	chmod g+wx "$RELEASES_DIR"
-	unzip -o -d "$RELEASES_DIR" "$RELEASES_DIR/$release_folder_name.zip"
+	unzip -o -d "$RELEASE_DIR" "$RELEASES_DIR/$release_folder_name.zip"
 fi
 
 # Sync Plugins
