@@ -44,6 +44,16 @@ if [[ -d "${RELEASE_DIR}/plugins/" ]]; then
 
 	cd "$RELEASE_DIR/plugins"
 
+	# On pressable, jetpack is managed by the platform
+ 	if [[ -d "${RELEASE_DIR}/plugins/jetpack" ]]; then
+  		rm -rf "${RELEASE_DIR}/plugins/jetpack"
+  	fi
+
+	# On pressable, akismet is managed by the platform
+    	if [[ -d "${RELEASE_DIR}/plugins/akismet" ]]; then
+  		rm -rf "${RELEASE_DIR}/plugins/akismet"
+  	fi
+
 	for dir in ./*/
 	do
 		base=$(basename "$dir")
