@@ -86,8 +86,8 @@ jobs:
           cd ./release
           zip -r $GITHUB_WORKSPACE/${{ steps.folder.outputs.folder }}.zip ./
           ssh pressable "mkdir -p ${{ inputs.deployment_path }}/"
-          rsync -e "ssh -p 22" -W --progress "$GITHUB_WORKSPACE/${{ steps.folder.outputs.folder }}.zip pressable:${{ inputs.deployment_path }}"
-
+          rsync -e "ssh -p 22" -W --progress "$GITHUB_WORKSPACE/${{ steps.folder.outputs.folder }}.zip" "pressable:${{ inputs.deployment_path }}/"
+     
       - name: Enable Maintenance Mode
         if: ${{ steps.authenticate.outputs.access_token }} # make sure we have an access token
         run: |
