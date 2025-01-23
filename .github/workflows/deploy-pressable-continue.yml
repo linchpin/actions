@@ -99,13 +99,6 @@ jobs:
         run: |
           ssh pressable "cd ${{ inputs.deployment_path }}/ && wget -O ./entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/pressable-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.folder.outputs.folder }}"
 
-  # Loop through all plugins passed from var.PLUGINS
-  plugin_install:
-    name: WordPress Plugin Install(s)
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    needs: deploy
-    steps:
       # When installing the plugins we only need the lock file
       - name: Checkout code
         uses: actions/checkout@v4
@@ -130,12 +123,6 @@ jobs:
           chmod +x ./remote-plugin-install.sh
           bash ./remote-plugin-install.sh ${{ vars.SITE_ID }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
 
-  status:
-    name: Deploy Status
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    needs: [deploy, plugin_install]
-    steps:
       - name: Configure SSH Connection with Pressable
         run: |
           SSH_PATH="$HOME/.ssh"
