@@ -207,7 +207,7 @@ jobs:
       - name: Compress Composer Artifact
         id: composer_compression_artifact
         run: |
-          sudo chown -R runner:docker ./build/plugins
+          if [ -d .build/plugins ]; then sudo chown -R runner:docker ./build/plugins; fi
           tar -zvcf composer.tar.gz ./build
 
       - name: Upload Dependencies
