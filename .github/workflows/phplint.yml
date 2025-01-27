@@ -12,6 +12,7 @@ on:
 jobs:
   phplint_project:
     name: Lint Project
+    timeout-minutes: 5
     if: github.ref != 'refs/heads/release-please--branches--main'
     runs-on: "${{ matrix.operating-system }}"
 
