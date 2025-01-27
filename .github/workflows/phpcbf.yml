@@ -11,6 +11,7 @@ on:
 
 jobs:
   phpcbf-fixer:
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     if: github.ref != 'refs/heads/release-please--branches--main'
     steps:
