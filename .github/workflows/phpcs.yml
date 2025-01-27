@@ -6,6 +6,7 @@ on:
 jobs:
   phpcs_code_review:
     if: github.ref != 'refs/heads/release-please--branches--main'
+    timeout-minutes: 5
     name: Run PHPCS inspection
     runs-on: ubuntu-latest
     steps:
