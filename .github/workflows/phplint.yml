@@ -12,6 +12,7 @@ on:
 jobs:
   phplint_project:
     name: Lint Project
+    if: github.ref != 'refs/heads/release-please--branches--main'
     runs-on: "${{ matrix.operating-system }}"
 
     strategy:
@@ -52,11 +53,6 @@ jobs:
       - name: Cleanup Auth
         run: |
           rm ./auth.json
-
-      - name: Output
-        run: |
-          echo "PHP Version: ${{ inputs.php_version }}"
-          echo "Skip Lint: ${{ steps.check_commit_message.outputs.skip_lint }}"
 
       - name: PHP Lint 8.3
         if: ${{ inputs.php_version == '8.3' && steps.check_commit_message.outputs.skip_lint != 'true' }}
