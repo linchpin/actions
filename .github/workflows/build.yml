@@ -241,3 +241,15 @@ jobs:
           retention-days: 1
           overwrite: true
           include-hidden-files: false
+          
+  skip_release:
+    name: Skip Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # If we are inheriting the build from another workflow, output a message
+    if: ${{ inputs.inherit_build }}
+    needs: [dependency_setup, theme_setup, plugin_setup]
+    steps:
+      - name: Skip Build and Release
+        run: |
+          echo "Skipping Build and referencing release from another job"
