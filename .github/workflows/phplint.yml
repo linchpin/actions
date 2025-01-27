@@ -15,7 +15,8 @@ on:
 
 jobs:
   phpcbf-fixer:
-    runs-on: ubuntu-latest-lg
+    if: github.ref != 'refs/heads/release-please--branches--main'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
