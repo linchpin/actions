@@ -20,6 +20,7 @@ on:
 
 jobs:
   dependency_setup:
+    timeout-minutes: 10
     if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && ! inputs.inherit_build }}
     name: Composer Install
     runs-on: ubuntu-latest
@@ -81,6 +82,7 @@ jobs:
   # Loop through all themes passed from inputs.themes
   theme_setup:
     name: Theme(s)
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     # If we are inheriting the build, or we don't have any themes
@@ -147,6 +149,7 @@ jobs:
   # Loop through all plugins passed from input.plugins
   plugin_setup:
     name: Plugin(s)
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     if: ${{ ! inputs.inherit_build || vars.PLUGINS != '["none"]' }} 
     environment: ${{ vars.ENVIRONMENT }}
@@ -205,6 +208,7 @@ jobs:
   build:
     name: Create Release and Cleanup
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     # If we are inheriting the build from another workflow,
     # no need to continue in the process
     if: ${{ ! inputs.inherit_build }}
