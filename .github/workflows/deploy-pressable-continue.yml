@@ -166,9 +166,7 @@ jobs:
         if: ${{ success() }}
         uses: geekyeggo/delete-artifact@v5
         with:
-          name: | 
-            ${{ format( 'composer-{0}', inputs.environment ) }}
-            release
+          name: ${{ format( 'composer-{0}', inputs.environment ) }}
           failOnError: false # If the file doesn't exist it's ok to fail silently
 
       - name: Set Deployment Status as Failboat
