@@ -232,7 +232,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ ! inputs.inherit_build }}
         with:
-          name: release-${{ inputs.environment }}
+          name: release
           path: release
           retention-days: 1
           overwrite: true
