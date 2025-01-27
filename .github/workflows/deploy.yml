@@ -28,7 +28,7 @@ on:
 jobs:
   # Linting should happen before anything else so it can fail quickly
   lint:
-    if: ${{ inputs.skip_lint != 'true' && ! inputs.inherit_build }}
+    if: ${{ inputs.skip_lint != 'true' || ! inputs.inherit_build }}
     name: Lint Release
     uses: ./.github/workflows/phplint.yml
     secrets: inherit
