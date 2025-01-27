@@ -116,7 +116,6 @@ jobs:
     name: Build Project
     secrets: inherit
     uses: ./.github/workflows/build.yml
-    if: ${{ ! inputs.inherit_build }}
     with:
       environment: ${{ inputs.environment }}
       inherit_build: ${{ inputs.inherit_build }}
