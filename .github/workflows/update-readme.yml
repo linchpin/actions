@@ -72,8 +72,8 @@ jobs:
           commit-message: "[automated] Update Plugin List"
           title: "[Maintenance] Update README.md WordPress Plugin List"
           body-path: README.md
-          base: "release-please--branches--main" # Use the same branch for PR updates
-          branch: "release-please--branches--main--readme" # Use the same branch for PR updates
+          base: ${{ inputs.base }} # Use the same branch for PR updates
+          branch: ${{ inputs.branch }} # Use the same branch for PR updates
           labels: |
             wordpress
             automated pr
