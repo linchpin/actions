@@ -27,7 +27,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: "release-please--branches--main"
+          ref: ${{ inputs.base }}
           sparse-checkout: |
             README.md
             composer.lock
@@ -58,7 +58,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
             echo "skip_pr=true" >> $GITHUB_OUTPUT
-            
           else
             git commit -m "Update README.md with plugin list"
             echo "skip_pr=false" >> $GITHUB_OUTPUT
