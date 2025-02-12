@@ -172,8 +172,6 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
   dependency_setup:
-    permissions:
-      contents: write
     name: Composer
     runs-on: ubuntu-latest
     needs: preflight
