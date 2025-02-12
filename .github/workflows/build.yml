@@ -211,11 +211,6 @@ jobs:
         id: composer_compression_artifact
         # Make sure our plugins have the proper permissions so they can be zipped later
         run: |
-          for dir in build/plugins/*/; do
-            if [ -d "$dir" ]; then
-              chmod 755 "$dir"
-            fi
-          done
           tar -zvcf composer.tar.gz ./build
 
       - name: Upload Dependencies
