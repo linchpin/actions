@@ -98,6 +98,7 @@ jobs:
           SSH_PATH="$HOME/.ssh"
           KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
           SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
+          ls -la
           mkdir "$SSH_PATH"
           ssh-keyscan -t rsa "$SSH_HOST" >> "$KNOWN_HOSTS_PATH"
           #Copy Secret Keys to container
