@@ -177,7 +177,7 @@ jobs:
         run: echo "dir=$(npm config get cache)" >> ${GITHUB_OUTPUT}
 
       - name: Build Plugin with npm
-        if: ${{ matrix.plugin != 'none' && hashFiles( format( 'themes/{0}/package-lock.json', matrix.plugin ) ) != '' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && hashFiles( format( 'plugins/{0}/package-lock.json', matrix.plugin ) ) != '' }} # skip this step if no plugins are included.
         id: build-plugin-npm
         run: |
           cd plugins/${{ matrix.plugin }}
@@ -187,7 +187,7 @@ jobs:
           rm -rf node_modules # remove node modules after the build
 
       - name: Install Plugin Composer Dependencies
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_uses_composer == 'true' && hashFiles(format('themes/{0}/composer.lock', matrix.plugin ) ) != '' }} # skip this step if no themes are included or we don't have a composer file
+        if: ${{ matrix.plugin != 'none' && inputs.plugin_uses_composer == 'true' && hashFiles(format('plugins/{0}/composer.lock', matrix.plugin ) ) != '' }} # skip this step if no plugins are included or we don't have a composer file
         id: install-plugin-composer
         uses: php-actions/composer@v6
         with:
@@ -196,7 +196,7 @@ jobs:
           php_version: ${{ vars.PHP_VERSION }}
 
       - name: Upload Plugin
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
         uses: actions/upload-artifact@v4
         with:
           name: plugin-${{ matrix.plugin }}
