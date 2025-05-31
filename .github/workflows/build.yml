@@ -200,7 +200,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: plugin-${{ matrix.plugin }}
-          path: plugin/${{ matrix.plugin }}
+          path: plugins/${{ matrix.plugin }}
           retention-days: 1
           overwrite: true
           include-hidden-files: false
