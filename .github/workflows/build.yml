@@ -186,6 +186,13 @@ jobs:
           npm run build --production
           rm -rf node_modules # remove node modules after the build
 
+      - name: Composer Debug
+        id: plugin-composer-install-debug
+        run: |
+          pwd
+          ls -la
+          echo $GITHUB_WORKSPACE
+
       - name: Install Plugin Composer Dependencies
         if: ${{ matrix.plugin != 'none' && vars.PLUGIN_USES_COMPOSER == 'true' && hashFiles( format( 'plugins/{0}/composer.lock', matrix.plugin ) ) != '' }} # skip this step if no plugins are included or we don't have a composer file
         id: install-plugin-composer
