@@ -187,7 +187,7 @@ jobs:
           rm -rf node_modules # remove node modules after the build
 
       - name: Install Plugin Composer Dependencies
-        if: ${{ matrix.plugin != 'none' && inputs.plugin_uses_composer == 'true' && hashFiles(format('plugins/{0}/composer.lock', matrix.plugin ) ) != '' }} # skip this step if no plugins are included or we don't have a composer file
+        if: ${{ matrix.plugin != 'none' && vars.PLUGIN_USES_COMPOSER == 'true' && hashFiles( format( 'plugins/{0}/composer.lock', matrix.plugin ) ) != '' }} # skip this step if no plugins are included or we don't have a composer file
         id: install-plugin-composer
         uses: php-actions/composer@v6
         with:
