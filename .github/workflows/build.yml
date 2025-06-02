@@ -164,6 +164,10 @@ jobs:
         run: |
           echo "::warning::Skipping Plugin Build"
 
+      - name: Checkout code
+        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugina are included.
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
         uses: actions/setup-node@v4
