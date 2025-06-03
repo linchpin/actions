@@ -190,13 +190,6 @@ jobs:
           npm run build --production
           rm -rf node_modules # remove node modules after the build
 
-      - name: Composer Debug
-        id: plugin-composer-install-debug
-        run: |
-          pwd
-          ls -la
-          echo $GITHUB_WORKSPACE
-
       - name: Install Plugin Composer Dependencies
         if: ${{ matrix.plugin != 'none' && vars.PLUGIN_USES_COMPOSER == 'true' && hashFiles( format( 'plugins/{0}/composer.lock', matrix.plugin ) ) != '' }} # skip this step if no plugins are included or we don't have a composer file
         id: install-plugin-composer
@@ -231,7 +224,25 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ./build
-          merge-multiple: true
+          merge-multiple: false
+
+      - name: Move Theme and Plugin Artifacts to correct directory
+        id: move_downloaded_artifacts
+        run: |
+          cd build
+          # Make sure final target directories exist
+          mkdir -p themes
+          mkdir -p plugins
+          # Move built versions of themes and plugins to correct directories
+          for prefix in "theme-" "plugin-"; do
+          for d in "$prefix"*; do
+          if [ ! -d "$d" ]; then continue; fi;
+          newdir="${prefix%?}s/${d:${#prefix}:${#d}-${#prefix}}";
+          # If a directory already exists where this one is going, remove it
+          rm -rf $newdir;
+          mv $d $newdir;
+          done;
+          done;
 
       - name: Clean Build Files/Folders
         id: clean_build_ff
