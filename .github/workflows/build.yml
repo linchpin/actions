@@ -137,7 +137,7 @@ jobs:
 
       - name: Cleanup Node Modules
         if: ${{ matrix.theme != 'none' && vars.BUILD_THEME_JS != 'false' && hashFiles(format('themes/{0}/package-lock.json', matrix.theme ) ) != '' }} # skip this step if no themes are included or we tell it to skip
-        id: build-theme-npm
+        id: cleanup-node-modules
         run: |
           cd themes/${{ matrix.theme }}
           if [[ -d "node_modules" ]]; then rm -rf node_modules; fi;
