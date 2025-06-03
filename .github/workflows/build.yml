@@ -134,7 +134,13 @@ jobs:
           npm install sass-embedded-linux-x64
           npm install --omit=dev
           npm run build
-          rm -rf node_modules
+
+      - name: Cleanup Node Modules
+        if: ${{ matrix.theme != 'none' && vars.BUILD_THEME_JS != 'false' && hashFiles(format('themes/{0}/package-lock.json', matrix.theme ) ) != '' }} # skip this step if no themes are included or we tell it to skip
+        id: build-theme-npm
+        run: |
+          cd themes/${{ matrix.theme }}
+          if [[ -d "node_modules" ]]; then rm -rf node_modules; fi;
 
       - name: Upload Theme
         if: ${{ matrix.theme != 'none' }} # skip this step if no themes are included.
