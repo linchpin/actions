@@ -230,6 +230,11 @@ jobs:
         id: move_downloaded_artifacts
         run: |
           cd build
+          # If there is a composer artifact, move its content to the root of the build directory
+          if [ -d "composer-${{ inputs.environment }}" ]; then
+              mv composer-${{ inputs.environment }}/* .;
+              rm -rf composer-${{ inputs.environment }};
+          fi;
           # Make sure final target directories exist
           mkdir -p themes
           mkdir -p plugins
