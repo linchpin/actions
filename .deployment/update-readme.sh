@@ -41,8 +41,16 @@ sed -i.bak -e "/<!-- x-linchpin-update-readme-start -->/,/<!-- x-linchpin-update
 sed -i.bak -e "/<!-- x-linchpin-plugin-list-start -->/,/<!-- x-linchpin-plugin-list-end -->/c\\<!-- x-linchpin-plugin-list-start -->\n$table_output\n<!-- x-linchpin-plugin-list-end -->" "$README_FILE"
 
 # Update the release date
-current_date=$(date +"[%m/%d/%Y]")
-sed -i.bak -e "/<!-- x-linchpin-release-date-start -->/,/<!-- x-linchpin-release-date-end -->/c\\<!-- x-linchpin-release-date-start -->$current_date<!-- x-linchpin-release-date-end -->" "$README_FILE"
+# Update the release date
+current_date=$(date +"%m/%d/%Y")
+awk -v date="$current_date" '
+  {
+    if ($0 ~ /<!-- x-linchpin-release-date-start -->/) {
+      sub(/<!-- x-linchpin-release-date-start -->.*<!-- x-linchpin-release-date-end -->/, "<!-- x-linchpin-release-date-start -->" date "<!-- x-linchpin-release-date-end -->")
+    }
+    print
+  }
+' "$README_FILE" > temp && mv temp "$README_FILE"
 
 # Remove the backup file created by sed
 rm "${README_FILE}.bak"
