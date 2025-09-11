@@ -25,6 +25,11 @@ on:
         description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
         required: false
         type: string
+      post_deploy_command:
+        description: "Optional additional shell commands to run after deployment (multi-line)"
+        required: false
+        type: string
+        default: ""
 
 jobs:
   deploy:
@@ -98,6 +103,11 @@ jobs:
         id: execute_bash
         run: |
           ssh pressable "cd ${{ inputs.deployment_path }}/ && wget -O ./entrypoint.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/pressable-entrypoint.sh && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.folder.outputs.folder }}"
+
+      - name: Post Deploy Commands
+        if: ${{ inputs.post_deploy_command != '' }}
+        run: |
+          ssh pressable "cd /srv/htdocs && ${{ inputs.post_deploy_command }}"
 
       # When installing the plugins we only need the lock file
       - name: Checkout code
