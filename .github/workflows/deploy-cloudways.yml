@@ -31,6 +31,11 @@ on:
         description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
         required: false
         type: string
+      post_deploy_command:
+        description: "Optional additional shell commands to run after deployment (multi-line)"
+        required: false
+        type: string
+        default: ""
 
 jobs:
   deploy:
@@ -160,6 +165,10 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PASSWORD: ${{ secrets.SSH_PASS }}
+          
+      - name: Post Deploy Commands
+        if: ${{ inputs.post_deploy_command != '' }}
+        run: echo "post deploy not setup yet"
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
