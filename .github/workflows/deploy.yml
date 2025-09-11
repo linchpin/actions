@@ -24,6 +24,11 @@ on:
         description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
         required: false
         type: string
+      build_commands:
+        description: "Optional additional shell commands to run during the build (multi-line)"
+        required: false
+        type: string
+        default: ""
 
 jobs:
   # Linting should happen before anything else so it can fail quickly
@@ -119,6 +124,7 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
       inherit_build: ${{ inputs.inherit_build }}
+      build_commands: ${{ inputs.build_commands }}
 
   deploy_pressable:
     name: Deploy to Pressable
