@@ -30,6 +30,10 @@ on:
         description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
         required: false
         type: string
+      post_deploy_command:
+        description: "Post deployment commands run on the server"
+        required: false
+        type: string
 
 jobs:
   deploy:
@@ -48,7 +52,6 @@ jobs:
           access_token=$(echo $response | jq -r '.access_token')
           echo "::add-mask::$access_token"
           echo "access_token=$access_token" >> $GITHUB_ENV
-
 
       - name: Do Backup
         if: ${{ inputs.do_backup == 'true' && steps.authenticate.outputs.access_token }}
@@ -116,3 +119,5 @@ jobs:
       deployment_path: ${{ inputs.deployment_path }}
       workflow_run_id: ${{ inputs.workflow_run_id }}
       inherit_build: ${{ inputs.inherit_build }}
+      post_deploy_command: ${{ inputs.post_deploy_command }}
+      
