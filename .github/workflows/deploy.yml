@@ -29,6 +29,11 @@ on:
         required: false
         type: string
         default: ""
+      post_deploy_command:
+        description: "Optional additional shell commands to run post deployment"
+        required: false
+        type: string
+        default: ""
 
 jobs:
   # Linting should happen before anything else so it can fail quickly
@@ -138,6 +143,8 @@ jobs:
       do_backup: ${{ inputs.do_backup }}
       environment: ${{ inputs.environment }}
       inherit_build: ${{ inputs.inherit_build }}
+      post_deploy_command: ${{ inputs.post_deploy_command }}
+      
 
   deploy_wpengine:
     name: Deploy to WP Engine
@@ -151,6 +158,7 @@ jobs:
       do_backup: ${{ inputs.do_backup }}
       environment: ${{ inputs.environment }}
       inherit_build: ${{ inputs.inherit_build }}
+      post_deploy_command: ${{ inputs.post_deploy_command }}
 
   deploy_cloudways:
     name: Deploy to Cloudways
@@ -164,6 +172,7 @@ jobs:
       do_backup: ${{ inputs.do_backup }}
       environment: ${{ inputs.environment }}
       inherit_build: ${{ inputs.inherit_build }}
+      post_deploy_command: ${{ inputs.post_deploy_command }}
 
   deploy_finish:
     name: Complete Deployment
