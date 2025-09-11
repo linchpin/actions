@@ -30,6 +30,10 @@ on:
         description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
         required: false
         type: string
+      post_deploy_command:
+        description: "Post deployment commands run on the server"
+        required: false
+        type: string
 
 jobs:
   deploy:
@@ -118,6 +122,11 @@ jobs:
           ssh_host: "${{ vars.INSTALL_NAME }}.ssh.wpengine.net"
           ssh_user: ${{ vars.INSTALL_NAME }}
           ssh_key: ${{ secrets.SSH_KEY }}
+
+      - name: Post Deploy Commands
+        if: ${{ inputs.post_deploy_command != '' }}
+        run: |
+          ssh wpengine "cd ~/sites/${{ vars.INSTALL_NAME }} && ${{ inputs.post_deploy_command }}"
 
       - name: Cleanup Maintenance
         id: cleanup_maintenance
