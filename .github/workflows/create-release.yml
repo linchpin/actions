@@ -176,7 +176,7 @@ jobs:
         run: composer update --working-dir=plugins/${{ matrix.plugin }}
 
       - name: Setup Node for ${{ matrix.plugin }} WordPress plugin
-        if: ${{ matrix.plugin != 'none' && hashFiles( 'themes/${{ matrix.theme }}/package-lock.json' ) != '' }} # skip this step if no themes are included.
+        if: ${{ matrix.plugin != 'none' && hashFiles( 'plugins/${{ matrix.theme }}/package-lock.json' ) != '' }} # skip this step if the plugin doesn't use NPM
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node_version }}
@@ -184,14 +184,14 @@ jobs:
           cache-dependency-path: themes/${{ matrix.plugin }}/package-lock.json
 
       - name: Build WordPress Plugin (${{ matrix.plugin }}) using npm
-        if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
+        if: ${{ matrix.plugin != 'none' && hashFiles( 'plugins/${{ matrix.theme }}/package-lock.json' ) != '' }} # skip this step if the plugin doesn't use NPM
         id: build-plugin-npm
         run: |
-          cd plugins/${{ matrix.plugin && hashFiles( 'plugins/${{ matrix.theme }}/package-lock.json' ) != '' }}
+          cd plugins/${{ matrix.plugin }}
           npm install --production
           npm run build
 
-      - name: Upload WordPress Theme (${{ matrix.plugin }}) Artifact
+      - name: Upload WordPress Plugin (${{ matrix.plugin }}) Artifact
         uses: actions/upload-artifact@v4
         if: ${{ matrix.plugin != 'none' }} # skip this step if no themes are included.
         with:
