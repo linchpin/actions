@@ -63,6 +63,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: "build"
+          fetch-depth: 1
 
       - name: Authenticate Packagist
         run: echo '${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}' > ./build/auth.json
@@ -102,6 +103,11 @@ jobs:
       matrix:
         theme: ${{ fromJSON( inputs.themes ) }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+    
       - name: Theme Setup Confirmation
         id: theme-setup-confirmation
         if: ${{ matrix.theme == 'none' }}
@@ -151,6 +157,11 @@ jobs:
       matrix:
         plugin: ${{ fromJSON( inputs.plugins ) }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+    
       # check if we have a plugin to build. If None output and skip the rest of the steps.
       - name: Plugin Setup Confirmation
         id: individual_plugin
