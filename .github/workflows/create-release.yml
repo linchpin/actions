@@ -148,6 +148,7 @@ jobs:
             themes/${{ matrix.theme }}/
             !themes/${{ matrix.theme }}/**/node_modules
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
+          overwrite: true
 
   # Loop through all plugins passed from inputs.plugins
   plugin_setup:
@@ -199,6 +200,7 @@ jobs:
             plugins/${{ matrix.plugin }}/
             !plugins/${{ matrix.plugin }}/**/node_modules
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
+          overwrite: true
 
   build:
     name: Build Release Zip
@@ -242,6 +244,7 @@ jobs:
           name: release
           path: release.zip
           retention-days: 1 # since we keep a release we do not need to store an artifact too long
+          overwrite: true
 
       - name: Upload files to the Release Tag
         uses: svenstaro/upload-release-action@2.9.0
