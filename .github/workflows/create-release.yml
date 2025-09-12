@@ -187,7 +187,7 @@ jobs:
         if: ${{ matrix.plugin != 'none' }} # skip this step if no plugins are included.
         id: build-plugin-npm
         run: |
-          cd plugins/${{ matrix.plugin }}
+          cd plugins/${{ matrix.plugin && hashFiles( 'plugins/${{ matrix.theme }}/package-lock.json' ) != '' }}
           npm install --production
           npm run build
 
