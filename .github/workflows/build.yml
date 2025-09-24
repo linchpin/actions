@@ -198,7 +198,7 @@ jobs:
         run: |
           cd plugins/${{ matrix.plugin }}
           npm config set cache $(npm config get cache)
-          npm install --omit=dev
+          npm install
           npm run build --production
           rm -rf node_modules # remove node modules after the build
 
