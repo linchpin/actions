@@ -47,6 +47,7 @@ jobs:
           --form 'client_id="${{ secrets.PRESSABLE_API_CLIENT_ID }}"' \
           --form 'client_secret="${{ secrets.PRESSABLE_API_CLIENT_SECRET }}"')
           access_token=$(echo $response | jq -r '.access_token')
+          echo "::add-mask::$access_token"
           echo "pressable_api_token=$access_token" >> "$GITHUB_OUTPUT"
 
       - name: Download All Artifacts # Download our artifacts, may need to pass in the workflow_run_id
