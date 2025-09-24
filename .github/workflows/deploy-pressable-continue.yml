@@ -36,6 +36,8 @@ jobs:
     name: To ${{ vars.HOST }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    outputs:
+      pressable_api_token: ${{ steps.authenticate.outputs.pressable_api_token }}
     steps:
       - name: Authenticate Pressable API
         id: authenticate
@@ -45,7 +47,7 @@ jobs:
           --form 'client_id="${{ secrets.PRESSABLE_API_CLIENT_ID }}"' \
           --form 'client_secret="${{ secrets.PRESSABLE_API_CLIENT_SECRET }}"')
           access_token=$(echo $response | jq -r '.access_token')
-          echo "ACCESS_TOKEN=$access_token" >> $GITHUB_ENV
+          echo "pressable_api_token=$access_token" >> "$GITHUB_OUTPUT"
 
       - name: Download All Artifacts # Download our artifacts, may need to pass in the workflow_run_id
         uses: actions/download-artifact@v4
@@ -58,7 +60,7 @@ jobs:
         id: folder
         run: |
           ls -all
-          echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT
+          echo "folder=$(date +'%s')" >> "$GITHUB_OUTPUT"
 
       - name: Configure SSH Connection with Pressable
         run: |
@@ -97,7 +99,7 @@ jobs:
         if: ${{ steps.authenticate.outputs.access_token }} # make sure we have an access token
         run: |
           curl --location --request PUT 'https://my.pressable.com/v1/sites/${{ vars.SITE_ID }}/maintenance-mode' \
-          --header 'Authorization: Bearer ${{ github.env.ACCESS_TOKEN }}' \
+          --header 'Authorization: Bearer ${{ steps.authenticate.outputs.pressable_api_token }}' \
 
       - name: Execute Commands On Server
         id: execute_bash
@@ -111,6 +113,7 @@ jobs:
 
       # When installing the plugins we only need the lock file
       - name: Checkout code
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL != 'false' }}
         uses: actions/checkout@v4
         with:
           path: "build"
@@ -119,6 +122,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Setup PHP
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL != 'false' }}
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ vars.PHP_VERSION }}
@@ -133,30 +137,11 @@ jobs:
           chmod +x ./remote-plugin-install.sh
           bash ./remote-plugin-install.sh ${{ vars.SITE_ID }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
 
-      - name: Configure SSH Connection with Pressable
+      - name: Disable Maintenance Mode
+        if: ${{ steps.authenticate.outputs.access_token }} # make sure we have an access token
         run: |
-          SSH_PATH="$HOME/.ssh"
-          KNOWN_HOSTS_PATH="$SSH_PATH/known_hosts"
-          SSH_KEY_PRIVATE_PATH="$SSH_PATH/github_action"
-          mkdir -p "$SSH_PATH"
-          mkdir -p "$SSH_PATH/ctl"
-          ssh-keyscan -t rsa "${{ secrets.SSH_HOST }}" >> "$KNOWN_HOSTS_PATH"
-          echo "${{ secrets.SSH_KEY }}" > "$SSH_KEY_PRIVATE_PATH"
-          
-          chmod 700 "$SSH_PATH"
-          chmod 644 "$KNOWN_HOSTS_PATH"
-          chmod 600 "$SSH_KEY_PRIVATE_PATH"
-          
-          cat >>~/.ssh/config <<END
-            Host pressable
-            HostName ${{ secrets.SSH_HOST }}
-            User ${{ secrets.SSH_USER }}
-            IdentityFile $SSH_KEY_PRIVATE_PATH
-            StrictHostKeyChecking no
-            ControlMaster auto
-            ControlPath $SSH_PATH/ctl/%C
-          END
-        shell: bash
+          curl --location --request PUT 'https://my.pressable.com/v1/sites/${{ vars.SITE_ID }}/maintenance-mode' \
+          --header 'Authorization: Bearer ${{ steps.authenticate.outputs.pressable_api_token }}' \
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
