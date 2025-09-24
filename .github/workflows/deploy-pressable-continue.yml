@@ -96,7 +96,7 @@ jobs:
           rsync -e "ssh -p 22" -W --progress "$GITHUB_WORKSPACE/${{ steps.folder.outputs.folder }}.zip" "pressable:${{ inputs.deployment_path }}/"
      
       - name: Enable Maintenance Mode
-        if: ${{ steps.authenticate.outputs.access_token }} # make sure we have an access token
+        if: ${{ steps.authenticate.outputs.pressable_api_token }} # make sure we have an access token
         run: |
           curl --location --request PUT 'https://my.pressable.com/v1/sites/${{ vars.SITE_ID }}/maintenance-mode' \
           --header 'Authorization: Bearer ${{ steps.authenticate.outputs.pressable_api_token }}' \
@@ -114,7 +114,7 @@ jobs:
       # When installing the plugins we only need the lock file
       - name: Checkout code
         if: ${{ vars.REMOTE_PLUGIN_INSTALL != 'false' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: "build"
           sparse-checkout: |
@@ -138,7 +138,7 @@ jobs:
           bash ./remote-plugin-install.sh ${{ vars.SITE_ID }} ${{ secrets.SATISPRESS_USER }} ${{ secrets.SATISPRESS_PASSWORD }}
 
       - name: Disable Maintenance Mode
-        if: ${{ steps.authenticate.outputs.access_token }} # make sure we have an access token
+        if: ${{ steps.authenticate.outputs.pressable_api_token }} # make sure we have an access token
         run: |
           curl --location --request PUT 'https://my.pressable.com/v1/sites/${{ vars.SITE_ID }}/maintenance-mode' \
           --header 'Authorization: Bearer ${{ steps.authenticate.outputs.pressable_api_token }}' \
