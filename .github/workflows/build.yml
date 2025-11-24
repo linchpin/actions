@@ -37,13 +37,14 @@ jobs:
           path: "build"
           
       - name: Upload project .distignore
-        if: ${{ ! inputs.inherit_build && hashFiles('build/.distignore') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: project-distignore
-          path: build/.distignore
+          path: ./build/.distignore
           retention-days: 1
           overwrite: true
+          include-hidden-files: true
+          if-no-files-found: warn
 
       - name: Authenticate Packagist
         if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' && ! inputs.inherit_build }}
