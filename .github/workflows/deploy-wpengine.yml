@@ -43,7 +43,7 @@ jobs:
     steps:
       - name: Deployment In Progress
         id: in_progress_deployment
-        uses: octokit/request-action@v2
+        uses: octokit/request-action@v2.4.0
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
@@ -140,7 +140,7 @@ jobs:
 
       - name: Set Deployment Status as Successful
         if: ${{ success() }}
-        uses: octokit/request-action@v2.x
+        uses: octokit/request-action@v2.4.0.x
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
@@ -154,7 +154,7 @@ jobs:
 
       - name: Set Deployment Status as Failboat
         if: ${{ failure() }}
-        uses: octokit/request-action@v2.x
+        uses: octokit/request-action@v2.4.0.x
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
