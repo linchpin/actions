@@ -60,7 +60,7 @@ jobs:
         id: download
         with:
           name: "release"
-          path: ./
+          path: ./release
 
       - name: Generate release zip
         id: folder
