@@ -60,7 +60,7 @@ jobs:
         id: download
         with:
           name: "release"
-          path: ./release
+          path: ./
 
       - name: Generate release zip
         id: folder
@@ -78,8 +78,7 @@ jobs:
       - name: Upload Assets
         id: upload_assets
         run: |
-          cd ./release
-          zip -r $GITHUB_WORKSPACE/${{ steps.folder.outputs.folder }}.zip ./
+          zip -r $GITHUB_WORKSPACE/${{ steps.folder.outputs.folder }}.zip ./release
           ssh wpengine "mkdir -p ~/sites/${{ vars.INSTALL_NAME }}/${{ inputs.deployment_path }}/"
           rsync -e "ssh -p 22" -W --progress "$GITHUB_WORKSPACE/${{ steps.folder.outputs.folder }}.zip" wpengine:~/sites/"${{ vars.INSTALL_NAME }}"/"${{ inputs.deployment_path }}"
 
