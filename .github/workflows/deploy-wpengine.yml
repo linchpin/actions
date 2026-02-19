@@ -65,6 +65,7 @@ jobs:
       - name: Generate release zip
         id: folder
         run: |
+          ls -la
           echo "folder=$(date +'%s')" >> $GITHUB_OUTPUT
 
       - name: Configure SSH Connection with WP Engine
