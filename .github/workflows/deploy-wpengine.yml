@@ -47,7 +47,7 @@ jobs:
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
-          deployment: ${{ inputs.deployment }}
+          deployment: ${{ inputs.deployment_id }}
           environment: ${{ vars.ENVIRONMENT }}
           environment_url: ${{ vars.SITE_URL }}
           log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -144,7 +144,7 @@ jobs:
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
-          deployment: ${{ inputs.deployment }}
+          deployment: ${{ inputs.deployment_id }}
           environment: ${{ vars.ENVIRONMENT }}
           environment_url: ${{ vars.SITE_URL }}
           log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -158,7 +158,7 @@ jobs:
         with:
           route: POST /repos/{repo}/deployments/{deployment}/statuses
           repo: ${{ github.repository }}
-          deployment: ${{ inputs.deployment }}
+          deployment: ${{ inputs.deployment_id }}
           environment: ${{ vars.ENVIRONMENT }}
           environment_url: ${{ vars.SITE_URL }}
           log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
