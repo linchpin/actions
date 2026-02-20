@@ -132,7 +132,7 @@ jobs:
       - name: Cleanup Maintenance
         id: cleanup_maintenance
         run: |
-          ssh wpengine "cd ~/sites/${{ vars.INSTALL_NAME }}/${{ inputs.deployment_path }}/release/.deployment/ && wget -O endpoint.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/wpengine-endpoint.sh && chmod +x ./endpoint.sh && bash ./endpoint.sh"
+          ssh wpengine "cd ~/sites/${{ vars.INSTALL_NAME }}/${{ inputs.deployment_path }}/release/ && wget -O endpoint.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/wpengine-endpoint.sh && chmod +x ./endpoint.sh && bash ./endpoint.sh"
 
       # - name: Clear Page and Object Cache
       # if: ${{ always() && 'production' == vars.ENVIRONMENT }}
