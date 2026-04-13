@@ -1,8 +1,10 @@
 name: Auto Approve Maintenance PRs
 
 on:
-  pull_request:
-    branches: [main, master, staging, develop]
+  workflow_call:
+    secrets:
+      GH_BOT_TOKEN:
+        required: true
 
 jobs:
   auto-approve:
@@ -29,32 +31,37 @@ jobs:
           invalid_files=()
           all_files=()
 
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}
+          IFS=' ' read -r -a files <<< "${{ steps.changed-files.outputs.all_changed_files }}"
+
+          for file in "${files[@]}"
           do
             all_files+=("$file")
 
-            if [[ ! $file =~ $allowed_files_regex ]]; then
-              echo "Found non-allowed file: $file"
+            if [[ ! "$file" =~ $allowed_files_regex ]]; then
+              echo "❌ Found non-allowed file: $file"
               invalid_files+=("$file")
             fi
           done
 
-          # Save outputs
-          echo "all_files<<EOF" >> $GITHUB_OUTPUT
-          printf "%s\n" "${all_files[@]}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          {
+            echo "all_files<<EOF"
+            printf "%s\n" "${all_files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
-          echo "invalid_files<<EOF" >> $GITHUB_OUTPUT
-          printf "%s\n" "${invalid_files[@]}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          {
+            echo "invalid_files<<EOF"
+            printf "%s\n" "${invalid_files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
           if [ ${#invalid_files[@]} -eq 0 ]; then
-            echo "valid=true" >> $GITHUB_OUTPUT
+            echo "valid=true" >> "$GITHUB_OUTPUT"
           else
-            echo "valid=false" >> $GITHUB_OUTPUT
+            echo "valid=false" >> "$GITHUB_OUTPUT"
           fi
-      
-      - name: Comment on PR
+
+      - name: Create or update PR comment
         uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.GH_BOT_TOKEN }}
@@ -62,6 +69,8 @@ jobs:
             const allFiles = `${{ steps.validate.outputs.all_files }}`.trim().split('\n').filter(Boolean);
             const invalidFiles = `${{ steps.validate.outputs.invalid_files }}`.trim().split('\n').filter(Boolean);
             const isValid = `${{ steps.validate.outputs.valid }}` === 'true';
+
+            const marker = '<!-- maintenance-auto-approve -->';
 
             const makeTable = (files) => {
               if (!files.length) return '_None_';
@@ -72,7 +81,7 @@ jobs:
               ].join('\n');
             };
 
-            let body = '';
+            let body = marker + '\n';
 
             if (isValid) {
               body += `## ✅ Auto-approved: Maintenance PR\n`;
@@ -93,12 +102,32 @@ jobs:
               body += `> Auto-approval skipped. Please review these changes manually.\n`;
             }
 
-            github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            const comments = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number
             });
+
+            const existing = comments.data.find(c => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body
+              });
+            }
 
       - name: Auto approve PR
         if: steps.validate.outputs.valid == 'true'
