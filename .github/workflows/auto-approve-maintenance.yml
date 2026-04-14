@@ -26,7 +26,7 @@ jobs:
           echo "Changed files:"
           echo "${{ steps.changed-files.outputs.all_changed_files }}"
 
-          allowed_files_regex="(\.github/workflows/.*\.ya?ml|\.release-please-manifest\.json|CHANGELOG\.md|README\.md|composer\.json|composer\.lock|package\.json|package-lock\.json|yarn\.lock|themes/.*/style\.css)$"
+          allowed_files_regex="(\.github/workflows/.*\.ya?ml|\.release-please-manifest\.json|CHANGELOG\.md|README\.md|composer\.json|composer\.lock|package\.json|package-lock\.json|yarn\.lock|themes/.*/style\.css|themes/.*/functions\.php|plugins/.+-functionality/.+-functionality\.php)$"
 
           invalid_files=()
           all_files=()
