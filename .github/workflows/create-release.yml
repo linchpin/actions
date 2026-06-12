@@ -25,11 +25,6 @@ on:
         description: "The tag of the GitHub release to attach the build to (e.g. release-please outputs.tag_name)"
         required: true
         type: string
-      environment:
-        description: "Environment whose variables configure the build"
-        required: false
-        default: "staging"
-        type: string
       build_commands:
         description: "Optional additional shell commands to run during the build"
         required: false
@@ -46,6 +41,5 @@ jobs:
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
     with:
-      environment: ${{ inputs.environment }}
       release_tag: ${{ inputs.release_tag }}
       build_commands: ${{ inputs.build_commands }}

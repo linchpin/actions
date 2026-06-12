@@ -91,7 +91,6 @@ jobs:
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
     with:
-      environment: ${{ inputs.environment }}
       build_commands: ${{ inputs.build_commands }}
 
   deploy:

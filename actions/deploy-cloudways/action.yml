@@ -125,7 +125,8 @@ runs:
       run: |
         URL="${{ inputs.site-url }}"
         for i in $(seq 1 10); do
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL" || echo 000)
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL" || true)
+          code="${code:-000}"
           if [ "$code" -ge 100 ] && [ "$code" -lt 500 ]; then
             echo "::notice::Health check passed for $URL (HTTP $code)"
             exit 0

@@ -21,11 +21,6 @@ name: Build Release Artifact
 on:
   workflow_call:
     inputs:
-      environment:
-        description: "Environment whose variables configure the build (REMOTE_PLUGIN_INSTALL etc.)"
-        required: false
-        default: "staging"
-        type: string
       themes:
         description: 'JSON array of theme folder names. Defaults to vars.THEMES. Example: ["linchpin"]'
         required: false
@@ -70,7 +65,12 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: ${{ inputs.environment }}
+    # No `environment:` binding here, deliberately. Build config (THEMES,
+    # PLUGINS, PHP_VERSION, NODE_VERSION, *_USES_COMPOSER,
+    # REMOTE_PLUGIN_INSTALL) lives in repo-level vars, and binding an
+    # environment subjects the job to its branch protection rules — which
+    # rejected create-release builds running from main ("Branch 'main' is
+    # not allowed to deploy to Staging").
     # contents: write is only exercised when release_tag is set (asset upload);
     # everything else is read-only.
     permissions:
