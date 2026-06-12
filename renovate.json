@@ -1,91 +1,236 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "extends": ["config:recommended"],
-    "lockFileMaintenance": {"enabled": true},
-    "ignoreDeps": ["husky"],
-    "labels": ["type: dependencies", "maintenance"],
-    "baseBranches": ["/^maintenance\\/.*/"],
-    "packageRules": [
-      {
-        "commitMessagePrefix": "[Project] Build Process - ",
-        "description": "Only update the build process dependencies when a major or minor update is available.",
-        "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
-        "labels": [ "npm", "maintenance", "build" ],
-        "matchManagers": ["npm"],
-        "excludePackagePatterns": ["^node$", "^npm$", "^engines$"],
-        "automerge": false,
-        "groupName": "NPM Dependencies",
-        "matchFileNames": ["package.json", "package-lock.json", "yarn.lock"]
-      },
-      {
-        "commitMessagePrefix": "[WordPress] Custom Themes - ",
-        "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
-        "matchManagers": ["npm"],
-        "labels": ["npm", "wordpress", "themes", "maintenance"],
-        "groupName": "NPM Dependencies",
-        "excludePackagePatterns": ["^node$", "^npm$", "^engines$"],
-        "automerge": false,
-        "matchFileNames": ["themes/**"]
-      },
-      {
-        "commitMessagePrefix": "[Project] Build Process - ",
-        "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
-        "matchManagers": ["composer"],
-        "matchPackageNames": ["php"],
-        "excludePackagePatterns": ["^wpackagist", "^linchpin" ],
-        "labels": [ "composer", "maintenance", "build" ],
-        "groupName": "Composer Dependencies",
-        "automerge": false,
-        "matchFileNames": ["composer.json"]
-      },
-      {
-        "commitMessagePrefix": "[WordPress] Custom Themes - ",
-        "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
-        "matchManagers": ["composer"],
-        "labels": [ "composer", "wordpress", "themes", "maintenance" ],
-        "groupName": "Composer Dependencies",
-        "automerge": false,
-        "matchFileNames": ["themes/**"]
-      },
-      {
-        "commitMessagePrefix": "[WordPress] Custom Plugins - ",
-        "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
-        "matchManagers": ["npm"],
-        "labels": [ "npm", "wordpress", "plugins", "maintenance" ],
-        "groupName": "NPM Dependencies",
-        "automerge": false,
-        "matchFileNames": ["plugins/**"]
-      },
-      {
-        "commitMessagePrefix": "[WordPress] Custom Plugins - ",
-        "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
-        "matchManagers": ["composer"],
-        "labels": [ "composer", "wordpress", "plugins", "maintenance" ],
-        "groupName": "Composer Dependencies",
-        "automerge": false,
-        "matchFileNames": ["plugins/**"]
-      },
-      {
-        "matchPackagePrefixes": ["wpackagist-plugin","wpackagist-theme", "linchpin"],
-        "matchManagers": ["composer"],
-        "commitMessagePrefix": "[WordPress]",
-        "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
-        "labels": ["wordpress", "composer", "maintenance"],
-        "groupName": "Project Packagist and .org Themes and Plugins",
-        "matchFileNames": ["composer.json"]
-      },
-      {
-        "matchManagers": ["npm"],
-        "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
-        "matchPackageNames": ["node", "npm"],
-        "enabled": false
-      },
-      {
-        "matchManagers": ["composer"],
-        "matchPackageNames": ["php"],
-        "enabled": false
-      }
-    ],
-    "rebaseWhen": "conflicted",
-    "rangeStrategy": "bump"
+  "extends": [
+    "config:recommended"
+  ],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "ignoreDeps": [
+    "husky"
+  ],
+  "labels": [
+    "type: dependencies",
+    "maintenance"
+  ],
+  "baseBranches": [
+    "/^maintenance\\/.*/"
+  ],
+  "packageRules": [
+    {
+      "commitMessagePrefix": "[Project] Build Process - ",
+      "description": "Only update the build process dependencies when a major or minor update is available.",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "labels": [
+        "npm",
+        "maintenance",
+        "build"
+      ],
+      "matchManagers": [
+        "npm"
+      ],
+      "automerge": false,
+      "groupName": "NPM Dependencies",
+      "matchFileNames": [
+        "package.json",
+        "package-lock.json",
+        "yarn.lock"
+      ],
+      "matchPackageNames": [
+        "!/^node$/",
+        "!/^npm$/",
+        "!/^engines$/"
+      ]
+    },
+    {
+      "commitMessagePrefix": "[WordPress] Custom Themes - ",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "matchManagers": [
+        "npm"
+      ],
+      "labels": [
+        "npm",
+        "wordpress",
+        "themes",
+        "maintenance"
+      ],
+      "groupName": "NPM Dependencies",
+      "automerge": false,
+      "matchFileNames": [
+        "themes/**"
+      ],
+      "matchPackageNames": [
+        "!/^node$/",
+        "!/^npm$/",
+        "!/^engines$/"
+      ]
+    },
+    {
+      "commitMessagePrefix": "[Project] Build Process - ",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "matchManagers": [
+        "composer"
+      ],
+      "matchPackageNames": [
+        "php",
+        "!/^wpackagist/",
+        "!/^linchpin/"
+      ],
+      "labels": [
+        "composer",
+        "maintenance",
+        "build"
+      ],
+      "groupName": "Composer Dependencies",
+      "automerge": false,
+      "matchFileNames": [
+        "composer.json"
+      ]
+    },
+    {
+      "commitMessagePrefix": "[WordPress] Custom Themes - ",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "matchManagers": [
+        "composer"
+      ],
+      "labels": [
+        "composer",
+        "wordpress",
+        "themes",
+        "maintenance"
+      ],
+      "groupName": "Composer Dependencies",
+      "automerge": false,
+      "matchFileNames": [
+        "themes/**"
+      ]
+    },
+    {
+      "commitMessagePrefix": "[WordPress] Custom Plugins - ",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "matchManagers": [
+        "npm"
+      ],
+      "labels": [
+        "npm",
+        "wordpress",
+        "plugins",
+        "maintenance"
+      ],
+      "groupName": "NPM Dependencies",
+      "automerge": false,
+      "matchFileNames": [
+        "plugins/**"
+      ]
+    },
+    {
+      "commitMessagePrefix": "[WordPress] Custom Plugins - ",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "matchManagers": [
+        "composer"
+      ],
+      "labels": [
+        "composer",
+        "wordpress",
+        "plugins",
+        "maintenance"
+      ],
+      "groupName": "Composer Dependencies",
+      "automerge": false,
+      "matchFileNames": [
+        "plugins/**"
+      ]
+    },
+    {
+      "matchManagers": [
+        "composer"
+      ],
+      "commitMessagePrefix": "[WordPress]",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "labels": [
+        "wordpress",
+        "composer",
+        "maintenance"
+      ],
+      "groupName": "Project Packagist and .org Themes and Plugins",
+      "matchFileNames": [
+        "composer.json"
+      ],
+      "matchPackageNames": [
+        "wpackagist-plugin{/,}**",
+        "wpackagist-theme{/,}**",
+        "linchpin{/,}**"
+      ]
+    },
+    {
+      "matchManagers": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "matchPackageNames": [
+        "node",
+        "npm"
+      ],
+      "enabled": false
+    },
+    {
+      "matchManagers": [
+        "composer"
+      ],
+      "matchPackageNames": [
+        "php"
+      ],
+      "enabled": false
+    }
+  ],
+  "rebaseWhen": "conflicted",
+  "rangeStrategy": "bump"
 }
