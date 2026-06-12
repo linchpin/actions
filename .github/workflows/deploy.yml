@@ -1,0 +1,279 @@
+# Deploy WordPress Site (v4)
+#
+# Previous (v3): a release deploy ran 9 jobs — Lint, Preflight (4 GitHub API
+# calls on their own VM), the 5-job build fan-out, a Deploy job that only
+# authenticated and set a status, a Continue Deploy job, and a Complete
+# Deployment job. Lint → Preflight → Build ran serially, adding ~1 minute of
+# dead time before the build started, and a published release was rebuilt from
+# scratch even though create-release had already built the identical code.
+# ~8 minutes wall, ~14 billable minutes.
+#
+# Next (v4): two jobs (build + deploy) — or ONE job when `release_tag` is set,
+# because the deploy downloads the release.zip asset that create-release
+# already attached instead of rebuilding. GitHub deployment bookkeeping is
+# plain `gh api` steps inside the deploy job. Deploy-time lint is gone: code
+# reaching deploy has already passed lint on the PR (and a tagged release is
+# immutable). Success now requires a post-deploy health check, not just a
+# clean rsync exit.
+#
+# Rollback: dispatch this workflow with the previous `release_tag`.
+#
+# Hosts: HOST=pressable|wpengine|cloudways (same composite-action pattern for
+# each). The backup-and-continue flow is preserved from v3: with
+# `do_backup: true` on Pressable, the deploy triggers an on-demand backup,
+# notifies Mantle, parks the GitHub deployment as `queued`, and Mantle later
+# dispatches the caller's continue workflow (deploy-continue.yml) to finish
+# the deploy from the already-built artifact.
+
+name: Deploy WordPress Site
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "The environment to deploy to"
+        required: false
+        default: "staging"
+        type: string
+      release_tag:
+        description: "Deploy the release.zip asset attached to this GitHub release instead of building"
+        required: false
+        default: ""
+        type: string
+      do_backup:
+        description: "Pressable: trigger an on-demand backup, notify Mantle, and pause as 'queued' until the continue workflow is dispatched (v3-compatible)"
+        required: false
+        default: false
+        type: boolean
+      maintenance_mode:
+        description: "Enable maintenance mode during the sync (v3 always did; v4 defaults to zero-downtime)"
+        required: false
+        default: false
+        type: boolean
+      build_commands:
+        description: "Optional additional shell commands to run during the build (ignored when release_tag is set)"
+        required: false
+        default: ""
+        type: string
+      post_deploy_command:
+        description: "Optional shell commands run on the server after deployment"
+        required: false
+        default: ""
+        type: string
+      health_check:
+        description: "Fail the deploy if the site does not respond after the sync"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      PACKAGIST_COMPOSER_AUTH_JSON:
+        required: false
+      PRESSABLE_API_CLIENT_ID:
+        required: false
+      PRESSABLE_API_CLIENT_SECRET:
+        required: false
+      SSH_HOST:
+        required: false
+      SSH_USER:
+        required: false
+      SSH_KEY:
+        required: false
+      SSH_PASS:
+        required: false
+      MANTLE_API_BEARER:
+        required: false
+
+jobs:
+  build:
+    name: Build
+    if: ${{ inputs.release_tag == '' }}
+    uses: ./.github/workflows/build.yml
+    secrets:
+      PACKAGIST_COMPOSER_AUTH_JSON: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+    with:
+      environment: ${{ inputs.environment }}
+      build_commands: ${{ inputs.build_commands }}
+
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    needs: [build]
+    if: ${{ always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.SITE_URL }}
+    concurrency:
+      group: deploy-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      # v3's Preflight job (deployment bookkeeping on its own VM, billed a
+      # full minute for ~11s of API calls) is now these two steps.
+      - name: Create GitHub deployment
+        id: deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # required_contexts must be an empty JSON array, so build the payload with jq
+          id=$(jq -n --arg ref "${{ github.sha }}" --arg env "${{ inputs.environment }}" \
+            '{ref: $ref, environment: $env, auto_merge: false, required_contexts: [], description: "linchpin/actions v4 deploy"}' \
+            | gh api "repos/${{ github.repository }}/deployments" --method POST --input - --jq '.id')
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Set deployment status to in_progress
+        if: ${{ !(vars.HOST == 'pressable' && inputs.do_backup) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.id }}/statuses" \
+            --method POST \
+            --field state=in_progress \
+            --field environment="${{ inputs.environment }}" \
+            --field environment_url="${{ vars.SITE_URL }}" \
+            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      # When parking for a backup, the release stays in the run's artifact
+      # storage (or on the GitHub release) — the continue run fetches it.
+      - name: Download built release artifact
+        if: ${{ inputs.release_tag == '' && !(vars.HOST == 'pressable' && inputs.do_backup) }}
+        uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: release
+
+      - name: Download release.zip from release ${{ inputs.release_tag }}
+        if: ${{ inputs.release_tag != '' && !(vars.HOST == 'pressable' && inputs.do_backup) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.release_tag }}" --pattern release.zip --repo "${{ github.repository }}"
+          mkdir -p release
+          unzip -oq release.zip -d release
+          rm -f release.zip
+          echo "::notice::Deploying prebuilt asset from release ${{ inputs.release_tag }} — no rebuild needed"
+
+      # Backup-and-continue flow (Pressable, v3-compatible): trigger the
+      # backup, register the deployment with Mantle, park the deployment as
+      # `queued`, and end this run. Mantle dispatches the caller's continue
+      # workflow (-> deploy-continue.yml) once the backup completes; that run
+      # picks up the `release` artifact from THIS run via workflow_run_id.
+      - name: Queue deployment pending backup (Mantle continues it)
+        if: ${{ vars.HOST == 'pressable' && inputs.do_backup }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLIENT_ID: ${{ secrets.PRESSABLE_API_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.PRESSABLE_API_CLIENT_SECRET }}
+          MANTLE_API_BEARER: ${{ secrets.MANTLE_API_BEARER }}
+        run: |
+          response=$(curl -s --location --request POST 'https://my.pressable.com/auth/token' \
+            --form 'grant_type="client_credentials"' \
+            --form "client_id=\"$CLIENT_ID\"" \
+            --form "client_secret=\"$CLIENT_SECRET\"")
+          access_token=$(echo "$response" | jq -r '.access_token')
+          if [ -z "$access_token" ] || [ "$access_token" = "null" ]; then
+            echo "::error::Failed to authenticate with the Pressable API"
+            exit 1
+          fi
+          echo "::add-mask::$access_token"
+
+          curl -s --location --request POST 'https://my.pressable.com/v1/sites/${{ vars.SITE_ID }}/ondemand-backups' \
+            --header "Authorization: Bearer $access_token" \
+            --header 'Content-Type: application/json'
+          echo "::notice::Pressable on-demand backup triggered for site ${{ vars.SITE_ID }}"
+
+          curl -s --location --request POST 'https://mantle.linchpin.com/api/v1/deployments/start' \
+            --header 'Content-Type: application/json' \
+            --header "Authorization: Bearer $MANTLE_API_BEARER" \
+            --data-raw '{
+              "pressable_site_id": "${{ vars.SITE_ID }}",
+              "site_url": "${{ vars.SITE_URL }}",
+              "environment": "${{ inputs.environment }}",
+              "branch": "${{ vars.BRANCH }}",
+              "deployment_id": ${{ steps.deployment.outputs.id }},
+              "workflow_run_id": ${{ github.run_id }},
+              "repository": "${{ github.repository }}"
+            }'
+
+          gh api "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.id }}/statuses" \
+            --method POST \
+            --field state=queued \
+            --field environment="${{ inputs.environment }}" \
+            --field environment_url="${{ vars.SITE_URL }}" \
+            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "::notice::Deployment ${{ steps.deployment.outputs.id }} queued — Mantle will dispatch the continue workflow when the backup completes"
+
+      - name: Deploy to Pressable
+        if: ${{ vars.HOST == 'pressable' && !inputs.do_backup }}
+        uses: linchpin/actions/actions/deploy-pressable@v4
+        with:
+          site-id: ${{ vars.SITE_ID }}
+          site-url: ${{ vars.SITE_URL }}
+          api-client-id: ${{ secrets.PRESSABLE_API_CLIENT_ID }}
+          api-client-secret: ${{ secrets.PRESSABLE_API_CLIENT_SECRET }}
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          release-directory: release
+          maintenance-mode: ${{ inputs.maintenance_mode }}
+          post-deploy-command: ${{ inputs.post_deploy_command }}
+          health-check: ${{ inputs.health_check }}
+
+      - name: Deploy to WP Engine
+        if: ${{ vars.HOST == 'wpengine' }}
+        uses: linchpin/actions/actions/deploy-wpengine@v4
+        with:
+          install-name: ${{ vars.INSTALL_NAME }}
+          site-url: ${{ vars.SITE_URL }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          release-directory: release
+          post-deploy-command: ${{ inputs.post_deploy_command }}
+          health-check: ${{ inputs.health_check }}
+
+      - name: Deploy to Cloudways
+        if: ${{ vars.HOST == 'cloudways' }}
+        uses: linchpin/actions/actions/deploy-cloudways@v4
+        with:
+          auth-type: ${{ vars.DEPLOYMENT_AUTH_TYPE || 'key' }}
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          ssh-pass: ${{ secrets.SSH_PASS }}
+          site-url: ${{ vars.SITE_URL }}
+          release-directory: release
+          post-deploy-command: ${{ inputs.post_deploy_command }}
+          health-check: ${{ inputs.health_check }}
+
+      - name: Unsupported host
+        if: ${{ !contains(fromJSON('["pressable","wpengine","cloudways"]'), vars.HOST) }}
+        run: |
+          echo "::error::HOST='${{ vars.HOST }}' is not supported by linchpin/actions v4 (expected pressable, wpengine, or cloudways)"
+          exit 1
+
+      # When the deploy is parked for a backup, the deployment stays `queued`
+      # and the continue workflow is responsible for the final status.
+      - name: Mark deployment successful
+        if: ${{ success() && !(vars.HOST == 'pressable' && inputs.do_backup) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.id }}/statuses" \
+            --method POST \
+            --field state=success \
+            --field environment="${{ inputs.environment }}" \
+            --field environment_url="${{ vars.SITE_URL }}" \
+            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Mark deployment failed
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.id }}/statuses" \
+            --method POST \
+            --field state=failure \
+            --field environment="${{ inputs.environment }}" \
+            --field environment_url="${{ vars.SITE_URL }}" \
+            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"

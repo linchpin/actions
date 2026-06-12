@@ -1,0 +1,179 @@
+name: "Deploy to Pressable"
+description: >-
+  Upload a release directory to a Pressable site over SSH and sync it into the
+  live wp-content.
+
+  v4 note (previous/next): in v3 this was two reusable workflows
+  (deploy-pressable.yml + deploy-pressable-continue.yml) totalling three jobs,
+  and the server-side entrypoint script was wget'd from the v3 branch at run
+  time. In v4 it is a single composite action: the entrypoint ships inside the
+  action and is uploaded over the same SSH connection as the release, a
+  post-deploy health check gates success, and maintenance mode is opt-in
+  (rsync per theme/plugin is brief enough that most deploys do not need a
+  maintenance window).
+
+inputs:
+  site-id:
+    description: "Pressable site ID"
+    required: true
+  site-url:
+    description: "Public URL of the site (used for maintenance mode + health check)"
+    required: true
+  api-client-id:
+    description: "Pressable API client ID"
+    required: true
+  api-client-secret:
+    description: "Pressable API client secret"
+    required: true
+  ssh-host:
+    description: "SSH host"
+    required: true
+  ssh-user:
+    description: "SSH user"
+    required: true
+  ssh-key:
+    description: "SSH private key"
+    required: true
+  release-directory:
+    description: "Local directory containing the cleaned release"
+    required: false
+    default: "release"
+  deployment-path:
+    description: "Remote staging path for uploaded releases"
+    required: false
+    default: "/tmp/releases"
+  maintenance-mode:
+    description: "Enable Pressable maintenance mode during the sync (true/false)"
+    required: false
+    default: "false"
+  trigger-backup:
+    description: "Fire a Pressable on-demand backup before syncing and proceed without waiting (true/false). For the v3-style pause-until-backup-completes flow, use deploy.yml's do_backup input instead."
+    required: false
+    default: "false"
+  post-deploy-command:
+    description: "Optional shell command(s) run on the server (from /srv/htdocs) after the sync"
+    required: false
+    default: ""
+  health-check:
+    description: "Curl the site after deploy and fail on connection errors or HTTP 5xx (true/false)"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Authenticate with the Pressable API
+      id: authenticate
+      shell: bash
+      env:
+        CLIENT_ID: ${{ inputs.api-client-id }}
+        CLIENT_SECRET: ${{ inputs.api-client-secret }}
+      run: |
+        response=$(curl -s --location --request POST 'https://my.pressable.com/auth/token' \
+          --form 'grant_type="client_credentials"' \
+          --form "client_id=\"$CLIENT_ID\"" \
+          --form "client_secret=\"$CLIENT_SECRET\"")
+        access_token=$(echo "$response" | jq -r '.access_token')
+        if [ -z "$access_token" ] || [ "$access_token" = "null" ]; then
+          echo "::error::Failed to authenticate with the Pressable API"
+          exit 1
+        fi
+        echo "::add-mask::$access_token"
+        echo "token=$access_token" >> "$GITHUB_OUTPUT"
+
+    - name: Trigger on-demand backup
+      if: ${{ inputs.trigger-backup == 'true' }}
+      shell: bash
+      run: |
+        # Fire-and-proceed backup. The v3-style pause-until-backup-completes
+        # flow (Mantle dispatches a continue workflow) lives in deploy.yml's
+        # do_backup input + deploy-continue.yml, not in this action.
+        curl -s --location --request POST 'https://my.pressable.com/v1/sites/${{ inputs.site-id }}/ondemand-backups' \
+          --header 'Authorization: Bearer ${{ steps.authenticate.outputs.token }}' \
+          --header 'Content-Type: application/json'
+        echo "::notice::Pressable on-demand backup triggered for site ${{ inputs.site-id }}"
+
+    - name: Configure SSH connection
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_USER: ${{ inputs.ssh-user }}
+        SSH_KEY: ${{ inputs.ssh-key }}
+      run: |
+        SSH_PATH="$HOME/.ssh"
+        mkdir -p "$SSH_PATH" "$SSH_PATH/ctl"
+        ssh-keyscan -t rsa "$SSH_HOST" >> "$SSH_PATH/known_hosts"
+        echo "$SSH_KEY" > "$SSH_PATH/github_action"
+        chmod 700 "$SSH_PATH"
+        chmod 644 "$SSH_PATH/known_hosts"
+        chmod 600 "$SSH_PATH/github_action"
+        cat >> "$SSH_PATH/config" <<END
+          Host pressable
+          HostName $SSH_HOST
+          User $SSH_USER
+          IdentityFile $SSH_PATH/github_action
+          StrictHostKeyChecking no
+          ControlMaster auto
+          ControlPath $SSH_PATH/ctl/%C
+        END
+
+    - name: Upload release and entrypoint
+      id: upload
+      shell: bash
+      run: |
+        ts="$(date +'%s')"
+        echo "ts=$ts" >> "$GITHUB_OUTPUT"
+        cd "${{ inputs.release-directory }}"
+        zip -rq "$GITHUB_WORKSPACE/$ts.zip" ./
+        cd "$GITHUB_WORKSPACE"
+        ssh pressable "mkdir -p ${{ inputs.deployment-path }}/"
+        rsync -e "ssh -p 22" -W "$ts.zip" "pressable:${{ inputs.deployment-path }}/"
+        # v4: the entrypoint ships with this action instead of being wget'd
+        # from a branch on the server.
+        rsync -e "ssh -p 22" -W "${{ github.action_path }}/pressable-entrypoint.sh" "pressable:${{ inputs.deployment-path }}/entrypoint.sh"
+
+    - name: Enable maintenance mode
+      if: ${{ inputs.maintenance-mode == 'true' }}
+      shell: bash
+      run: |
+        curl -s --location --request PUT 'https://my.pressable.com/v1/sites/${{ inputs.site-id }}/maintenance-mode' \
+          --header 'Authorization: Bearer ${{ steps.authenticate.outputs.token }}'
+
+    - name: Sync release on the server
+      shell: bash
+      run: |
+        ssh pressable "cd ${{ inputs.deployment-path }}/ && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.upload.outputs.ts }}"
+
+    - name: Disable maintenance mode
+      if: ${{ always() && inputs.maintenance-mode == 'true' }}
+      shell: bash
+      run: |
+        curl -s --location --request PUT 'https://my.pressable.com/v1/sites/${{ inputs.site-id }}/maintenance-mode' \
+          --header 'Authorization: Bearer ${{ steps.authenticate.outputs.token }}'
+
+    - name: Run post-deploy command
+      if: ${{ inputs.post-deploy-command != '' }}
+      shell: bash
+      run: |
+        ssh pressable "cd /srv/htdocs && ${{ inputs.post-deploy-command }}"
+
+    - name: Health check
+      if: ${{ inputs.health-check == 'true' }}
+      shell: bash
+      run: |
+        # v4 change: v3 considered a deploy successful when rsync exited 0.
+        # v4 requires the site to actually respond. Any HTTP status below 500
+        # passes (auth walls and redirects are fine) — connection failures and
+        # 5xx responses fail the deploy.
+        URL="${{ inputs.site-url }}"
+        for i in $(seq 1 10); do
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL" || echo 000)
+          if [ "$code" -ge 100 ] && [ "$code" -lt 500 ]; then
+            echo "::notice::Health check passed for $URL (HTTP $code)"
+            exit 0
+          fi
+          echo "Attempt $i/10: HTTP $code — retrying in 6s"
+          sleep 6
+        done
+        echo "::error::Health check failed for $URL"
+        exit 1

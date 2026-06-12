@@ -1,0 +1,166 @@
+# Continue Deploy (v4)
+#
+# Second half of the backup-and-continue flow. When deploy.yml runs with
+# `do_backup: true` (Pressable), it triggers an on-demand backup, registers
+# the deployment with Mantle, and parks the GitHub deployment as `queued`.
+# Once the backup completes, Mantle dispatches the caller repo's continue
+# workflow (workflow_dispatch with deployment_id + workflow_run_id), which
+# calls this reusable workflow to finish the deploy.
+#
+# Previous (v3): deploy-pressable-continue.yml. The plumbing had gaps that
+# kept the flow aspirational: the caller's dispatch workflow declared no
+# inputs (it read github.event.deployment.id, which a workflow_dispatch
+# payload does not carry), and the artifact download never passed run-id or a
+# token, so it could not fetch the artifact from the original run.
+#
+# Next (v4): explicit dispatch inputs, cross-run artifact download via
+# download-artifact's run-id + github-token (requires actions: read), or —
+# when the original deploy used a release asset — re-download by release_tag.
+# Status updates target the deployment_id created by the original run.
+#
+# Mantle integration contract (unchanged from v3 in spirit):
+#   POST https://mantle.linchpin.com/api/v1/deployments/start receives
+#   deployment_id + workflow_run_id; Mantle dispatches the caller's continue
+#   workflow with those values as inputs when the backup completes.
+
+name: Continue Deploy
+
+on:
+  workflow_call:
+    inputs:
+      deployment_id:
+        description: "GitHub deployment ID created by the original deploy run"
+        required: true
+        type: string
+      workflow_run_id:
+        description: "Run ID of the original deploy (source of the release artifact)"
+        required: true
+        type: string
+      release_tag:
+        description: "When the original deploy used a release asset, re-download it by tag instead of the run artifact"
+        required: false
+        default: ""
+        type: string
+      environment:
+        description: "The environment to deploy to"
+        required: false
+        default: "staging"
+        type: string
+      maintenance_mode:
+        description: "Enable maintenance mode during the sync"
+        required: false
+        default: false
+        type: boolean
+      post_deploy_command:
+        description: "Optional shell commands run on the server after deployment"
+        required: false
+        default: ""
+        type: string
+      health_check:
+        description: "Fail the deploy if the site does not respond after the sync"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      PRESSABLE_API_CLIENT_ID:
+        required: false
+      PRESSABLE_API_CLIENT_SECRET:
+        required: false
+      SSH_HOST:
+        required: false
+      SSH_USER:
+        required: false
+      SSH_KEY:
+        required: false
+
+jobs:
+  deploy:
+    name: Continue deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.SITE_URL }}
+    concurrency:
+      group: deploy-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: write
+      actions: read # required to download the artifact from the original run
+    steps:
+      - name: Set deployment status to in_progress
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/deployments/${{ inputs.deployment_id }}/statuses" \
+            --method POST \
+            --field state=in_progress \
+            --field environment="${{ inputs.environment }}" \
+            --field environment_url="${{ vars.SITE_URL }}" \
+            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Download release artifact from run ${{ inputs.workflow_run_id }}
+        if: ${{ inputs.release_tag == '' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: release
+          run-id: ${{ inputs.workflow_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Download release.zip from release ${{ inputs.release_tag }}
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.release_tag }}" --pattern release.zip --repo "${{ github.repository }}"
+          mkdir -p release
+          unzip -oq release.zip -d release
+          rm -f release.zip
+
+      - name: Deploy to Pressable
+        if: ${{ vars.HOST == 'pressable' }}
+        uses: linchpin/actions/actions/deploy-pressable@v4
+        with:
+          site-id: ${{ vars.SITE_ID }}
+          site-url: ${{ vars.SITE_URL }}
+          api-client-id: ${{ secrets.PRESSABLE_API_CLIENT_ID }}
+          api-client-secret: ${{ secrets.PRESSABLE_API_CLIENT_SECRET }}
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          release-directory: release
+          maintenance-mode: ${{ inputs.maintenance_mode }}
+          post-deploy-command: ${{ inputs.post_deploy_command }}
+          health-check: ${{ inputs.health_check }}
+
+      - name: Unsupported host
+        if: ${{ vars.HOST != 'pressable' }}
+        run: |
+          echo "::error::The backup-and-continue flow currently supports HOST=pressable only (the backup is a Pressable API feature)"
+          exit 1
+
+      - name: Mark deployment successful
+        if: ${{ success() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/deployments/${{ inputs.deployment_id }}/statuses" \
+            --method POST \
+            --field state=success \
+            --field environment="${{ inputs.environment }}" \
+            --field environment_url="${{ vars.SITE_URL }}" \
+            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Mark deployment failed
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/deployments/${{ inputs.deployment_id }}/statuses" \
+            --method POST \
+            --field state=failure \
+            --field environment="${{ inputs.environment }}" \
+            --field environment_url="${{ vars.SITE_URL }}" \
+            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"

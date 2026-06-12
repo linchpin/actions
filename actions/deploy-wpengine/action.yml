@@ -1,0 +1,112 @@
+name: "Deploy to WP Engine"
+description: >-
+  Upload a release directory to a WP Engine install over SSH and sync it into
+  the live wp-content.
+
+  v4 note (previous/next): in v3 this was deploy-wpengine.yml — a separate job
+  that wget'd its entrypoint and endpoint scripts from the v3 branch on the
+  server and depended on linchpin/actions-wpengine-ssh@main (a moving ref) for
+  SSH setup. In v4 it is a composite action: SSH config is inlined, the
+  entrypoint ships with the action (the old endpoint.sh maintenance cleanup is
+  folded into the end of the entrypoint), and an optional health check gates
+  success. The v3 remote-plugin-install path is not ported yet.
+
+inputs:
+  install-name:
+    description: "WP Engine install name (SSH user; host becomes <install>.ssh.wpengine.net)"
+    required: true
+  site-url:
+    description: "Public URL of the site (used for the health check)"
+    required: false
+    default: ""
+  ssh-key:
+    description: "SSH private key for the WP Engine SSH gateway"
+    required: true
+  release-directory:
+    description: "Local directory containing the cleaned release"
+    required: false
+    default: "release"
+  deployment-path:
+    description: "Remote staging path for uploaded releases, relative to the site root"
+    required: false
+    default: "_wpeprivate/releases"
+  post-deploy-command:
+    description: "Optional shell command(s) run on the server (from the site root) after the sync"
+    required: false
+    default: ""
+  health-check:
+    description: "Curl the site after deploy and fail on connection errors or HTTP 5xx (true/false)"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure SSH connection
+      shell: bash
+      env:
+        INSTALL_NAME: ${{ inputs.install-name }}
+        SSH_KEY: ${{ inputs.ssh-key }}
+      run: |
+        SSH_HOST="$INSTALL_NAME.ssh.wpengine.net"
+        SSH_PATH="$HOME/.ssh"
+        mkdir -p "$SSH_PATH" "$SSH_PATH/ctl"
+        ssh-keyscan -t rsa "$SSH_HOST" >> "$SSH_PATH/known_hosts"
+        echo "$SSH_KEY" > "$SSH_PATH/github_action"
+        chmod 700 "$SSH_PATH"
+        chmod 644 "$SSH_PATH/known_hosts"
+        chmod 600 "$SSH_PATH/github_action"
+        cat >> "$SSH_PATH/config" <<END
+          Host wpengine
+          HostName $SSH_HOST
+          User $INSTALL_NAME
+          IdentityFile $SSH_PATH/github_action
+          StrictHostKeyChecking no
+          ControlMaster auto
+          ControlPath $SSH_PATH/ctl/%C
+        END
+
+    - name: Upload release and entrypoint
+      id: upload
+      shell: bash
+      env:
+        REMOTE_BASE: "~/sites/${{ inputs.install-name }}/${{ inputs.deployment-path }}"
+      run: |
+        ts="$(date +'%s')"
+        echo "ts=$ts" >> "$GITHUB_OUTPUT"
+        cd "${{ inputs.release-directory }}"
+        zip -rq "$GITHUB_WORKSPACE/$ts.zip" ./
+        cd "$GITHUB_WORKSPACE"
+        ssh wpengine "mkdir -p $REMOTE_BASE/"
+        rsync -e "ssh -p 22" -W "$ts.zip" "wpengine:$REMOTE_BASE/"
+        rsync -e "ssh -p 22" -W "${{ github.action_path }}/wpengine-entrypoint.sh" "wpengine:$REMOTE_BASE/entrypoint.sh"
+
+    - name: Sync release on the server
+      shell: bash
+      env:
+        REMOTE_BASE: "~/sites/${{ inputs.install-name }}/${{ inputs.deployment-path }}"
+      run: |
+        ssh wpengine "cd $REMOTE_BASE/ && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.upload.outputs.ts }}"
+
+    - name: Run post-deploy command
+      if: ${{ inputs.post-deploy-command != '' }}
+      shell: bash
+      run: |
+        ssh wpengine "cd ~/sites/${{ inputs.install-name }} && ${{ inputs.post-deploy-command }}"
+
+    - name: Health check
+      if: ${{ inputs.health-check == 'true' && inputs.site-url != '' }}
+      shell: bash
+      run: |
+        URL="${{ inputs.site-url }}"
+        for i in $(seq 1 10); do
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL" || echo 000)
+          if [ "$code" -ge 100 ] && [ "$code" -lt 500 ]; then
+            echo "::notice::Health check passed for $URL (HTTP $code)"
+            exit 0
+          fi
+          echo "Attempt $i/10: HTTP $code — retrying in 6s"
+          sleep 6
+        done
+        echo "::error::Health check failed for $URL"
+        exit 1

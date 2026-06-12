@@ -1,0 +1,136 @@
+name: Auto Approve Maintenance PRs
+
+on:
+  workflow_call:
+    secrets:
+      GH_BOT_TOKEN:
+        required: true
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+
+    if: startsWith(github.head_ref, 'maintenance/')
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v47
+
+      - name: Validate changed files
+        id: validate
+        run: |
+          echo "Changed files:"
+          echo "${{ steps.changed-files.outputs.all_changed_files }}"
+
+          allowed_files_regex="(\.github/workflows/.*\.ya?ml|\.release-please-manifest\.json|CHANGELOG\.md|README\.md|\.gitignore|\.distignore|\.editorconfig|\.php-cs-fixer\.dist\.php|\.phplint\.yml|\.vipgoci_lint_skip_folders|\.vipgoci_phpcs_skip_folders|commitlint\.config\.js|dependabot\.yml|phpcs\.xml|composer\.json|composer\.lock|package\.json|package-lock\.json|yarn\.lock|themes/.*/style\.css|themes/.*/functions\.php|plugins/.+-functionality/.+-functionality\.php)$"
+
+          invalid_files=()
+          all_files=()
+
+          IFS=' ' read -r -a files <<< "${{ steps.changed-files.outputs.all_changed_files }}"
+
+          for file in "${files[@]}"
+          do
+            all_files+=("$file")
+
+            if [[ ! "$file" =~ $allowed_files_regex ]]; then
+              echo "❌ Found non-allowed file: $file"
+              invalid_files+=("$file")
+            fi
+          done
+
+          {
+            echo "all_files<<EOF"
+            printf "%s\n" "${all_files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "invalid_files<<EOF"
+            printf "%s\n" "${invalid_files[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ ${#invalid_files[@]} -eq 0 ]; then
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update PR comment
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GH_BOT_TOKEN }}
+          script: |
+            const allFiles = `${{ steps.validate.outputs.all_files }}`.trim().split('\n').filter(Boolean);
+            const invalidFiles = `${{ steps.validate.outputs.invalid_files }}`.trim().split('\n').filter(Boolean);
+            const isValid = `${{ steps.validate.outputs.valid }}` === 'true';
+
+            const marker = '<!-- maintenance-auto-approve -->';
+
+            const makeTable = (files) => {
+              if (!files.length) return '_None_';
+              return [
+                '| File |',
+                '|------|',
+                ...files.map(f => `| \`${f}\` |`)
+              ].join('\n');
+            };
+
+            let body = marker + '\n';
+
+            if (isValid) {
+              body += `## ✅ Auto-approved: Maintenance PR\n`;
+              body += `Only allowed dependency and maintenance files were changed.\n\n`;
+            } else {
+              body += `## ❌ Not auto-approved: Non-allowed files detected\n`;
+              body += `This PR contains files outside the allowed maintenance scope.\n\n`;
+            }
+
+            body += `### 📦 Changed Files\n`;
+            body += makeTable(allFiles);
+            body += `\n\n`;
+
+            if (!isValid) {
+              body += `### 🚫 Non-allowed Files\n`;
+              body += makeTable(invalidFiles);
+              body += `\n\n`;
+              body += `> Auto-approval skipped. Please review these changes manually.\n`;
+            }
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            const comments = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number
+            });
+
+            const existing = comments.data.find(c => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body
+              });
+            }
+
+      - name: Auto approve PR
+        if: steps.validate.outputs.valid == 'true'
+        uses: hmarr/auto-approve-action@v3
+        with:
+          github-token: ${{ secrets.GH_BOT_TOKEN }}
