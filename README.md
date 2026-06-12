@@ -1,87 +1,133 @@
 # Linchpin Shared Project Configs
 
-An open source collection of Linchpin's configs. Primarily used for [Renovate bot](https://github.com/marketplace/renovate) and shared workflows. While there are some aspects of this repo that are specific to [Linchpin](https://linchpin.com) and our build process. Other organizations can take advantage of them want to use them.
+An open source collection of Linchpin's configs. Primarily used for [Renovate bot](https://github.com/marketplace/renovate) and shared workflows. While there are some aspects of this repo that are specific to [Linchpin](https://linchpin.com) and our build process, other organizations can take advantage of them if they want to use them.
 
-![license](https://img.shields.io/github/license/linchpin/actions) ![version](https://img.shields.io/badge/version-v3-black)
+![license](https://img.shields.io/github/license/linchpin/actions) ![version](https://img.shields.io/badge/version-v4-black)
 
-## Major Differences in v3 of the Github Reusable Workflows
+## Major Differences in v4 of the GitHub Reusable Workflows
 
-Version 3 of is a shift towards removing Organizational, Repo and Environment level Variables out of the workflow
-files and being defined within the GitHub interface. This allows for more flexibility within our deployments process
-including the ability to overide variables at each level as needed.
+v4 is a ground-up rework of the build/deploy pipeline. The full
+previous/next story — including the v3 bugs it fixes and the caller migration
+steps — lives in **[docs/MIGRATION-v3-to-v4.md](docs/MIGRATION-v3-to-v4.md)**.
+The headlines:
 
-## Github Secrets and Variables
+- **Build once, deploy from the release asset.** `create-release.yml` attaches
+  a deploy-ready `release.zip` to each GitHub release; `deploy.yml` accepts a
+  `release_tag` input and deploys that asset in a single job instead of
+  rebuilding. This also gives every project an instant **rollback**: dispatch
+  a deploy with a previous tag.
+- **One build job instead of five.** Composer, theme and plugin builds run
+  serially in one job with working caches (Composer keyed on composer.lock,
+  npm via setup-node). The v3 artifact-reshuffle job is gone.
+- **Composite actions instead of runtime wget.** Scripts that v3 fetched from
+  a branch at run time now ship inside [`actions/`](actions/) composite
+  actions (`setup-wp-php`, `build-release`, `deploy-pressable`,
+  `update-readme`) — the ref you pin is the code that runs.
+- **One PR lint workflow.** `lint.yml` replaces phplint + phpcs + phpcbf with
+  a single cached job: syntax lint (any PHP version), phpcs on changed files
+  with inline annotations, optional PHPStan.
+- **Deploys verify themselves.** A post-deploy health check gates the GitHub
+  deployment status; maintenance mode is opt-in; bookkeeping jobs became
+  steps.
+- **Least-privilege permissions** declared in every workflow, and secrets are
+  passed via env (no auth.json on disk).
 
-Below is a list of standard secret and variables used in Linchpin's shared workflows
+### Versioning
+
+v3 was a moving branch. v4 will GA as an immutable `v4.0.0` tag with a moving
+`v4` major tag (see the migration doc for the plan). Until GA, `@v4`
+references the development branch while `linchpin/linchpin.com` validates it.
+
+## GitHub Secrets and Variables
+
+Below is a list of standard secrets and variables used in Linchpin's shared workflows.
 
 ### Secrets
 
-To learn more [about secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions) in your workflows please see GitHubs great documentation.
+To learn more [about secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions) in your workflows please see GitHub's documentation.
 
-| Key                          | Default | Description                                                                            |
-| ---------------------------- | ------- | -------------------------------------------------------------------------------------- |
-| SSH_KEY                      |         | The SSH key used to interact w/ the remote environment                                 |
-| SSH_USER                     |         | The SSH user used to interact w/ the remote environment                                |
-| SSH_PASS                     |         | THe SSH pass used for environments that cannot support SSH Keys (Cloudways Autonomous) |
-| SSH_HOST                     |         | The SSH IP or Host Name                                                                |
-| SATISPRESS_USER              |         | Authenticate with Private Packagist                                                    |
-| SATISPRESS_PASSWORD          |         | Authenticate with Private Packagist                                                    |
-| PACKAGIST_COMPOSER_AUTH_JSON |         | Alternative Authentication with Private Packagist                                      |
+| Key                          | Default | Description                                                                             |
+| ---------------------------- | ------- | --------------------------------------------------------------------------------------- |
+| SSH_KEY                      |         | The SSH key used to interact w/ the remote environment                                  |
+| SSH_USER                     |         | The SSH user used to interact w/ the remote environment                                 |
+| SSH_HOST                     |         | The SSH IP or Host Name                                                                 |
+| PACKAGIST_COMPOSER_AUTH_JSON |         | auth.json contents for packagist.linchpin.com (v4 passes this via the COMPOSER_AUTH env) |
+| PRESSABLE_API_CLIENT_ID      |         | Pressable API client (maintenance mode, backups)                                        |
+| PRESSABLE_API_CLIENT_SECRET  |         | Pressable API secret                                                                    |
+| GH_BOT_TOKEN                 |         | Bot token used by update-readme.yml to open PRs                                         |
+| SATISPRESS_USER              |         | Private Packagist auth (remote-plugin-install path — not yet ported to v4)              |
+| SATISPRESS_PASSWORD          |         | Private Packagist auth (remote-plugin-install path — not yet ported to v4)              |
 
 ### Variables
 
-To learn more [about variables](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables) in your workflows please see GitHubs great documentation.
+To learn more [about variables](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables) in your workflows please see GitHub's documentation.
 
-| Key                   | Default | Description                                                                                                                                           |
-| --------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| HOST                  |         | The host of the project, typically one of (pressable, cloudways, pantheon, wpengine )                                                                 |
-| ENVIRONMENT           | staging | The environment type we are pushing to                                                                                                                |
-| SITE_URL              |         | The url of the site including http://                                                                                                                 |
-| SITE_ID               |         | When using **Pressable** this is how we reference a site                                                                                              |
-| DEPLOYMENT_AUTH_TYPE  | key     | The deploy type on the environment                                                                                                                    |
-| DEPLOYMENT_PATH       |         | The initial folder the release it uploaded to,the default is different per provider. See each individial `deploy{{host}}.yml` for an example.         |
-| REMOTE_PLUGIN_INSTALL | false   | Whether or not to use the WP CLI to install and/or update plugins on the remote environment instead of using linchpin.packagist.com or wpackagist.org |
-| BRANCH                | staging | The default branch associated with the workflow, this is also impacted by Environment Setup in GitHub                                                 |
-| INSTALL_NAME          |         | Install name when project is hosted on WP Engine                                                                                                      |
-| THEMES                |         | A JSON formatted array of themes to build Ex `["linchpin-theme", "linchpin-child-theme"]`                                                             |
-| PLUGINS               |         | A JSON formatted array of plugins to build Ex `["linchpin-functionality"]`                                                                            |
-| THEME_USES_COMPOSER   | false   | Do the theme(s) use composer to load dependencies                                                                                                     |
-| PLUGIN_USES_COMPOSER  | true    | Do the plugins(s) use composer to load dependencies                                                                                                   |
+| Key                   | Default | Description                                                                              |
+| --------------------- | ------- | ---------------------------------------------------------------------------------------- |
+| HOST                  |         | The host of the project. v4 supports `pressable`; wpengine/cloudways remain on v3        |
+| SITE_URL              |         | The url of the site including https:// (also used by the v4 post-deploy health check)    |
+| SITE_ID               |         | When using **Pressable** this is how we reference a site                                 |
+| REMOTE_PLUGIN_INSTALL | false   | Install plugins on the server via WP CLI instead of shipping them (not yet ported to v4) |
+| BRANCH                | staging | The default branch associated with the environment                                       |
+| PHP_VERSION           |         | PHP version used for builds and linting (e.g. `8.5`)                                     |
+| NODE_VERSION          |         | Node version used for builds (e.g. `24`)                                                 |
+| THEMES                |         | A JSON formatted array of themes to build Ex `["linchpin"]`                              |
+| PLUGINS               |         | A JSON formatted array of plugins to build Ex `["linchpin-functionality"]`               |
+| THEME_USES_COMPOSER   | false   | Do the theme(s) use composer to load dependencies                                        |
+| PLUGIN_USES_COMPOSER  | true    | Do the plugin(s) use composer to load dependencies                                       |
 
-## Breaking Changes from `main` or `v2`
+> v3's `ENVIRONMENT`, `DEPLOYMENT_AUTH_TYPE`, `DEPLOYMENT_PATH` and
+> `INSTALL_NAME` variables are no longer read by v4 workflows.
 
-If you are migrating from prior version of `linchpin/actions` the biggest changes are around the #secrets and #variables sections above. Instead of relying on hardcoded data within the wokflows this version relies on the variables and secrets for nearly all configuration.
+## GitHub Reusable Workflows
 
-You'll also notice that your individual product workflow files should be substantiallly shorter custom regarding jobs and steps.
+Linchpin WordPress projects use [Release Please](https://github.com/googleapis/release-please-action) with [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) to create releases.
 
-## Github Reusable Workflows
+| File                                                        | Description                                                                                                  |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [build.yml](.github/workflows/build.yml)                   | Single-job project build producing a deploy-ready `release` artifact; optionally attaches it to a GitHub release |
+| [create-release.yml](.github/workflows/create-release.yml) | Thin wrapper around build.yml used from release-please callers — builds once and attaches `release.zip`       |
+| [deploy.yml](.github/workflows/deploy.yml)                 | Deploys a fresh build (staging) or a prebuilt release asset (production/rollback) to Pressable                |
+| [lint.yml](.github/workflows/lint.yml)                     | PR lint: PHP syntax (any version), phpcs on changed files via cs2pr, optional PHPStan                          |
+| [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
+| [ci.yml](.github/workflows/ci.yml)                         | This repo's own CI: actionlint + yamllint + zizmor                                                             |
 
-Linchpin WordPress based projects including site builds, stand alone plugins and themes traditionally use [Release Please](https://github.com/googleapis/release-please-action) to handle the process of creating a release. This is accomplished though using [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) in order to format our releases based on a standardized commit message format.
+### Composite Actions
 
-| File                                                               | Status                                                               | Requirements                         | description                                                                                                                                                                               |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [create-release.yml](.github/workflows/create-release.yml)         | ![Active Status](https://img.shields.io/badge/In%20Use-Active-green) |                                      | Create release workflow. Downloads all assets, and runs through the build process creating a single zip. Typically called via release-please.yml within the projects individual workflows |
-| [update-readme.yml](.github/workflows/update-readme.yml)           | ![Active Status](https://img.shields.io/badge/In%20Use-Active-green) | README.md see more below             | Update the README.md file to replace                                                                                                                                                      |
-| [deploy-**pressable**.yml](.github/workflows/deploy-pressable.yml) | ![Active Status](https://img.shields.io/badge/In%20Use-Active-green) | SSH Access, SSH Pass or SSH Key Pair | Deploy to the a Pressable environment, uses [deploy-**base**.yml](.github/workflows/deploy-base.yml)                                                                                      |
-| [deploy-**wpengine**.yml](.github/workflows/deploy-wpengine.yml)   | ![Active Status](https://img.shields.io/badge/In%20Use-Active-green) | SSH Access, SSH Key Pair             | Deploy to a [WP Engine](https://wpengine.com) platform based environment                                                                                                                  |
-| [deploy-**cloudways**.yml](.github/workflows/deploy-cloudways.yml) | ![Active Status](https://img.shields.io/badge/In%20Use-Active-green) | SSH Access, SSH Key Pair             | Deploy to a Cloudways platform environment                                                                                                                                                |
-| [phpcs.yml](.github/workflows/phpcs.yml)                           | ![Active Status](https://img.shields.io/badge/In%20Use-Active-green) |                                      | Scan for WordPress Coding standards based on the phpcs.xml config of the project                                                                                                          |
+| Action                                          | Description                                                                       |
+| ----------------------------------------------- | --------------------------------------------------------------------------------- |
+| [setup-wp-php](actions/setup-wp-php)            | PHP via setup-php + cached Composer install + COMPOSER_AUTH (no auth.json on disk) |
+| [build-release](actions/build-release)          | Turn a built tree into a clean release/ dir using the project .distignore          |
+| [deploy-pressable](actions/deploy-pressable)    | Upload + sync a release to Pressable over SSH, maintenance mode, health check      |
+| [update-readme](actions/update-readme)          | Regenerate the README plugin/theme table from composer.lock                        |
 
 ## Example Shared Workflow Usage
 
-Within your projects **.github/workflows** folder, many Linchpin WordPress utilize the same global workflows for project consistency.
+See [docs/MIGRATION-v3-to-v4.md](docs/MIGRATION-v3-to-v4.md) for complete
+caller examples (CI, staging/production deploys, release-please wiring, and
+rollback).
 
 ```yaml
-name: Create Release
+name: Deploy to Production
 on:
-  push:
-    branches:
-      - "main" # Push to main to have release-please action run
+  release:
+    types: [published]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
 
 jobs:
-  release-please:
-    name: Automated Release
-    uses: linchpin/actions/.github/workflows/release-please.yml@v3
+  deploy:
+    uses: linchpin/actions/.github/workflows/deploy.yml@v4
+    secrets: inherit
+    with:
+      environment: production
+      release_tag: ${{ github.event.release.tag_name }}
 ```
 
 ## Renovate Bot Scanning Configurations
@@ -92,15 +138,9 @@ jobs:
 | [wordpress.json](wordpress.json) | Shared config for renovatebot for WordPress installs.     |
 | [js.json](js.json)               | Shared config for javascript projects (gulp builds, etc ) |
 
-## Make deployments faster/more automated. Especially when using Smart Plugin Manager, Autopilot, Cloudways Plugin Updates
-
-| File                                                           | Description                                                                          |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [remote-plugin-install](.deployment/remote-plugin-install.php) | A bash script to load plugins via the WP CLI including a remote satispress packagist |
-
 ## README.md Updates
 
-When your local project uses [Release Please](https://github.com/googleapis/release-please-action) that action will handle bumping the version numbers of all files you define within the release-please-config.json. However it doesn't take into account replacing arbitrary strings such as release date or updating the list of plugins updated within this release. The [update-readme.yml](.github/workflows/update-readme.yml) seeks to fix that by updating the readme.md of your project with relevant information.
+When your local project uses [Release Please](https://github.com/googleapis/release-please-action) that action will handle bumping the version numbers of all files you define within the release-please-config.json. However it doesn't take into account replacing arbitrary strings such as release date or updating the list of plugins updated within this release. The [update-readme.yml](.github/workflows/update-readme.yml) workflow seeks to fix that by updating the readme.md of your project with relevant information.
 
 ### Current Tags
 
@@ -111,8 +151,8 @@ When your local project uses [Release Please](https://github.com/googleapis/rele
 
 ## More Useful Configs
 
-| File                                     | Description                                                                                                                    |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| [default.distignore](default.distignore) | Default .distignore be loaded during deployment (and renamed to .distignore) if no .distignore is provided within your proejct |
+| File                                     | Description                                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| [default.distignore](default.distignore) | Default .distignore applied during the release build if no .distignore is provided within your project (a copy is bundled in [actions/build-release](actions/build-release)) |
 
 ![Linchpin](https://raw.githubusercontent.com/linchpin/brand-assets/master/github-banner@2x.jpg)
