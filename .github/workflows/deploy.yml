@@ -1,211 +1,192 @@
-name: Deploy WordPress Site
+# Deploy WordPress Site (v4)
+#
+# Previous (v3): a release deploy ran 9 jobs — Lint, Preflight (4 GitHub API
+# calls on their own VM), the 5-job build fan-out, a Deploy job that only
+# authenticated and set a status, a Continue Deploy job, and a Complete
+# Deployment job. Lint → Preflight → Build ran serially, adding ~1 minute of
+# dead time before the build started, and a published release was rebuilt from
+# scratch even though create-release had already built the identical code.
+# ~8 minutes wall, ~14 billable minutes.
+#
+# Next (v4): two jobs (build + deploy) — or ONE job when `release_tag` is set,
+# because the deploy downloads the release.zip asset that create-release
+# already attached instead of rebuilding. GitHub deployment bookkeeping is
+# plain `gh api` steps inside the deploy job. Deploy-time lint is gone: code
+# reaching deploy has already passed lint on the PR (and a tagged release is
+# immutable). Success now requires a post-deploy health check, not just a
+# clean rsync exit.
+#
+# Rollback: dispatch this workflow with the previous `release_tag`.
+#
+# NOTE: v4 currently ports the Pressable path only. HOST=wpengine|cloudways
+# callers should stay on @v3 until those hosts are ported (see docs/MIGRATION-v3-to-v4.md).
 
-# This is the base deployment workflow that is called by other Workflows
+name: Deploy WordPress Site
 
 on:
   workflow_call:
     inputs:
-      skip_lint:
-        description: "Skip the linting process"
-        required: false
-        default: false
-        type: boolean
-      do_backup:
-        description: "Backup the current site before deploying"
-        required: false
-        default: true
-        type: boolean
       environment:
         description: "The environment to deploy to"
         required: false
         default: "staging"
         type: string
-      inherit_build:
-        description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
+      release_tag:
+        description: "Deploy the release.zip asset attached to this GitHub release instead of building"
         required: false
+        default: ""
         type: string
+      do_backup:
+        description: "Trigger a Pressable on-demand backup before deploying"
+        required: false
+        default: false
+        type: boolean
+      maintenance_mode:
+        description: "Enable maintenance mode during the sync (v3 always did; v4 defaults to zero-downtime)"
+        required: false
+        default: false
+        type: boolean
       build_commands:
-        description: "Optional additional shell commands to run during the build (multi-line)"
+        description: "Optional additional shell commands to run during the build (ignored when release_tag is set)"
         required: false
-        type: string
         default: ""
+        type: string
       post_deploy_command:
-        description: "Optional additional shell commands to run post deployment"
+        description: "Optional shell commands run on the server after deployment"
         required: false
-        type: string
         default: ""
+        type: string
+      health_check:
+        description: "Fail the deploy if the site does not respond after the sync"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      PACKAGIST_COMPOSER_AUTH_JSON:
+        required: false
+      PRESSABLE_API_CLIENT_ID:
+        required: false
+      PRESSABLE_API_CLIENT_SECRET:
+        required: false
+      SSH_HOST:
+        required: false
+      SSH_USER:
+        required: false
+      SSH_KEY:
+        required: false
 
 jobs:
-  # Linting should happen before anything else so it can fail quickly
-  lint:
-    if: ${{ inputs.skip_lint != 'true' || ! inputs.inherit_build }}
-    name: Lint Release
-    uses: ./.github/workflows/phplint.yml
-    secrets: inherit
-    with:
-      php_version: ${{ vars.PHP_VERSION }}
-
-  preflight:
-    needs: [lint]
-    name: Preflight Setup
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    outputs:
-      gh_deployment_id: ${{ steps.gh_deployment_data.outputs.id }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get Deployments for Environment
-        id: get_deployments
-        uses: octokit/request-action@v2.4.0
-        with:
-          route: GET /repos/{repo}/deployments?environment=${{ inputs.environment }}&per_page=1
-          repo: ${{ github.repository }}
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Get Latest Deployment Status for Environment
-        id: get_deployment_status
-        uses: octokit/request-action@v2.4.0
-        with:
-          route: GET /repos/{repo}/deployments/${{ fromJson( steps.get_deployments.outputs.data )[0].id }}/statuses
-          repo: ${{ github.repository }}
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-
-      - name: Cancel Existing Deployment
-        if: ${{ fromJson( steps.get_deployments.outputs.data )[0].id != '' && fromJson( steps.get_deployment_status.outputs.data )[0].state != 'success' }}
-        id: cancel_deployment
-        uses: octokit/request-action@v2.4.0
-        with:
-          route: POST /repos/{repo}/deployments/${{ fromJson( steps.get_deployments.outputs.data )[0].id }}/statuses
-          repo: ${{ github.repository }}
-          state: inactive
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-
-      # This creates a "deployment" in GitHub, this helps track the progress
-      # of the deployment in the GitHub UI, it is purely for visual purposes
-      # and does not technically impact the "deployment" of the code.
-      - name: Create Deployment
-        id: create_deployment
-        uses: octokit/request-action@v2.4.0
-        with:
-          route: POST /repos/{repo}/deployments
-          repo: ${{ github.repository }}
-          ref: ${{ vars.BRANCH }}
-          environment: ${{ vars.ENVIRONMENT }}
-          required_contexts: "[]" # This allows for the deployment to run within all contexts passing
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-
-      # Stores the deployment ID so it can be referenced by other workflows, jobs and steps
-      # We use this to update the deployment status as we progress through the deployment.
-      - name: GitHub Deployment Data
-        id: gh_deployment_data
-        run: |
-          echo "id=${{ fromJson( steps.create_deployment.outputs.data ).id }}" >> $GITHUB_OUTPUT
-
-      - name: Set Deployment Status to Pending
-        id: start_deployment
-        uses: octokit/request-action@v2.4.0
-        with:
-          route: POST /repos/{repo}/deployments/:deployment/statuses
-          repo: ${{ github.repository }}
-          deployment: ${{ steps.gh_deployment_data.outputs.id }}
-          environment: ${{ vars.ENVIRONMENT }}
-          environment_url: ${{ vars.SITE_URL }}
-          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          state: pending
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-
   build:
-    needs: [preflight, lint]
-    name: Build Project
-    secrets: inherit
+    name: Build
+    if: ${{ inputs.release_tag == '' }}
     uses: ./.github/workflows/build.yml
+    secrets:
+      PACKAGIST_COMPOSER_AUTH_JSON: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
     with:
       environment: ${{ inputs.environment }}
-      inherit_build: ${{ inputs.inherit_build }}
       build_commands: ${{ inputs.build_commands }}
 
-  deploy_pressable:
-    name: Deploy to Pressable
-    needs: [preflight, build]
-    if: ${{ vars.HOST == 'pressable' }}
-    uses: ./.github/workflows/deploy-pressable.yml
-    secrets: inherit
-    with:
-      deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
-      workflow_run_id: ${{ github.run_id }}
-      do_backup: ${{ inputs.do_backup }}
-      environment: ${{ inputs.environment }}
-      inherit_build: ${{ inputs.inherit_build }}
-      post_deploy_command: ${{ inputs.post_deploy_command }}
-      
-
-  deploy_wpengine:
-    name: Deploy to WP Engine
-    needs: [preflight, build]
-    if: ${{ vars.HOST == 'wpengine' }}
-    uses: ./.github/workflows/deploy-wpengine.yml
-    secrets: inherit
-    with:
-      deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
-      workflow_run_id: ${{ github.run_id }}
-      do_backup: ${{ inputs.do_backup }}
-      environment: ${{ inputs.environment }}
-      inherit_build: ${{ inputs.inherit_build }}
-      post_deploy_command: ${{ inputs.post_deploy_command }}
-
-  deploy_cloudways:
-    name: Deploy to Cloudways
-    needs: [preflight, build]
-    if: ${{ vars.HOST == 'cloudways' }}
-    uses: ./.github/workflows/deploy-cloudways.yml
-    secrets: inherit
-    with:
-      deployment_id: ${{ needs.preflight.outputs.gh_deployment_id }}
-      workflow_run_id: ${{ github.run_id }}
-      do_backup: ${{ inputs.do_backup }}
-      environment: ${{ inputs.environment }}
-      inherit_build: ${{ inputs.inherit_build }}
-      post_deploy_command: ${{ inputs.post_deploy_command }}
-
-  deploy_finish:
-    name: Complete Deployment
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    needs: [build]
+    if: ${{ always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    if: ${{ always() && needs.preflight.outputs.gh_deployment_id != '' }} # No matter if the needs are met still finish. Could be success or fail
-    needs:
-      [ preflight, deploy_pressable, deploy_wpengine, deploy_cloudways ]
+    timeout-minutes: 15
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.SITE_URL }}
+    concurrency:
+      group: deploy-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: write
     steps:
-      - name: Set Deployment Status as Successful
-        if: ${{ success() && ! inputs.do_backup && needs.preflight.outputs.gh_deployment_id != '' }} # if we are not doing a backup, continue the deployment, otherwise wait for the backup to finish
-        uses: octokit/request-action@v2.4.0
-        with:
-          route: POST /repos/{repo}/deployments/{deployment}/statuses
-          repo: ${{ github.repository }}
-          deployment: ${{ needs.preflight.outputs.gh_deployment_id }}
-          environment: ${{ vars.ENVIRONMENT }}
-          environment_url: ${{ vars.SITE_URL }}
-          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          state: success
+      # v3's Preflight job (deployment bookkeeping on its own VM, billed a
+      # full minute for ~11s of API calls) is now these two steps.
+      - name: Create GitHub deployment
+        id: deployment
         env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # required_contexts must be an empty JSON array, so build the payload with jq
+          id=$(jq -n --arg ref "${{ github.sha }}" --arg env "${{ inputs.environment }}" \
+            '{ref: $ref, environment: $env, auto_merge: false, required_contexts: [], description: "linchpin/actions v4 deploy"}' \
+            | gh api "repos/${{ github.repository }}/deployments" --method POST --input - --jq '.id')
+          echo "id=$id" >> "$GITHUB_OUTPUT"
 
-      - name: Set Deployment Status as Failboat
-        if: ${{ failure() || needs.preflight.outputs.gh_deployment_id == '' }} # if the deployment failed or the deployment ID is not set, mark the deployment as failed
-        uses: octokit/request-action@v2.4.0
-        with:
-          route: POST /repos/{repo}/deployments/{deployment}/statuses
-          repo: ${{ github.repository }}
-          deployment: ${{ needs.preflight.outputs.gh_deployment_id }}
-          environment: ${{ vars.ENVIRONMENT }}
-          environment_url: ${{ vars.SITE_URL }}
-          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          state: failure
+      - name: Set deployment status to in_progress
         env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.id }}/statuses" \
+            --method POST \
+            --field state=in_progress \
+            --field environment="${{ inputs.environment }}" \
+            --field environment_url="${{ vars.SITE_URL }}" \
+            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Download built release artifact
+        if: ${{ inputs.release_tag == '' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: release
+          path: release
+
+      - name: Download release.zip from release ${{ inputs.release_tag }}
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.release_tag }}" --pattern release.zip --repo "${{ github.repository }}"
+          mkdir -p release
+          unzip -oq release.zip -d release
+          rm -f release.zip
+          echo "::notice::Deploying prebuilt asset from release ${{ inputs.release_tag }} — no rebuild needed"
+
+      - name: Deploy to Pressable
+        if: ${{ vars.HOST == 'pressable' }}
+        uses: linchpin/actions/actions/deploy-pressable@v4
+        with:
+          site-id: ${{ vars.SITE_ID }}
+          site-url: ${{ vars.SITE_URL }}
+          api-client-id: ${{ secrets.PRESSABLE_API_CLIENT_ID }}
+          api-client-secret: ${{ secrets.PRESSABLE_API_CLIENT_SECRET }}
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          release-directory: release
+          maintenance-mode: ${{ inputs.maintenance_mode }}
+          do-backup: ${{ inputs.do_backup }}
+          post-deploy-command: ${{ inputs.post_deploy_command }}
+          health-check: ${{ inputs.health_check }}
+
+      - name: Unsupported host
+        if: ${{ vars.HOST != 'pressable' }}
+        run: |
+          echo "::error::HOST='${{ vars.HOST }}' is not ported to v4 yet — stay on linchpin/actions@v3 for this project (see docs/MIGRATION-v3-to-v4.md)"
+          exit 1
+
+      - name: Mark deployment successful
+        if: ${{ success() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.id }}/statuses" \
+            --method POST \
+            --field state=success \
+            --field environment="${{ inputs.environment }}" \
+            --field environment_url="${{ vars.SITE_URL }}" \
+            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Mark deployment failed
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.id }}/statuses" \
+            --method POST \
+            --field state=failure \
+            --field environment="${{ inputs.environment }}" \
+            --field environment_url="${{ vars.SITE_URL }}" \
+            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"

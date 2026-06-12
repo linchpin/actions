@@ -1,3 +1,12 @@
+# Update README.md (v4)
+#
+# Previous (v3): ran on every push to main regardless of whether composer.lock
+# changed, and wget'd update-readme.sh from the v3 branch at run time.
+#
+# Next (v4): the script is bundled in the update-readme composite action.
+# Callers should gate this workflow on composer.lock actually changing, e.g.:
+#   if: contains(toJSON(github.event.commits.*.modified), 'composer.lock')
+
 name: Update README.md
 
 on:
@@ -13,6 +22,10 @@ on:
         required: false
         default: "release-please--branches--main--readme"
         type: string
+    secrets:
+      GH_BOT_TOKEN:
+        description: "Token used to open the README update PR"
+        required: true
 
 permissions:
   contents: write
@@ -22,10 +35,11 @@ jobs:
   update-readme:
     name: Update Readme
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      # Checkout just the README.md file since that's all we're adjusting
+      # Checkout just the files the script reads/writes
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ inputs.base }}
           sparse-checkout: |
@@ -33,54 +47,34 @@ jobs:
             composer.lock
           sparse-checkout-cone-mode: false
 
-      - name: Get Branch Names
-        id: branch
-        uses: tj-actions/branch-names@v7
-
-      - name: Update README.md with parsed README.md data
-        run: |
-          pwd
-          ls -all
-          wget -O update-readme.sh https://raw.githubusercontent.com/linchpin/actions/v3/.deployment/update-readme.sh
-          chmod +x update-readme.sh
-          ls -all
-          bash ./update-readme.sh
-          rm update-readme.sh
-        shell: bash
+      - name: Update README.md from composer.lock
+        uses: linchpin/actions/actions/update-readme@v4
 
       - name: Commit changes to README.md
+        id: commit_changes
         run: |
           git config --local user.email "linchpin-bot@github.com"
           git config --local user.name "Linchpin Bot"
-
           git add README.md
-
           if git diff --cached --quiet; then
             echo "No changes to commit"
-            echo "skip_pr=true" >> $GITHUB_OUTPUT
+            echo "skip_pr=true" >> "$GITHUB_OUTPUT"
           else
             git commit -m "Update README.md with plugin list"
-            echo "skip_pr=false" >> $GITHUB_OUTPUT
+            echo "skip_pr=false" >> "$GITHUB_OUTPUT"
           fi
-        id: commit_changes
 
       - name: Create or Update Pull Request
-        uses: peter-evans/create-pull-request@v7
-        id: create_pr
+        if: ${{ steps.commit_changes.outputs.skip_pr == 'false' }}
+        uses: peter-evans/create-pull-request@v8
         with:
           commit-message: "[automated] Update Plugin List"
           title: "[Maintenance] Update README.md WordPress Plugin List"
-          body-path: README.md
-          base: ${{ inputs.base }} # Use the same branch for PR updates
-          branch: ${{ inputs.branch }} # Use the same branch for PR updates
+          body: "Automated update of the README plugin/theme table from composer.lock."
+          base: ${{ inputs.base }}
+          branch: ${{ inputs.branch }}
           labels: |
             wordpress
             automated pr
             maintenance
           token: ${{ secrets.GH_BOT_TOKEN }}
-
-      - name: Automerge Pull Request
-        if: ${{ steps.create_pr.outputs.pull-request-number != null }}
-        run: gh pr merge --merge --auto "${{ steps.create_pr.outputs.pull-request-number }}"
-        env:
-          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

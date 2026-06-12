@@ -1,0 +1,50 @@
+# Actions Repo CI (v4)
+#
+# Previous (v3): only yamllint, and only on pushes to a few branches — no PR
+# checks, no workflow linting, no security audit. Bugs like the inverted
+# composer-cache condition in build.yml shipped silently.
+#
+# Next (v4): actionlint + yamllint + zizmor run on every PR and push.
+# actionlint and zizmor start as non-blocking while the v4 surface settles;
+# tighten them (and pin actionlint by digest via Renovate) before v4 GA.
+
+name: Actions Repo CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - v4
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-workflows:
+    name: Lint workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: actionlint
+        continue-on-error: true # TODO: make blocking before v4 GA
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: -color
+
+      - name: yamllint
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: .github/workflows/
+          config_file: .ymllint.yml
+
+      - name: zizmor security audit
+        continue-on-error: true # TODO: make blocking before v4 GA
+        run: pipx run zizmor .github/workflows/ actions/

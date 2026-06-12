@@ -1,0 +1,93 @@
+# Lint PHP (v4)
+#
+# Previous (v3): three separate workflows ran on every PHP PR — phplint.yml,
+# phpcs.yml and phpcbf.yml — each with its own checkout, PHP setup and
+# Composer install, using incompatible cache keys (or `composer update` and no
+# cache at all in phpcbf). phplint.yml also hardcoded one step per PHP version
+# (8.0–8.3 pinned to different overtrue/phplint releases), so projects on
+# PHP > 8.3 silently skipped linting while reporting green.
+#
+# Next (v4): one job, one cached Composer install, version-agnostic tools.
+# Syntax lint via the project's php-parallel-lint, coding standards via the
+# project's phpcs on the files changed in the PR (annotated inline through
+# cs2pr), and optional PHPStan. Auto-fixing (phpcbf) is intentionally not a
+# CI concern anymore — run it locally in a pre-commit hook.
+
+name: Lint PHP
+
+on:
+  workflow_call:
+    inputs:
+      php_version:
+        description: "PHP version. Defaults to vars.PHP_VERSION"
+        required: false
+        default: ""
+        type: string
+      run_phpstan:
+        description: "Also run PHPStan (composer lint:phpstan or vendor/bin/phpstan)"
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      PACKAGIST_COMPOSER_AUTH_JSON:
+        required: false
+
+jobs:
+  lint:
+    name: PHP lint + coding standards
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # full history so changed files can be diffed against the PR base
+
+      - name: Setup PHP and install Composer dependencies (with dev tools)
+        uses: linchpin/actions/actions/setup-wp-php@v4
+        with:
+          php-version: ${{ inputs.php_version || vars.PHP_VERSION }}
+          dev: "yes"
+          composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+
+      - name: PHP syntax lint
+        run: |
+          set -euo pipefail
+          if composer run-script --list 2>/dev/null | grep -qE '^\s*lint:php([^a-z:]|$)'; then
+            composer run-script lint:php
+          elif [ -x vendor/bin/parallel-lint ]; then
+            vendor/bin/parallel-lint . --exclude vendor --exclude node_modules -e php
+          else
+            echo "::warning::php-parallel-lint is not installed in this project — syntax lint skipped. Add php-parallel-lint/php-parallel-lint to require-dev."
+          fi
+
+      - name: PHPCS on changed files
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          if [ ! -x vendor/bin/phpcs ]; then
+            echo "::warning::phpcs is not installed in this project — coding standards check skipped. Add squizlabs/php_codesniffer to require-dev."
+            exit 0
+          fi
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMRT "$BASE_SHA"...HEAD -- '*.php')
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No PHP files changed in this PR — skipping phpcs"
+            exit 0
+          fi
+          echo "Checking ${#files[@]} changed PHP file(s)"
+          vendor/bin/phpcs -q --report=checkstyle "${files[@]}" | cs2pr
+
+      - name: PHPStan
+        if: ${{ inputs.run_phpstan }}
+        run: |
+          set -euo pipefail
+          if composer run-script --list 2>/dev/null | grep -qE '^\s*lint:phpstan'; then
+            composer run-script lint:phpstan
+          elif [ -x vendor/bin/phpstan ]; then
+            vendor/bin/phpstan analyse --no-progress --memory-limit=2G
+          else
+            echo "::warning::PHPStan requested but not installed in this project — skipped."
+          fi
