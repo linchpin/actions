@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.0.1](https://github.com/linchpin/actions/compare/v4.0.0...v4.0.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* drop environment binding from the build job ([63fd313](https://github.com/linchpin/actions/commit/63fd313aef5ab74a9736ee146d6c7a7cd62368da))
+* use exact-match git/ref endpoint for the floating major tag check ([0b52a61](https://github.com/linchpin/actions/commit/0b52a619d932d604b874ac69e856be83b9fe1253))
+
 ## [4.0.0](https://github.com/linchpin/actions/compare/v3.0.0...v4.0.0) (2026-06-12)
 
 
