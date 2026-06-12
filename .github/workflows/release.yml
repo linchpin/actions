@@ -1,0 +1,87 @@
+# Release (v4)
+#
+# Previous: this repo had no release process at all — the last real tag was
+# v1.0.2 (April 2022), and client repos referenced moving branches (@v2, @v3).
+# Every change landed on a branch was instantly absorbed by every caller, with
+# no changelog and no rollback point.
+#
+# Next: release-please cuts immutable vX.Y.Z releases from main (manifest
+# seeded at 3.0.0 — the v3 lineage was tagged v3.0.0 retroactively; the
+# breaking v4 commits bump the first release from this workflow to 4.0.0).
+# When a release publishes, the update-major-tag job force-moves the floating
+# major tag (e.g. v4 -> v4.2.1) so `uses: linchpin/actions/...@v4` always
+# resolves to the latest v4 release — same contract as GitHub's own actions.
+#
+# ⚠️ Branch/tag ambiguity guard: a major tag is NOT created while a branch of
+# the same name exists (e.g. the v4 development branch). GA sequence:
+#   1. merge the v4 PR into main
+#   2. merge the release-please PR -> v4.0.0 is tagged
+#   3. delete the `v4` branch
+#   4. re-run this workflow via workflow_dispatch with tag=v4.0.0 to create
+#      the floating v4 major tag
+
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to sync the floating major tag to (e.g. v4.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release Please
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ secrets.GH_BOT_TOKEN || github.token }}
+
+  update-major-tag:
+    name: Update floating major tag
+    if: ${{ github.event_name == 'release' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Move major tag to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          MAJOR="${TAG%%.*}"
+          if [ "$MAJOR" = "$TAG" ] || ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::'$TAG' is not a vX.Y.Z release tag"
+            exit 1
+          fi
+
+          # Guard: never create a tag that shadows an existing branch
+          if gh api "repos/${{ github.repository }}/branches/$MAJOR" --silent 2>/dev/null; then
+            echo "::warning::Branch '$MAJOR' still exists — skipping the floating tag to avoid an ambiguous ref. Delete the branch, then re-run this workflow (workflow_dispatch, tag=$TAG)."
+            exit 0
+          fi
+
+          SHA=$(gh api "repos/${{ github.repository }}/commits/$TAG" --jq '.sha')
+          echo "Pointing $MAJOR at $TAG ($SHA)"
+          if gh api "repos/${{ github.repository }}/git/refs/tags/$MAJOR" --silent 2>/dev/null; then
+            gh api --method PATCH "repos/${{ github.repository }}/git/refs/tags/$MAJOR" \
+              --field sha="$SHA" --field force=true
+          else
+            gh api --method POST "repos/${{ github.repository }}/git/refs" \
+              --field ref="refs/tags/$MAJOR" --field sha="$SHA"
+          fi
+          echo "::notice::$MAJOR now resolves to $TAG"

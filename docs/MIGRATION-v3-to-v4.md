@@ -267,17 +267,30 @@ the not-yet-ported remote-plugin-install path.
 
 ## Versioning plan for v4
 
-v3 was a moving branch — the last real tag on this repo is `v1.0.2` (2022),
-so every client absorbed v3 changes the moment they landed. For v4:
+v3 was a moving branch — before this rework the last real tag on this repo
+was `v1.0.2` (2022), so every client absorbed v3 changes the moment they
+landed. Current state:
 
-1. The `v4` branch is the development/testing line (callers reference `@v4`
-   while linchpin.com validates it).
-2. At GA, cut an immutable `v4.0.0` tag via release-please (the manifest
-   already exists in this repo) and maintain a moving `v4` major tag, like
-   GitHub's own actions.
-3. Composite-action self-references inside the reusable workflows
-   (`linchpin/actions/actions/*@v4`) are rewritten to the release tag as part
-   of the release process.
+- **`v3.0.0` exists** — an immutable snapshot of the `v3` branch tip
+  (49d2a98, cut 2026-06-12). The `v3` branch is frozen (bug fixes only);
+  teams that want reproducibility today can pin `@v3.0.0`.
+- **`release.yml` + release-please are wired** (config bootstrapped at the
+  v3/v4 branch point, manifest seeded at 3.0.0). The breaking `feat(v4)!`
+  commits make the first release from main `v4.0.0`.
+- **Floating major tags** — on every release publish, `release.yml` moves
+  the `vN` major tag to the new release, so `@v4` always resolves to the
+  latest v4 release, exactly like GitHub's own actions. The composite-action
+  self-references (`linchpin/actions/actions/*@v4`) therefore stay correct
+  with no rewrite step.
+
+GA sequence after this PR merges into main:
+
+1. Merge the release-please PR it opens → `v4.0.0` is tagged and released.
+2. Delete the `v4` development branch (a floating tag cannot coexist with a
+   branch of the same name — `release.yml` guards against the ambiguity).
+3. Run the Release workflow via workflow_dispatch with `tag=v4.0.0` to create
+   the floating `v4` tag. Callers already referencing `@v4` switch from
+   branch-resolution to tag-resolution transparently.
 4. Renovate pins third-party actions to SHAs from then on.
 
 ## Not yet ported / open items
