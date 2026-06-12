@@ -18,8 +18,12 @@
 #
 # Rollback: dispatch this workflow with the previous `release_tag`.
 #
-# NOTE: v4 currently ports the Pressable path only. HOST=wpengine|cloudways
-# callers should stay on @v3 until those hosts are ported (see docs/MIGRATION-v3-to-v4.md).
+# Hosts: HOST=pressable|wpengine|cloudways (same composite-action pattern for
+# each). The backup-and-continue flow is preserved from v3: with
+# `do_backup: true` on Pressable, the deploy triggers an on-demand backup,
+# notifies Mantle, parks the GitHub deployment as `queued`, and Mantle later
+# dispatches the caller's continue workflow (deploy-continue.yml) to finish
+# the deploy from the already-built artifact.
 
 name: Deploy WordPress Site
 
@@ -37,7 +41,7 @@ on:
         default: ""
         type: string
       do_backup:
-        description: "Trigger a Pressable on-demand backup before deploying"
+        description: "Pressable: trigger an on-demand backup, notify Mantle, and pause as 'queued' until the continue workflow is dispatched (v3-compatible)"
         required: false
         default: false
         type: boolean
@@ -73,6 +77,10 @@ on:
       SSH_USER:
         required: false
       SSH_KEY:
+        required: false
+      SSH_PASS:
+        required: false
+      MANTLE_API_BEARER:
         required: false
 
 jobs:
@@ -116,6 +124,7 @@ jobs:
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
       - name: Set deployment status to in_progress
+        if: ${{ !(vars.HOST == 'pressable' && inputs.do_backup) }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -126,15 +135,17 @@ jobs:
             --field environment_url="${{ vars.SITE_URL }}" \
             --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
+      # When parking for a backup, the release stays in the run's artifact
+      # storage (or on the GitHub release) — the continue run fetches it.
       - name: Download built release artifact
-        if: ${{ inputs.release_tag == '' }}
+        if: ${{ inputs.release_tag == '' && !(vars.HOST == 'pressable' && inputs.do_backup) }}
         uses: actions/download-artifact@v8
         with:
           name: release
           path: release
 
       - name: Download release.zip from release ${{ inputs.release_tag }}
-        if: ${{ inputs.release_tag != '' }}
+        if: ${{ inputs.release_tag != '' && !(vars.HOST == 'pressable' && inputs.do_backup) }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -144,8 +155,58 @@ jobs:
           rm -f release.zip
           echo "::notice::Deploying prebuilt asset from release ${{ inputs.release_tag }} — no rebuild needed"
 
+      # Backup-and-continue flow (Pressable, v3-compatible): trigger the
+      # backup, register the deployment with Mantle, park the deployment as
+      # `queued`, and end this run. Mantle dispatches the caller's continue
+      # workflow (-> deploy-continue.yml) once the backup completes; that run
+      # picks up the `release` artifact from THIS run via workflow_run_id.
+      - name: Queue deployment pending backup (Mantle continues it)
+        if: ${{ vars.HOST == 'pressable' && inputs.do_backup }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLIENT_ID: ${{ secrets.PRESSABLE_API_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.PRESSABLE_API_CLIENT_SECRET }}
+          MANTLE_API_BEARER: ${{ secrets.MANTLE_API_BEARER }}
+        run: |
+          response=$(curl -s --location --request POST 'https://my.pressable.com/auth/token' \
+            --form 'grant_type="client_credentials"' \
+            --form "client_id=\"$CLIENT_ID\"" \
+            --form "client_secret=\"$CLIENT_SECRET\"")
+          access_token=$(echo "$response" | jq -r '.access_token')
+          if [ -z "$access_token" ] || [ "$access_token" = "null" ]; then
+            echo "::error::Failed to authenticate with the Pressable API"
+            exit 1
+          fi
+          echo "::add-mask::$access_token"
+
+          curl -s --location --request POST 'https://my.pressable.com/v1/sites/${{ vars.SITE_ID }}/ondemand-backups' \
+            --header "Authorization: Bearer $access_token" \
+            --header 'Content-Type: application/json'
+          echo "::notice::Pressable on-demand backup triggered for site ${{ vars.SITE_ID }}"
+
+          curl -s --location --request POST 'https://mantle.linchpin.com/api/v1/deployments/start' \
+            --header 'Content-Type: application/json' \
+            --header "Authorization: Bearer $MANTLE_API_BEARER" \
+            --data-raw '{
+              "pressable_site_id": "${{ vars.SITE_ID }}",
+              "site_url": "${{ vars.SITE_URL }}",
+              "environment": "${{ inputs.environment }}",
+              "branch": "${{ vars.BRANCH }}",
+              "deployment_id": ${{ steps.deployment.outputs.id }},
+              "workflow_run_id": ${{ github.run_id }},
+              "repository": "${{ github.repository }}"
+            }'
+
+          gh api "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.id }}/statuses" \
+            --method POST \
+            --field state=queued \
+            --field environment="${{ inputs.environment }}" \
+            --field environment_url="${{ vars.SITE_URL }}" \
+            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "::notice::Deployment ${{ steps.deployment.outputs.id }} queued — Mantle will dispatch the continue workflow when the backup completes"
+
       - name: Deploy to Pressable
-        if: ${{ vars.HOST == 'pressable' }}
+        if: ${{ vars.HOST == 'pressable' && !inputs.do_backup }}
         uses: linchpin/actions/actions/deploy-pressable@v4
         with:
           site-id: ${{ vars.SITE_ID }}
@@ -157,18 +218,44 @@ jobs:
           ssh-key: ${{ secrets.SSH_KEY }}
           release-directory: release
           maintenance-mode: ${{ inputs.maintenance_mode }}
-          do-backup: ${{ inputs.do_backup }}
+          post-deploy-command: ${{ inputs.post_deploy_command }}
+          health-check: ${{ inputs.health_check }}
+
+      - name: Deploy to WP Engine
+        if: ${{ vars.HOST == 'wpengine' }}
+        uses: linchpin/actions/actions/deploy-wpengine@v4
+        with:
+          install-name: ${{ vars.INSTALL_NAME }}
+          site-url: ${{ vars.SITE_URL }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          release-directory: release
+          post-deploy-command: ${{ inputs.post_deploy_command }}
+          health-check: ${{ inputs.health_check }}
+
+      - name: Deploy to Cloudways
+        if: ${{ vars.HOST == 'cloudways' }}
+        uses: linchpin/actions/actions/deploy-cloudways@v4
+        with:
+          auth-type: ${{ vars.DEPLOYMENT_AUTH_TYPE || 'key' }}
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          ssh-pass: ${{ secrets.SSH_PASS }}
+          site-url: ${{ vars.SITE_URL }}
+          release-directory: release
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
 
       - name: Unsupported host
-        if: ${{ vars.HOST != 'pressable' }}
+        if: ${{ !contains(fromJSON('["pressable","wpengine","cloudways"]'), vars.HOST) }}
         run: |
-          echo "::error::HOST='${{ vars.HOST }}' is not ported to v4 yet — stay on linchpin/actions@v3 for this project (see docs/MIGRATION-v3-to-v4.md)"
+          echo "::error::HOST='${{ vars.HOST }}' is not supported by linchpin/actions v4 (expected pressable, wpengine, or cloudways)"
           exit 1
 
+      # When the deploy is parked for a backup, the deployment stays `queued`
+      # and the continue workflow is responsible for the final status.
       - name: Mark deployment successful
-        if: ${{ success() }}
+        if: ${{ success() && !(vars.HOST == 'pressable' && inputs.do_backup) }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

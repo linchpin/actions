@@ -18,12 +18,14 @@ minutes).
 | --- | --- | --- |
 | `build.yml` (5 jobs) | `build.yml` (1 job) | Single `release` artifact; optional `release_tag` input attaches `release.zip` to a GitHub release |
 | `create-release.yml` (4 jobs) | `create-release.yml` (thin wrapper around `build.yml`) | The attached `release.zip` is now actually deployable (see "v3 bugs fixed") |
-| `deploy.yml` (up to 9 jobs) | `deploy.yml` (2 jobs; 1 when `release_tag` is set) | Preflight/Complete bookkeeping became `gh api` steps; deploy-time lint removed |
-| `deploy-pressable.yml` + `deploy-pressable-continue.yml` + `deploy-pressable-webhook.yml` | `actions/deploy-pressable` composite action | Entrypoint script ships inside the action (no runtime wget); health check gates success |
+| `deploy.yml` (up to 9 jobs) | `deploy.yml` (2 jobs; 1 when `release_tag` is set) | Preflight/Complete bookkeeping became `gh api` steps; deploy-time lint removed; fans out to pressable/wpengine/cloudways composites by `vars.HOST` |
+| `deploy-pressable.yml` | `actions/deploy-pressable` composite action | Entrypoint script ships inside the action (no runtime wget); health check gates success |
+| `deploy-pressable-continue.yml` + `deploy-pressable-webhook.yml` | `deploy-continue.yml` | Backup-and-continue flow preserved and actually wired (see below); Mantle contract unchanged |
+| `deploy-wpengine.yml` | `actions/deploy-wpengine` composite action | SSH config inlined (drops the `actions-wpengine-ssh@main` moving ref); endpoint.sh folded into the entrypoint |
+| `deploy-cloudways.yml` | `actions/deploy-cloudways` composite action | Key and password auth in one code path; maintenance.php ships with the action |
 | `phplint.yml` + `phpcs.yml` + `phpcbf.yml` | `lint.yml` (1 job) | One cached Composer install; phpcs annotates changed files via cs2pr; phpcbf is a local pre-commit concern now |
 | `update-readme.yml` | `update-readme.yml` + `actions/update-readme` composite | Script bundled; callers should gate on composer.lock changes |
 | `ymllint.yml` | `ci.yml` | Adds actionlint + zizmor, runs on PRs |
-| `deploy-wpengine.yml`, `deploy-cloudways.yml` | **not ported yet** | Stay on `@v3` for those hosts until ported |
 | n/a | `actions/setup-wp-php` composite | shivammathur/setup-php + cached Composer + `COMPOSER_AUTH` env (no auth.json on disk) |
 | n/a | `actions/build-release` composite | Bundled cleanup.sh + default.distignore |
 | n/a | Rollback support | Dispatch `deploy.yml` with a previous `release_tag` — pure transport, no rebuild |
@@ -74,12 +76,21 @@ survives the rewrite:
 - **Maintenance mode is opt-in** (`maintenance_mode: false` by default). The
   per-theme/per-plugin rsync is brief; most deploys don't need a window.
   v3 always enabled it. Set `maintenance_mode: true` for risky releases.
-- **`do_backup` no longer pauses the pipeline.** v3 set the deployment to
-  `queued` and waited for an external system (Mantle) to re-trigger a
-  "continue" workflow via `workflow_dispatch`. v4 fires the Pressable
-  on-demand backup and proceeds. The webhook/continue workflows are removed.
-  ⚠️ If any project still relies on the Mantle continue flow, it must stay on
-  v3 until this is revisited.
+- **The backup-and-continue flow is preserved — and now actually plumbed.**
+  With `do_backup: true` (Pressable), `deploy.yml` triggers the on-demand
+  backup, registers the deployment with Mantle
+  (`POST mantle.linchpin.com/api/v1/deployments/start` with `deployment_id` +
+  `workflow_run_id`, same contract as v3), parks the GitHub deployment as
+  `queued`, and ends. Mantle dispatches the caller's continue workflow, which
+  calls `deploy-continue.yml` to finish from the already-built artifact.
+  v4 fixes the v3 gaps that kept this aspirational: the caller's dispatch
+  workflow now declares explicit inputs (v3 read `github.event.deployment.id`,
+  which a `workflow_dispatch` payload does not carry), and the cross-run
+  artifact download now passes `run-id` + `github-token` (plus the
+  `actions: read` permission), which v3 omitted — so the continue run can
+  genuinely fetch the release built by the original run.
+  ⚠️ Mantle must dispatch with
+  `{"inputs": {"deployment_id": "...", "workflow_run_id": "..."}}`.
 - **Success means the site responds.** The deploy job now health-checks
   `vars.SITE_URL` (any HTTP status < 500 passes, so auth walls and redirects
   are fine) before marking the GitHub deployment successful. Disable with
@@ -193,9 +204,45 @@ jobs:
       release_tag: ${{ inputs.release_tag }}
 ```
 
+### Continue workflow — declare the dispatch inputs
+
+The caller-side continue workflow stays (Mantle dispatches it), but it must
+declare its inputs explicitly:
+
+```yaml
+name: Continue Deploy to Production
+on:
+  workflow_dispatch: # Dispatched by Mantle when the Pressable backup completes
+    inputs:
+      deployment_id:
+        description: "GitHub deployment ID from the original deploy run"
+        required: true
+      workflow_run_id:
+        description: "Run ID of the original deploy (source of the release artifact)"
+        required: true
+      release_tag:
+        description: "Set when the original deploy used a release asset"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  deployments: write
+  actions: read
+
+jobs:
+  deploy:
+    uses: linchpin/actions/.github/workflows/deploy-continue.yml@v4
+    secrets: inherit
+    with:
+      environment: production
+      deployment_id: ${{ inputs.deployment_id }}
+      workflow_run_id: ${{ inputs.workflow_run_id }}
+      release_tag: ${{ inputs.release_tag }}
+```
+
 ### Remove
 
-- `deploy-production-continue.yml` (the Mantle continue flow is gone in v4)
 - `skip_lint`, `do_backup: false` inputs from deploy callers (both are
   defaults now; `skip_lint` no longer exists)
 
@@ -205,9 +252,12 @@ Unchanged from v3 — same names, same levels:
 
 - Secrets: `PACKAGIST_COMPOSER_AUTH_JSON`, `PRESSABLE_API_CLIENT_ID`,
   `PRESSABLE_API_CLIENT_SECRET`, `SSH_HOST`, `SSH_USER`, `SSH_KEY`,
+  `SSH_PASS` (Cloudways Autonomous), `MANTLE_API_BEARER` (backup/continue),
   `GH_BOT_TOKEN` (update-readme only)
-- Repo vars: `HOST`, `PHP_VERSION`, `NODE_VERSION`, `THEMES`, `PLUGINS`,
-  `THEME_USES_COMPOSER`, `PLUGIN_USES_COMPOSER`, `REMOTE_PLUGIN_INSTALL`
+- Repo vars: `HOST` (pressable|wpengine|cloudways), `PHP_VERSION`,
+  `NODE_VERSION`, `THEMES`, `PLUGINS`, `THEME_USES_COMPOSER`,
+  `PLUGIN_USES_COMPOSER`, `REMOTE_PLUGIN_INSTALL`,
+  `DEPLOYMENT_AUTH_TYPE` (cloudways: key|pass), `INSTALL_NAME` (wpengine)
 - Environment vars: `SITE_ID`, `SITE_URL`, `BRANCH`
 
 v4 reusable workflows declare their secrets explicitly (documenting the
@@ -232,9 +282,14 @@ so every client absorbed v3 changes the moment they landed. For v4:
 
 ## Not yet ported / open items
 
-- [ ] WP Engine and Cloudways deploy paths (`HOST=wpengine|cloudways` must stay on v3)
+- [ ] Validate the WP Engine and Cloudways composites against a live client
+      site before any client repo moves to v4 (ported from v3 logic, with its
+      shell bugs fixed, but untested against real installs)
+- [ ] Update Mantle to dispatch the continue workflow with explicit
+      `inputs: {deployment_id, workflow_run_id}` (v3 dispatched without
+      inputs, which could never work)
 - [ ] `REMOTE_PLUGIN_INSTALL=true` flow (`.deployment/remote-plugin-install.sh`)
-- [ ] Decide the long-term `do_backup` story (synchronous poll vs. fire-and-proceed vs. Mantle)
+- [ ] WP Engine / Cloudways equivalents for `do_backup` (was already a TODO in v3)
 - [ ] Make actionlint/zizmor blocking in `ci.yml` and pin actionlint by digest
 - [ ] Consider `ubuntu-24.04-arm` runners (~37% cheaper minutes) once v4 is stable
 - [ ] Artifact attestations (`actions/attest-build-provenance`) on release.zip

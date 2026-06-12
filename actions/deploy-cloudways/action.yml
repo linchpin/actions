@@ -1,0 +1,137 @@
+name: "Deploy to Cloudways"
+description: >-
+  Upload a release directory to a Cloudways server over SSH (key or password
+  auth) and sync it into the live wp-content.
+
+  v4 note (previous/next): in v3 this was deploy-cloudways.yml — every step
+  was duplicated for key vs password auth, the entrypoint and maintenance.php
+  were wget'd from the v3 branch on the server, and the artifact handling
+  assumed a zip layout the v3 build never actually produced. In v4 it is a
+  composite action: one code path with an auth-type switch, scripts ship with
+  the action, and the release zip layout matches the v4 build convention
+  (themes/ and plugins/ at the zip root).
+
+inputs:
+  auth-type:
+    description: "SSH auth type: 'key' (default) or 'pass' (Cloudways Autonomous)"
+    required: false
+    default: "key"
+  ssh-host:
+    description: "SSH host"
+    required: true
+  ssh-user:
+    description: "SSH user"
+    required: true
+  ssh-key:
+    description: "SSH private key (auth-type: key)"
+    required: false
+    default: ""
+  ssh-pass:
+    description: "SSH password (auth-type: pass)"
+    required: false
+    default: ""
+  site-url:
+    description: "Public URL of the site (used for the health check)"
+    required: false
+    default: ""
+  release-directory:
+    description: "Local directory containing the cleaned release"
+    required: false
+    default: "release"
+  deployment-path:
+    description: "Remote staging path for uploaded releases"
+    required: false
+    default: "~/private_html/releases"
+  post-deploy-command:
+    description: "Optional shell command(s) run on the server after the sync"
+    required: false
+    default: ""
+  health-check:
+    description: "Curl the site after deploy and fail on connection errors or HTTP 5xx (true/false)"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure SSH connection
+      shell: bash
+      env:
+        AUTH_TYPE: ${{ inputs.auth-type }}
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_USER: ${{ inputs.ssh-user }}
+        SSH_KEY: ${{ inputs.ssh-key }}
+      run: |
+        SSH_PATH="$HOME/.ssh"
+        mkdir -p "$SSH_PATH"
+        ssh-keyscan -t rsa "$SSH_HOST" >> "$SSH_PATH/known_hosts"
+        chmod 700 "$SSH_PATH"
+        chmod 644 "$SSH_PATH/known_hosts"
+        if [ "$AUTH_TYPE" = "key" ]; then
+          echo "$SSH_KEY" > "$SSH_PATH/github_action"
+          chmod 600 "$SSH_PATH/github_action"
+          cat >> "$SSH_PATH/config" <<END
+          Host cloudways
+            HostName $SSH_HOST
+            User $SSH_USER
+            IdentityFile $SSH_PATH/github_action
+            StrictHostKeyChecking no
+        END
+        else
+          cat >> "$SSH_PATH/config" <<END
+          Host cloudways
+            HostName $SSH_HOST
+            User $SSH_USER
+            StrictHostKeyChecking no
+        END
+        fi
+
+    - name: Upload release and scripts, sync on the server
+      id: deploy
+      shell: bash
+      env:
+        AUTH_TYPE: ${{ inputs.auth-type }}
+        SSH_PASS: ${{ inputs.ssh-pass }}
+        DEPLOY_PATH: ${{ inputs.deployment-path }}
+      run: |
+        # One code path for both auth types (v3 duplicated every step)
+        if [ "$AUTH_TYPE" = "pass" ]; then
+          run_remote() { sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no cloudways "$@"; }
+          copy_remote() { sshpass -p "$SSH_PASS" rsync --rsh="ssh -o StrictHostKeyChecking=no" -zrxc --no-perms --no-times "$1" "cloudways:$2"; }
+        else
+          run_remote() { ssh cloudways "$@"; }
+          copy_remote() { rsync -e "ssh -p 22" -zrxc "$1" "cloudways:$2"; }
+        fi
+
+        ts="$(date +'%s')"
+        cd "${{ inputs.release-directory }}"
+        zip -rq "$GITHUB_WORKSPACE/$ts.zip" ./
+        cd "$GITHUB_WORKSPACE"
+
+        run_remote "mkdir -p $DEPLOY_PATH"
+        copy_remote "$ts.zip" "$DEPLOY_PATH/"
+        run_remote "rm -rf $DEPLOY_PATH/release && unzip -o -q $DEPLOY_PATH/$ts.zip -d $DEPLOY_PATH/release && mkdir -p $DEPLOY_PATH/release/.deployment"
+        copy_remote "${{ github.action_path }}/cloudways-entrypoint.sh" "$DEPLOY_PATH/release/.deployment/entrypoint.sh"
+        copy_remote "${{ github.action_path }}/maintenance.php" "$DEPLOY_PATH/release/.deployment/maintenance.php"
+        run_remote "cd $DEPLOY_PATH/release/.deployment && chmod +x ./entrypoint.sh && bash ./entrypoint.sh"
+
+        if [ -n "${{ inputs.post-deploy-command }}" ]; then
+          run_remote "${{ inputs.post-deploy-command }}"
+        fi
+
+    - name: Health check
+      if: ${{ inputs.health-check == 'true' && inputs.site-url != '' }}
+      shell: bash
+      run: |
+        URL="${{ inputs.site-url }}"
+        for i in $(seq 1 10); do
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL" || echo 000)
+          if [ "$code" -ge 100 ] && [ "$code" -lt 500 ]; then
+            echo "::notice::Health check passed for $URL (HTTP $code)"
+            exit 0
+          fi
+          echo "Attempt $i/10: HTTP $code — retrying in 6s"
+          sleep 6
+        done
+        echo "::error::Health check failed for $URL"
+        exit 1

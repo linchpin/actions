@@ -46,8 +46,8 @@ inputs:
     description: "Enable Pressable maintenance mode during the sync (true/false)"
     required: false
     default: "false"
-  do-backup:
-    description: "Trigger a Pressable on-demand backup before syncing (true/false)"
+  trigger-backup:
+    description: "Fire a Pressable on-demand backup before syncing and proceed without waiting (true/false). For the v3-style pause-until-backup-completes flow, use deploy.yml's do_backup input instead."
     required: false
     default: "false"
   post-deploy-command:
@@ -82,13 +82,12 @@ runs:
         echo "token=$access_token" >> "$GITHUB_OUTPUT"
 
     - name: Trigger on-demand backup
-      if: ${{ inputs.do-backup == 'true' }}
+      if: ${{ inputs.trigger-backup == 'true' }}
       shell: bash
       run: |
-        # v4 change: v3 paused the whole deployment here and waited for an
-        # external system (Mantle) to re-trigger a "continue" workflow via the
-        # API. v4 fires the backup and proceeds — Pressable snapshots run
-        # server-side and do not depend on the deploy waiting.
+        # Fire-and-proceed backup. The v3-style pause-until-backup-completes
+        # flow (Mantle dispatches a continue workflow) lives in deploy.yml's
+        # do_backup input + deploy-continue.yml, not in this action.
         curl -s --location --request POST 'https://my.pressable.com/v1/sites/${{ inputs.site-id }}/ondemand-backups' \
           --header 'Authorization: Bearer ${{ steps.authenticate.outputs.token }}' \
           --header 'Content-Type: application/json'

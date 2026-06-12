@@ -50,10 +50,12 @@ To learn more [about secrets](https://docs.github.com/en/actions/security-for-gi
 | ---------------------------- | ------- | --------------------------------------------------------------------------------------- |
 | SSH_KEY                      |         | The SSH key used to interact w/ the remote environment                                  |
 | SSH_USER                     |         | The SSH user used to interact w/ the remote environment                                 |
+| SSH_PASS                     |         | The SSH pass for environments that cannot support SSH Keys (Cloudways Autonomous)       |
 | SSH_HOST                     |         | The SSH IP or Host Name                                                                 |
 | PACKAGIST_COMPOSER_AUTH_JSON |         | auth.json contents for packagist.linchpin.com (v4 passes this via the COMPOSER_AUTH env) |
 | PRESSABLE_API_CLIENT_ID      |         | Pressable API client (maintenance mode, backups)                                        |
 | PRESSABLE_API_CLIENT_SECRET  |         | Pressable API secret                                                                    |
+| MANTLE_API_BEARER            |         | Mantle API token used by the backup-and-continue deploy flow                            |
 | GH_BOT_TOKEN                 |         | Bot token used by update-readme.yml to open PRs                                         |
 | SATISPRESS_USER              |         | Private Packagist auth (remote-plugin-install path — not yet ported to v4)              |
 | SATISPRESS_PASSWORD          |         | Private Packagist auth (remote-plugin-install path — not yet ported to v4)              |
@@ -64,9 +66,11 @@ To learn more [about variables](https://docs.github.com/en/actions/writing-workf
 
 | Key                   | Default | Description                                                                              |
 | --------------------- | ------- | ---------------------------------------------------------------------------------------- |
-| HOST                  |         | The host of the project. v4 supports `pressable`; wpengine/cloudways remain on v3        |
+| HOST                  |         | The host of the project, one of `pressable`, `wpengine`, `cloudways`                     |
 | SITE_URL              |         | The url of the site including https:// (also used by the v4 post-deploy health check)    |
 | SITE_ID               |         | When using **Pressable** this is how we reference a site                                 |
+| INSTALL_NAME          |         | Install name when project is hosted on WP Engine                                         |
+| DEPLOYMENT_AUTH_TYPE  | key     | Cloudways SSH auth type: `key` or `pass` (Cloudways Autonomous)                          |
 | REMOTE_PLUGIN_INSTALL | false   | Install plugins on the server via WP CLI instead of shipping them (not yet ported to v4) |
 | BRANCH                | staging | The default branch associated with the environment                                       |
 | PHP_VERSION           |         | PHP version used for builds and linting (e.g. `8.5`)                                     |
@@ -76,8 +80,9 @@ To learn more [about variables](https://docs.github.com/en/actions/writing-workf
 | THEME_USES_COMPOSER   | false   | Do the theme(s) use composer to load dependencies                                        |
 | PLUGIN_USES_COMPOSER  | true    | Do the plugin(s) use composer to load dependencies                                       |
 
-> v3's `ENVIRONMENT`, `DEPLOYMENT_AUTH_TYPE`, `DEPLOYMENT_PATH` and
-> `INSTALL_NAME` variables are no longer read by v4 workflows.
+> v3's `ENVIRONMENT` and `DEPLOYMENT_PATH` variables are no longer read by
+> v4 workflows (deployment paths are composite-action inputs with per-host
+> defaults).
 
 ## GitHub Reusable Workflows
 
@@ -87,7 +92,8 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | [build.yml](.github/workflows/build.yml)                   | Single-job project build producing a deploy-ready `release` artifact; optionally attaches it to a GitHub release |
 | [create-release.yml](.github/workflows/create-release.yml) | Thin wrapper around build.yml used from release-please callers — builds once and attaches `release.zip`       |
-| [deploy.yml](.github/workflows/deploy.yml)                 | Deploys a fresh build (staging) or a prebuilt release asset (production/rollback) to Pressable                |
+| [deploy.yml](.github/workflows/deploy.yml)                 | Deploys a fresh build (staging) or a prebuilt release asset (production/rollback) to Pressable, WP Engine, or Cloudways |
+| [deploy-continue.yml](.github/workflows/deploy-continue.yml) | Second half of the backup-and-continue flow — dispatched (via the caller) by Mantle once the Pressable backup completes |
 | [lint.yml](.github/workflows/lint.yml)                     | PR lint: PHP syntax (any version), phpcs on changed files via cs2pr, optional PHPStan                          |
 | [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
 | [ci.yml](.github/workflows/ci.yml)                         | This repo's own CI: actionlint + yamllint + zizmor                                                             |
@@ -99,6 +105,8 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [setup-wp-php](actions/setup-wp-php)            | PHP via setup-php + cached Composer install + COMPOSER_AUTH (no auth.json on disk) |
 | [build-release](actions/build-release)          | Turn a built tree into a clean release/ dir using the project .distignore          |
 | [deploy-pressable](actions/deploy-pressable)    | Upload + sync a release to Pressable over SSH, maintenance mode, health check      |
+| [deploy-wpengine](actions/deploy-wpengine)      | Upload + sync a release to WP Engine over SSH, health check                        |
+| [deploy-cloudways](actions/deploy-cloudways)    | Upload + sync a release to Cloudways (key or password SSH auth), health check      |
 | [update-readme](actions/update-readme)          | Regenerate the README plugin/theme table from composer.lock                        |
 
 ## Example Shared Workflow Usage
