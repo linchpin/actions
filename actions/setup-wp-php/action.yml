@@ -1,0 +1,84 @@
+name: "Setup WP PHP"
+description: >-
+  Install PHP and Composer dependencies with caching.
+
+  v4 note (previous/next): in v3 every workflow re-implemented this with
+  php-actions/composer (a Docker image pulled on every run) and wrote the
+  Packagist credentials to an auth.json file on disk. In v4 PHP comes from
+  shivammathur/setup-php (preinstalled on hosted runners, starts in seconds),
+  the Composer download cache is restored via actions/cache keyed on
+  composer.lock, and Packagist credentials are passed through the COMPOSER_AUTH
+  environment variable so they never touch the filesystem or an artifact.
+
+inputs:
+  php-version:
+    description: "PHP version to install (e.g. 8.5)"
+    required: true
+  working-directory:
+    description: "Directory containing composer.json"
+    required: false
+    default: "."
+  dev:
+    description: "Install dev dependencies (yes/no). 'no' adds --no-dev --optimize-autoloader"
+    required: false
+    default: "no"
+  composer-args:
+    description: "Base arguments passed to composer install"
+    required: false
+    default: "--prefer-dist --no-progress --no-interaction"
+  composer-auth:
+    description: "JSON for the COMPOSER_AUTH env var (e.g. the PACKAGIST_COMPOSER_AUTH_JSON secret)"
+    required: false
+    default: ""
+  tools:
+    description: "Tools for shivammathur/setup-php"
+    required: false
+    default: "composer, cs2pr"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php-version }}
+        coverage: none
+        tools: ${{ inputs.tools }}
+
+    - name: Determine Composer cache directory
+      id: composer-cache
+      shell: bash
+      run: |
+        dir="$(composer config --global cache-files-dir 2>/dev/null || true)"
+        if [ -z "$dir" ]; then
+          dir="$HOME/.cache/composer/files"
+        fi
+        echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Composer downloads
+      uses: actions/cache@v5
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: composer-${{ runner.os }}-php${{ inputs.php-version }}-${{ hashFiles(format('{0}/composer.lock', inputs.working-directory)) }}
+        restore-keys: |
+          composer-${{ runner.os }}-php${{ inputs.php-version }}-
+
+    - name: Composer install
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        COMPOSER_AUTH_INPUT: ${{ inputs.composer-auth }}
+      run: |
+        if [ ! -f composer.json ]; then
+          echo "::notice::No composer.json in '${{ inputs.working-directory }}' — skipping Composer install"
+          exit 0
+        fi
+        if [ -n "$COMPOSER_AUTH_INPUT" ]; then
+          export COMPOSER_AUTH="$COMPOSER_AUTH_INPUT"
+        fi
+        EXTRA_ARGS=""
+        if [ "${{ inputs.dev }}" = "no" ]; then
+          EXTRA_ARGS="--no-dev --optimize-autoloader"
+        fi
+        # shellcheck disable=SC2086
+        composer install ${{ inputs.composer-args }} $EXTRA_ARGS

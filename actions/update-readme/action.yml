@@ -1,0 +1,14 @@
+name: "Update README plugin list"
+description: >-
+  Regenerate the README.md plugin/theme table from composer.lock.
+
+  v4 note (previous/next): in v3 the script was wget'd from the v3 branch at
+  run time; in v4 it is bundled in this composite action and resolved via
+  github.action_path.
+
+runs:
+  using: "composite"
+  steps:
+    - name: Update README.md from composer.lock
+      shell: bash
+      run: bash "${{ github.action_path }}/update-readme.sh"

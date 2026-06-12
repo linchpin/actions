@@ -1,0 +1,36 @@
+name: "Build Release Directory"
+description: >-
+  Turn a built working tree into a clean, deployable release/ directory by
+  applying the project .distignore.
+
+  v4 note (previous/next): in v3 this logic lived in .deployment/cleanup.sh and
+  was downloaded with wget from the v3 *branch* at run time, so even a pinned
+  caller executed whatever was on the branch that day. In v4 the script and the
+  default .distignore are bundled inside this composite action and resolved via
+  github.action_path — the ref you pin is the code that runs.
+
+inputs:
+  source-directory:
+    description: "Directory containing the built project"
+    required: false
+    default: "."
+  target-directory:
+    description: "Directory to write the cleaned release into"
+    required: false
+    default: "release"
+  remote-plugin-install:
+    description: "When 'true', composer.json/composer.lock are kept in the release so the server can install plugins remotely"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Assemble release directory
+      shell: bash
+      run: >-
+        bash "${{ github.action_path }}/cleanup.sh"
+        "${{ inputs.source-directory }}"
+        "${{ inputs.target-directory }}"
+        "${{ inputs.remote-plugin-install }}"
+        "${{ github.action_path }}/default.distignore"
