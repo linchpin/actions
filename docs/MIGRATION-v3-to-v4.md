@@ -153,8 +153,13 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+# contents: write (NOT read) — even though the asset path skips the build
+# job, GitHub validates the whole called-workflow call tree at startup, and
+# deploy.yml -> build.yml declares contents: write. A caller granting only
+# read fails immediately with "the nested job 'build' is requesting
+# 'contents: write', but is only allowed 'contents: read'".
 permissions:
-  contents: read
+  contents: write
   deployments: write
 
 jobs:
@@ -165,6 +170,13 @@ jobs:
       environment: production
       release_tag: ${{ github.event.release.tag_name }}
 ```
+
+> **Asset/deploy race:** `release: published` fires this deploy at the same
+> moment release-please's `create-release` job starts *building* the asset.
+> The deploy's download step waits (polls up to ~10 min) for `release.zip` to
+> be attached, so the ordering resolves itself — but it does mean the first
+> few minutes of a production deploy may show "release.zip not attached yet…"
+> while the build runs. That is expected, not an error.
 
 ### release-please — pass the tag so the asset gets attached
 

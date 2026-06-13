@@ -114,10 +114,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download "${{ inputs.release_tag }}" --pattern release.zip --repo "${{ github.repository }}"
-          mkdir -p release
-          unzip -oq release.zip -d release
-          rm -f release.zip
+          # Wait for the asset in case create-release is still attaching it
+          # (see the note in deploy.yml's equivalent step).
+          TAG="${{ inputs.release_tag }}"
+          REPO="${{ github.repository }}"
+          for attempt in $(seq 1 40); do
+            if gh release download "$TAG" --pattern release.zip --repo "$REPO" --clobber 2>/dev/null; then
+              mkdir -p release
+              unzip -oq release.zip -d release
+              rm -f release.zip
+              exit 0
+            fi
+            echo "release.zip not attached to $TAG yet (attempt $attempt/40) — waiting 15s…"
+            sleep 15
+          done
+          echo "::error::release.zip never appeared on $TAG after ~10 min."
+          exit 1
 
       - name: Deploy to Pressable
         if: ${{ vars.HOST == 'pressable' }}
