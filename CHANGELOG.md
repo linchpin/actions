@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0](https://github.com/linchpin/actions/compare/v4.0.2...v4.1.0) (2026-06-17)
+
+
+### Features
+
+* add composer validate gate to catch lock drift early ([#121](https://github.com/linchpin/actions/issues/121)) ([b40b626](https://github.com/linchpin/actions/commit/b40b6261c770b55958744b960444d0485184fff8))
+
 ## [4.0.2](https://github.com/linchpin/actions/compare/v4.0.1...v4.0.2) (2026-06-13)
 
 
