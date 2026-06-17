@@ -79,6 +79,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      # Defense in depth: a desynced lock should be caught on the PR by
+      # validate-composer.yml, but if one ever reaches a release build this
+      # fails in seconds with a clear message — before the long install — rather
+      # than crashing partway through `composer install`. composer is
+      # preinstalled on hosted runners, so this runs before the PHP setup below.
+      - name: Validate composer.lock is in sync with composer.json
+        run: |
+          set -uo pipefail
+          status=0
+          for dir in . themes/* plugins/*; do
+            if [ -f "$dir/composer.json" ] && [ -f "$dir/composer.lock" ]; then
+              if ! composer validate --no-check-all --no-check-publish --working-dir="$dir"; then
+                echo "::error::composer.lock in '$dir' is out of sync with its composer.json — run 'composer update' in $dir and commit the lock. A tagged release was already cut; fix this and roll a new release."
+                status=1
+              fi
+            fi
+          done
+          exit $status
+
       - name: Setup PHP and install project Composer dependencies
         if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' }}
         uses: linchpin/actions/actions/setup-wp-php@v4
