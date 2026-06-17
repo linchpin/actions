@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.1](https://github.com/linchpin/actions/compare/v4.2.0...v4.2.1) (2026-06-17)
+
+
+### Bug Fixes
+
+* validate composer lock with install, not validate (version-field churn) ([#125](https://github.com/linchpin/actions/issues/125)) ([9e96999](https://github.com/linchpin/actions/commit/9e969994a2c34d1da444e27b6e9a179942d28730))
+
 ## [4.2.0](https://github.com/linchpin/actions/compare/v4.1.0...v4.2.0) (2026-06-17)
 
 
