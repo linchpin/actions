@@ -1,24 +1,25 @@
 # Validate Composer (v4)
 #
-# A fast, always-runs gate that fails when a composer.lock is out of sync with
-# its composer.json — a locked version no longer satisfies a constraint, or
-# composer.json changed without a lock rebuild. That is the exact failure that
-# otherwise stays hidden until release-build time: create-release runs
-# `composer install`, it errors with "the lock file is not up to date", no
-# release.zip is attached, and the production deploy dies with "no assets to
-# download" — after release-please has already cut the tag. Catching it on the
-# PR means the bad lock never reaches main, so the doomed release is never cut.
+# A PR-time gate that fails when composer.lock can no longer be installed against
+# composer.json — i.e. a locked package version no longer satisfies a constraint
+# (someone bumped a constraint in composer.json without rebuilding the lock).
+# That is the exact failure that otherwise stays hidden until release-build time:
+# create-release runs `composer install`, it exits non-zero, no release.zip is
+# attached, and (without draft releases) the production deploy dies with "no
+# assets to download" after release-please has already cut the tag. Catching it
+# on the PR means the bad lock never reaches main.
 #
-# Why not `--strict`: this project family keeps a `version` field in
-# composer.json (managed by release-please) and pins some wpackagist plugins to
-# exact versions. `--strict` escalates those benign warnings to errors and the
-# gate would fail on a perfectly in-sync lock. `--no-check-all` drops the
-# constraint-strictness warnings and `--no-check-publish` drops the
-# publish-readiness warnings; the lock-freshness check still fails the run
-# (composer validate exits 2) when the lock has actually drifted.
+# Why `composer install --dry-run` and NOT `composer validate`: release-please
+# bumps the `version` field in composer.json on every release without rebuilding
+# the lock. `composer validate` treats that benign content-hash mismatch as an
+# error (exit 2) and would fail every release PR and release build, while
+# `composer install` correctly tolerates it (warns, succeeds) and only fails on
+# a genuinely unsatisfiable lock. This gate therefore mirrors the build exactly.
 #
-# Validates the root composer.json plus every themes/* and plugins/* package
-# that ships its own lock, since build.yml installs each of those too.
+# Runs over the root composer.json plus every themes/* and plugins/* package
+# that ships its own lock, since build.yml installs each of those too. --no-dev
+# matches the release build (dev-only drift does not break a deploy and is
+# covered by lint.yml).
 
 name: Validate Composer
 
@@ -30,21 +31,22 @@ on:
         required: false
         default: ""
         type: string
+    secrets:
+      PACKAGIST_COMPOSER_AUTH_JSON:
+        description: "auth.json for packagist.linchpin.com (passed via COMPOSER_AUTH; needed to resolve private packages)"
+        required: false
 
 jobs:
   validate:
-    name: composer validate
+    name: composer install (lock satisfies composer.json?)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      # No Composer install here on purpose — `composer validate` only parses
-      # composer.json/composer.lock, so the gate stays fast (~seconds) and needs
-      # no Packagist credentials.
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -52,15 +54,19 @@ jobs:
           coverage: none
           tools: composer
 
-      - name: Validate composer.lock is in sync with composer.json
+      - name: Dry-run install from each lock (no vendor written, no rebuild)
+        env:
+          # COMPOSER_AUTH lets the dry run resolve private packages
+          # (packagist.linchpin.com) without writing an auth.json to disk.
+          COMPOSER_AUTH: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
         run: |
           set -uo pipefail
           status=0
           for dir in . themes/* plugins/*; do
             if [ -f "$dir/composer.json" ] && [ -f "$dir/composer.lock" ]; then
-              echo "::group::composer validate ($dir)"
-              if ! composer validate --no-check-all --no-check-publish --working-dir="$dir"; then
-                echo "::error::composer.lock in '$dir' is out of sync with its composer.json. Run 'composer update' (or 'composer update <package>') in $dir and commit the updated composer.lock."
+              echo "::group::composer install --dry-run ($dir)"
+              if ! composer install --no-dev --dry-run --no-interaction --no-progress --working-dir="$dir"; then
+                echo "::error::composer.lock in '$dir' can no longer be installed against its composer.json (a locked version no longer satisfies a constraint). Run 'composer update' in $dir and commit the lock."
                 status=1
               fi
               echo "::endgroup::"
