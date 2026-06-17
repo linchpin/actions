@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.2](https://github.com/linchpin/actions/compare/v4.0.1...v4.0.2) (2026-06-13)
+
+
+### Bug Fixes
+
+* wait for release.zip asset before deploying (asset/deploy race) ([4f116cd](https://github.com/linchpin/actions/commit/4f116cdd67739204ac0890dcab35254af1b2e87e))
+
 ## [4.0.1](https://github.com/linchpin/actions/compare/v4.0.0...v4.0.1) (2026-06-12)
 
 
