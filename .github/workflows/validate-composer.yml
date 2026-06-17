@@ -1,0 +1,69 @@
+# Validate Composer (v4)
+#
+# A fast, always-runs gate that fails when a composer.lock is out of sync with
+# its composer.json — a locked version no longer satisfies a constraint, or
+# composer.json changed without a lock rebuild. That is the exact failure that
+# otherwise stays hidden until release-build time: create-release runs
+# `composer install`, it errors with "the lock file is not up to date", no
+# release.zip is attached, and the production deploy dies with "no assets to
+# download" — after release-please has already cut the tag. Catching it on the
+# PR means the bad lock never reaches main, so the doomed release is never cut.
+#
+# Why not `--strict`: this project family keeps a `version` field in
+# composer.json (managed by release-please) and pins some wpackagist plugins to
+# exact versions. `--strict` escalates those benign warnings to errors and the
+# gate would fail on a perfectly in-sync lock. `--no-check-all` drops the
+# constraint-strictness warnings and `--no-check-publish` drops the
+# publish-readiness warnings; the lock-freshness check still fails the run
+# (composer validate exits 2) when the lock has actually drifted.
+#
+# Validates the root composer.json plus every themes/* and plugins/* package
+# that ships its own lock, since build.yml installs each of those too.
+
+name: Validate Composer
+
+on:
+  workflow_call:
+    inputs:
+      php_version:
+        description: "PHP version. Defaults to vars.PHP_VERSION, then 8.5"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  validate:
+    name: composer validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      # No Composer install here on purpose — `composer validate` only parses
+      # composer.json/composer.lock, so the gate stays fast (~seconds) and needs
+      # no Packagist credentials.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php_version || vars.PHP_VERSION || '8.5' }}
+          coverage: none
+          tools: composer
+
+      - name: Validate composer.lock is in sync with composer.json
+        run: |
+          set -uo pipefail
+          status=0
+          for dir in . themes/* plugins/*; do
+            if [ -f "$dir/composer.json" ] && [ -f "$dir/composer.lock" ]; then
+              echo "::group::composer validate ($dir)"
+              if ! composer validate --no-check-all --no-check-publish --working-dir="$dir"; then
+                echo "::error::composer.lock in '$dir' is out of sync with its composer.json. Run 'composer update' (or 'composer update <package>') in $dir and commit the updated composer.lock."
+                status=1
+              fi
+              echo "::endgroup::"
+            fi
+          done
+          exit $status
