@@ -148,13 +148,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # The `release: published` event and create-release's asset upload
-          # race: this deploy can start before create-release has finished
-          # building and attaching release.zip (~4 min). Wait for the asset
-          # rather than failing, then download it.
+          # With release-please `draft: true`, the release is published only
+          # after create-release has attached release.zip (see build.yml), so by
+          # the time `release: published` fires the asset is already present and
+          # the first download succeeds. This short retry is just a safety net
+          # for GitHub asset eventual-consistency (or a caller not using draft
+          # releases); it caps at ~2 min so a genuinely missing asset fails fast
+          # instead of billing ~10 min of idle polling.
           TAG="${{ inputs.release_tag }}"
           REPO="${{ github.repository }}"
-          for attempt in $(seq 1 40); do
+          for attempt in $(seq 1 8); do
             if gh release download "$TAG" --pattern release.zip --repo "$REPO" --clobber 2>/dev/null; then
               echo "::notice::Deploying prebuilt asset from release $TAG — no rebuild needed"
               mkdir -p release
@@ -162,10 +165,10 @@ jobs:
               rm -f release.zip
               exit 0
             fi
-            echo "release.zip not attached to $TAG yet (attempt $attempt/40) — waiting 15s for create-release to finish…"
+            echo "release.zip not on $TAG yet (attempt $attempt/8) — retrying in 15s…"
             sleep 15
           done
-          echo "::error::release.zip never appeared on $TAG after ~10 min. Did create-release@v4 run and succeed?"
+          echo "::error::release.zip never appeared on $TAG after ~2 min. Did create-release@v4 build, attach the asset, and publish the release?"
           exit 1
 
       # Backup-and-continue flow (Pressable, v3-compatible): trigger the
