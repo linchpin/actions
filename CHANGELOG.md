@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.0](https://github.com/linchpin/actions/compare/v4.1.0...v4.2.0) (2026-06-17)
+
+
+### Features
+
+* publish release after asset attach (draft-safe) and trim deploy wait ([#123](https://github.com/linchpin/actions/issues/123)) ([f57f453](https://github.com/linchpin/actions/commit/f57f4533fac01d776da65b9c0f2b9e823b644651))
+
 ## [4.1.0](https://github.com/linchpin/actions/compare/v4.0.2...v4.1.0) (2026-06-17)
 
 
