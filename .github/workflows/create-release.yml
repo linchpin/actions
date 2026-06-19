@@ -33,13 +33,22 @@ on:
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON:
         required: false
+      GH_BOT_TOKEN:
+        description: >-
+          PAT forwarded to build.yml so it can PUBLISH the draft release with a
+          token that triggers downstream `release: published` workflows
+          (GITHUB_TOKEN-created events do not). Optional; build falls back to
+          github.token when unset.
+        required: false
 
 jobs:
   build:
     name: Build release asset
     uses: ./.github/workflows/build.yml
-    secrets:
-      PACKAGIST_COMPOSER_AUTH_JSON: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+    # inherit (not an explicit map) so GH_BOT_TOKEN — needed by build.yml's
+    # publish step to fire the deploy — flows through alongside the Packagist
+    # auth without each secret being threaded by hand.
+    secrets: inherit
     with:
       release_tag: ${{ inputs.release_tag }}
       build_commands: ${{ inputs.build_commands }}
