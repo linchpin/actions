@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.0](https://github.com/linchpin/actions/compare/v4.2.2...v4.3.0) (2026-06-19)
+
+
+### Features
+
+* deploy builds+archives the release; drop draft + create-release.yml ([#129](https://github.com/linchpin/actions/issues/129)) ([b48df6a](https://github.com/linchpin/actions/commit/b48df6a08186632f22ba468a467206419d342fb4))
+
 ## [4.2.2](https://github.com/linchpin/actions/compare/v4.2.1...v4.2.2) (2026-06-19)
 
 
