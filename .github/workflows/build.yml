@@ -11,10 +11,11 @@
 # Next (v4): one job builds everything serially — root Composer install,
 # theme npm builds, plugin npm + Composer builds — with working caches, then
 # uploads a single deploy-ready `release` artifact. When `release_tag` is set
-# the same zip is attached to that GitHub release, so deploys (and rollbacks)
-# can download it instead of rebuilding. Wall time is comparable to the v3
-# parallel fan-out (the artifact reshuffle job is gone); billable minutes drop
-# from ~9 to ~5.
+# the same zip is also attached to that (already-published) GitHub release as a
+# deployable archive, so rollbacks/redeploys can download it instead of
+# rebuilding. Publishing the release is release-please's job, not this
+# workflow's. Wall time is comparable to the v3 parallel fan-out (the artifact
+# reshuffle job is gone); billable minutes drop from ~9 to ~5.
 
 name: Build Release Artifact
 
@@ -47,22 +48,13 @@ on:
         default: ""
         type: string
       release_tag:
-        description: "When set, attach release.zip to this existing GitHub release"
+        description: "When set, attach the built release.zip to this existing GitHub release as a deployable archive (rollback source)"
         required: false
         default: ""
         type: string
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON:
         description: "auth.json contents for packagist.linchpin.com (passed via COMPOSER_AUTH, never written to disk)"
-        required: false
-      GH_BOT_TOKEN:
-        description: >-
-          PAT used to PUBLISH the draft release. Events created by the default
-          GITHUB_TOKEN do not trigger new workflow runs, so publishing with
-          github.token leaves `release: published` consumers (e.g.
-          deploy-production.yml) unfired. Pass a PAT to make auto-deploy work;
-          falls back to github.token when unset (asset still attaches/publishes,
-          but the deploy must be triggered another way).
         required: false
     outputs:
       artifact:
@@ -78,8 +70,8 @@ jobs:
     # PLUGINS, PHP_VERSION, NODE_VERSION, *_USES_COMPOSER,
     # REMOTE_PLUGIN_INSTALL) lives in repo-level vars, and binding an
     # environment subjects the job to its branch protection rules — which
-    # rejected create-release builds running from main ("Branch 'main' is
-    # not allowed to deploy to Staging").
+    # rejected release builds running from main ("Branch 'main' is not allowed
+    # to deploy to Staging").
     # contents: write is only exercised when release_tag is set (asset upload);
     # everything else is read-only.
     permissions:
@@ -209,6 +201,12 @@ jobs:
           retention-days: 1
           overwrite: true
 
+      # Archive the deployable zip on the (already-published) GitHub release so
+      # rollbacks/redeploys can download it instead of rebuilding. Publishing is
+      # release-please's job — this workflow no longer drafts or publishes
+      # releases (the draft model broke release-please's changelog boundary
+      # detection; production now builds its own zip at deploy time, so there is
+      # no asset to attach before publish).
       - name: Attach release.zip to GitHub release ${{ inputs.release_tag }}
         if: ${{ inputs.release_tag != '' }}
         env:
@@ -216,28 +214,4 @@ jobs:
         run: |
           cd release && zip -rq "$GITHUB_WORKSPACE/release.zip" ./ && cd "$GITHUB_WORKSPACE"
           gh release upload "${{ inputs.release_tag }}" release.zip --clobber --repo "${{ github.repository }}"
-          echo "::notice::release.zip attached to ${{ inputs.release_tag }} — deploys can now use it instead of rebuilding"
-
-      # Publish the release ONLY after release.zip is attached. When the caller
-      # configures release-please with `draft: true`, the release sits as an
-      # unpublished draft until this step, so the `release: published` event —
-      # and the production deploy that listens for it — does not fire until the
-      # asset exists. That makes the deploy deterministic (no polling for the
-      # asset, no billed idle time) and means a failed build leaves a harmless
-      # draft instead of a published tag with no asset. Idempotent and harmless
-      # for callers that do not use draft releases: `--draft=false` on an
-      # already-published release is a no-op.
-      #
-      # Publish with GH_BOT_TOKEN (a PAT), NOT github.token: GitHub does not
-      # trigger new workflow runs from events created by the default
-      # GITHUB_TOKEN, so a draft published with github.token fires
-      # `release: published` that downstream workflows (deploy-production.yml)
-      # never see. Falls back to github.token when no PAT is provided — the
-      # release still publishes, but auto-deploy won't fire.
-      - name: Publish release ${{ inputs.release_tag }} now that release.zip is attached
-        if: ${{ inputs.release_tag != '' }}
-        env:
-          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN || github.token }}
-        run: |
-          gh release edit "${{ inputs.release_tag }}" --draft=false --repo "${{ github.repository }}"
-          echo "::notice::Published ${{ inputs.release_tag }} with release.zip attached — the production deploy can now start"
+          echo "::notice::release.zip archived on ${{ inputs.release_tag }} — available for rollback/redeploy"

@@ -102,8 +102,12 @@ survives the rewrite:
   mutated older GitHub deployments via the API. v4 serializes deploys per
   environment with a job-level `concurrency` group instead. Callers should
   also add workflow-level groups (see below).
-- **`create-release` no longer creates the GitHub release or changelog.**
-  That is release-please's job; v4 only builds and attaches the asset.
+- **`create-release.yml` was removed (v4.3.0).** release-please publishes each
+  release directly; the production deploy (`deploy.yml` with `build_for_release`)
+  builds the project, deploys it, and attaches the asset. Earlier v4 releases
+  used a draft release plus `create-release.yml` to attach-then-publish, but the
+  draft broke release-please's changelog boundary detection (it re-scanned all
+  history on every release), so the model was inverted.
 - **phpcbf is no longer run in CI.** Run `composer fixcs` locally (ideally in
   a pre-commit hook via husky/lint-staged). The v3 flow — CI bot opening an
   "Auto Fix Formatting" PR that itself triggers more CI — was one of the most
@@ -141,7 +145,7 @@ jobs:
       run_phpstan: true
 ```
 
-### Production deploy — deploy the release asset, don't rebuild
+### Production deploy — build, deploy, and archive the release
 
 ```yaml
 name: Deploy to Production
@@ -153,11 +157,11 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
-# contents: write (NOT read) — even though the asset path skips the build
-# job, GitHub validates the whole called-workflow call tree at startup, and
-# deploy.yml -> build.yml declares contents: write. A caller granting only
-# read fails immediately with "the nested job 'build' is requesting
-# 'contents: write', but is only allowed 'contents: read'".
+# contents: write (NOT read) — deploy.yml -> build.yml declares contents: write
+# so it can attach release.zip to the release, and GitHub validates the whole
+# called-workflow call tree at startup. A caller granting only read fails
+# immediately with "the nested job 'build' is requesting 'contents: write',
+# but is only allowed 'contents: read'".
 permissions:
   contents: write
   deployments: write
@@ -168,29 +172,21 @@ jobs:
     secrets: inherit
     with:
       environment: production
-      release_tag: ${{ github.event.release.tag_name }}
+      # Build this release, deploy it, and attach release.zip to the release.
+      build_for_release: ${{ github.event.release.tag_name }}
 ```
 
-> **Asset/deploy race:** `release: published` fires this deploy at the same
-> moment release-please's `create-release` job starts *building* the asset.
-> The deploy's download step waits (polls up to ~10 min) for `release.zip` to
-> be attached, so the ordering resolves itself — but it does mean the first
-> few minutes of a production deploy may show "release.zip not attached yet…"
-> while the build runs. That is expected, not an error.
+> **No asset/deploy race:** the deploy builds its own zip, so there is nothing
+> to wait for — release-please publishes the release, this builds and deploys
+> it, then archives `release.zip` onto the release for rollbacks. (`release_tag`
+> still takes the download-and-deploy path, used by the rollback workflow.)
 
-### release-please — pass the tag so the asset gets attached
+### release-please — just publish; no create-release job
 
-```yaml
-  create-release:
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
-    uses: linchpin/actions/.github/workflows/create-release.yml@v4
-    secrets: inherit
-    with:
-      release_tag: ${{ needs.release-please.outputs.tag_name }}
-```
-
-(The release-please job must expose `tag_name` in its outputs.)
+release-please publishes the release directly (configure it with
+`GH_BOT_TOKEN` so the `release: published` event fires the deploy, and WITHOUT
+`draft: true`). No `create-release` job is needed — the production deploy above
+builds and attaches the asset.
 
 ### Rollback — new capability
 
