@@ -144,7 +144,10 @@ jobs:
                   npm install --no-save sass-embedded-linux-x64 || true
                 fi
                 npm run build
-                rm -rf node_modules
+                # node_modules is intentionally NOT deleted here: the release
+                # assembler (build-release/cleanup.sh) and .distignore both
+                # already exclude it, so it never ships. Deleting ~1k dirs each
+                # build is pure wasted time.
               )
             fi
           done
@@ -173,7 +176,10 @@ jobs:
                 cd "$dir"
                 npm ci
                 npm run build
-                rm -rf node_modules
+                # node_modules is intentionally NOT deleted here: the release
+                # assembler (build-release/cleanup.sh) and .distignore both
+                # already exclude it, so it never ships. Deleting ~1k dirs each
+                # build is pure wasted time.
               )
             fi
             # Composer after npm so the runtime vendor/ ships in the release
@@ -200,6 +206,14 @@ jobs:
           path: release/
           retention-days: 1
           overwrite: true
+          # The release is thousands of small PHP files (every Composer-installed
+          # plugin/theme), and at the default level 6 deflate is the dominant
+          # cost of this step. This artifact lives one day and is consumed
+          # seconds later by the deploy job over GitHub's own network, so trade
+          # CPU for a little bandwidth: level 1 keeps it compressed (transfer
+          # stays small) while cutting the zip time sharply. Drop to 0 (store)
+          # to push upload speed further if the transfer is not the bottleneck.
+          compression-level: 1
 
       # Archive the deployable zip on the (already-published) GitHub release so
       # rollbacks/redeploys can download it instead of rebuilding. Publishing is
@@ -212,6 +226,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cd release && zip -rq "$GITHUB_WORKSPACE/release.zip" ./ && cd "$GITHUB_WORKSPACE"
+          # -1 (fastest deflate): this is a rollback/redeploy archive, not a
+          # distribution artifact, so max compression buys nothing but burns
+          # CPU over thousands of plugin files.
+          cd release && zip -1 -rq "$GITHUB_WORKSPACE/release.zip" ./ && cd "$GITHUB_WORKSPACE"
           gh release upload "${{ inputs.release_tag }}" release.zip --clobber --repo "${{ github.repository }}"
           echo "::notice::release.zip archived on ${{ inputs.release_tag }} — available for rollback/redeploy"
