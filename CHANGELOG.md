@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.3.1](https://github.com/linchpin/actions/compare/v4.3.0...v4.3.1) (2026-06-19)
+
+
+### Performance Improvements
+
+* ship one release zip end-to-end (single-file artifact, no re-zip on deploy) ([#133](https://github.com/linchpin/actions/issues/133)) ([57df810](https://github.com/linchpin/actions/commit/57df8107e101a2c95ba2750ebb5d47b5eec92416))
+* speed up release build (artifact compression, drop node_modules rm, fast rollback zip) ([#131](https://github.com/linchpin/actions/issues/131)) ([77c79dd](https://github.com/linchpin/actions/commit/77c79dd9ea22df881f0c950eb8d34137c961e001))
+
 ## [4.3.0](https://github.com/linchpin/actions/compare/v4.2.2...v4.3.0) (2026-06-19)
 
 
