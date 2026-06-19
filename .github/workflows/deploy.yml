@@ -8,13 +8,19 @@
 # scratch even though create-release had already built the identical code.
 # ~8 minutes wall, ~14 billable minutes.
 #
-# Next (v4): two jobs (build + deploy) — or ONE job when `release_tag` is set,
-# because the deploy downloads the release.zip asset that create-release
-# already attached instead of rebuilding. GitHub deployment bookkeeping is
-# plain `gh api` steps inside the deploy job. Deploy-time lint is gone: code
-# reaching deploy has already passed lint on the PR (and a tagged release is
-# immutable). Success now requires a post-deploy health check, not just a
-# clean rsync exit.
+# Next (v4): two jobs (build + deploy). A normal deploy builds fresh and
+# deploys; pass `build_for_release` to also attach the built release.zip to an
+# already-published GitHub release — the release-triggered production path
+# (release-please publishes the release, this builds, deploys, and archives the
+# deployable zip onto it). `release_tag` takes the other path: download the
+# release.zip already attached to that release and deploy it without rebuilding,
+# used for rollbacks/redeploys. Because production builds its own zip, the
+# deploy never waits on a pre-attached asset — the old "no assets to download"
+# race (and the draft release that worked around it) is gone. GitHub deployment
+# bookkeeping is plain `gh api` steps inside the deploy job. Deploy-time lint is
+# gone: code reaching deploy has already passed lint on the PR (and a tagged
+# release is immutable). Success now requires a post-deploy health check, not
+# just a clean rsync exit.
 #
 # Rollback: dispatch this workflow with the previous `release_tag`.
 #
@@ -36,7 +42,12 @@ on:
         default: "staging"
         type: string
       release_tag:
-        description: "Deploy the release.zip asset attached to this GitHub release instead of building"
+        description: "Deploy the release.zip asset attached to this GitHub release instead of building (rollback / redeploy)"
+        required: false
+        default: ""
+        type: string
+      build_for_release:
+        description: "Build fresh, deploy, and attach the built release.zip to this already-published GitHub release. Use for release-triggered production deploys."
         required: false
         default: ""
         type: string
@@ -92,6 +103,9 @@ jobs:
       PACKAGIST_COMPOSER_AUTH_JSON: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
     with:
       build_commands: ${{ inputs.build_commands }}
+      # When set, build.yml attaches the built release.zip to this release as a
+      # deployable archive (rollback source). Empty for a plain staging build.
+      release_tag: ${{ inputs.build_for_release }}
 
   deploy:
     name: Deploy to ${{ inputs.environment }}
@@ -148,13 +162,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # With release-please `draft: true`, the release is published only
-          # after create-release has attached release.zip (see build.yml), so by
-          # the time `release: published` fires the asset is already present and
-          # the first download succeeds. This short retry is just a safety net
-          # for GitHub asset eventual-consistency (or a caller not using draft
-          # releases); it caps at ~2 min so a genuinely missing asset fails fast
-          # instead of billing ~10 min of idle polling.
+          # Rollback/redeploy path: download the release.zip that a prior deploy
+          # attached to this release (build.yml's archive step) and ship it
+          # without rebuilding. The short retry is a safety net for GitHub asset
+          # eventual-consistency; it caps at ~2 min so a genuinely missing asset
+          # fails fast instead of billing ~10 min of idle polling.
           TAG="${{ inputs.release_tag }}"
           REPO="${{ github.repository }}"
           for attempt in $(seq 1 8); do
@@ -168,7 +180,7 @@ jobs:
             echo "release.zip not on $TAG yet (attempt $attempt/8) — retrying in 15s…"
             sleep 15
           done
-          echo "::error::release.zip never appeared on $TAG after ~2 min. Did create-release@v4 build, attach the asset, and publish the release?"
+          echo "::error::release.zip never appeared on $TAG after ~2 min. Has this release been deployed yet? (a deploy with build_for_release attaches release.zip)"
           exit 1
 
       # Backup-and-continue flow (Pressable, v3-compatible): trigger the

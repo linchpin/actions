@@ -11,11 +11,13 @@ previous/next story — including the v3 bugs it fixes and the caller migration
 steps — lives in **[docs/MIGRATION-v3-to-v4.md](docs/MIGRATION-v3-to-v4.md)**.
 The headlines:
 
-- **Build once, deploy from the release asset.** `create-release.yml` attaches
-  a deploy-ready `release.zip` to each GitHub release; `deploy.yml` accepts a
-  `release_tag` input and deploys that asset in a single job instead of
-  rebuilding. This also gives every project an instant **rollback**: dispatch
-  a deploy with a previous tag.
+- **Release-please publishes; the deploy builds and archives.** release-please
+  publishes each GitHub release directly (no draft step). The production deploy
+  (`deploy.yml` with `build_for_release`) builds the project, deploys it, and
+  attaches the deploy-ready `release.zip` to that release. `deploy.yml` also
+  accepts a `release_tag` input that downloads an already-attached asset and
+  deploys it without rebuilding — an instant **rollback**: dispatch a deploy
+  with a previous tag.
 - **One build job instead of five.** Composer, theme and plugin builds run
   serially in one job with working caches (Composer keyed on composer.lock,
   npm via setup-node). The v3 artifact-reshuffle job is gone.
@@ -90,9 +92,8 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 
 | File                                                        | Description                                                                                                  |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [build.yml](.github/workflows/build.yml)                   | Single-job project build producing a deploy-ready `release` artifact; optionally attaches it to a GitHub release |
-| [create-release.yml](.github/workflows/create-release.yml) | Thin wrapper around build.yml used from release-please callers — builds once and attaches `release.zip`       |
-| [deploy.yml](.github/workflows/deploy.yml)                 | Deploys a fresh build (staging) or a prebuilt release asset (production/rollback) to Pressable, WP Engine, or Cloudways |
+| [build.yml](.github/workflows/build.yml)                   | Single-job project build producing a deploy-ready `release` artifact; optionally archives it on a GitHub release as a rollback asset |
+| [deploy.yml](.github/workflows/deploy.yml)                 | Deploys a fresh build (staging), builds + deploys + archives a release (production via `build_for_release`), or redeploys a prebuilt asset (rollback via `release_tag`) to Pressable, WP Engine, or Cloudways |
 | [deploy-continue.yml](.github/workflows/deploy-continue.yml) | Second half of the backup-and-continue flow — dispatched (via the caller) by Mantle once the Pressable backup completes |
 | [lint.yml](.github/workflows/lint.yml)                     | PR lint: PHP syntax (any version), phpcs on changed files via cs2pr, optional PHPStan                          |
 | [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
@@ -135,7 +136,8 @@ jobs:
     secrets: inherit
     with:
       environment: production
-      release_tag: ${{ github.event.release.tag_name }}
+      # Build this release, deploy it, and archive the zip on the release.
+      build_for_release: ${{ github.event.release.tag_name }}
 ```
 
 ## Renovate Bot Scanning Configurations

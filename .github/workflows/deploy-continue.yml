@@ -114,7 +114,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Wait for the asset in case create-release is still attaching it
+          # Wait for the asset in case the deploy build is still attaching it
           # (see the note in deploy.yml's equivalent step).
           TAG="${{ inputs.release_tag }}"
           REPO="${{ github.repository }}"

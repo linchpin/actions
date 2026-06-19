@@ -3,11 +3,10 @@
 # A PR-time gate that fails when composer.lock can no longer be installed against
 # composer.json — i.e. a locked package version no longer satisfies a constraint
 # (someone bumped a constraint in composer.json without rebuilding the lock).
-# That is the exact failure that otherwise stays hidden until release-build time:
-# create-release runs `composer install`, it exits non-zero, no release.zip is
-# attached, and (without draft releases) the production deploy dies with "no
-# assets to download" after release-please has already cut the tag. Catching it
-# on the PR means the bad lock never reaches main.
+# That is the exact failure that otherwise stays hidden until deploy time: the
+# production deploy build runs `composer install`, it exits non-zero, and the
+# deploy fails after release-please has already cut and published the tag.
+# Catching it on the PR means the bad lock never reaches main.
 #
 # Why `composer install --dry-run` and NOT `composer validate`: release-please
 # bumps the `version` field in composer.json on every release without rebuilding
