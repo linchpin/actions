@@ -55,6 +55,15 @@ on:
       PACKAGIST_COMPOSER_AUTH_JSON:
         description: "auth.json contents for packagist.linchpin.com (passed via COMPOSER_AUTH, never written to disk)"
         required: false
+      GH_BOT_TOKEN:
+        description: >-
+          PAT used to PUBLISH the draft release. Events created by the default
+          GITHUB_TOKEN do not trigger new workflow runs, so publishing with
+          github.token leaves `release: published` consumers (e.g.
+          deploy-production.yml) unfired. Pass a PAT to make auto-deploy work;
+          falls back to github.token when unset (asset still attaches/publishes,
+          but the deploy must be triggered another way).
+        required: false
     outputs:
       artifact:
         description: "Name of the uploaded release artifact"
@@ -218,10 +227,17 @@ jobs:
       # draft instead of a published tag with no asset. Idempotent and harmless
       # for callers that do not use draft releases: `--draft=false` on an
       # already-published release is a no-op.
+      #
+      # Publish with GH_BOT_TOKEN (a PAT), NOT github.token: GitHub does not
+      # trigger new workflow runs from events created by the default
+      # GITHUB_TOKEN, so a draft published with github.token fires
+      # `release: published` that downstream workflows (deploy-production.yml)
+      # never see. Falls back to github.token when no PAT is provided — the
+      # release still publishes, but auto-deploy won't fire.
       - name: Publish release ${{ inputs.release_tag }} now that release.zip is attached
         if: ${{ inputs.release_tag != '' }}
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN || github.token }}
         run: |
           gh release edit "${{ inputs.release_tag }}" --draft=false --repo "${{ github.repository }}"
           echo "::notice::Published ${{ inputs.release_tag }} with release.zip attached — the production deploy can now start"
