@@ -199,24 +199,40 @@ jobs:
         with:
           remote-plugin-install: ${{ vars.REMOTE_PLUGIN_INSTALL }}
 
+      # Package the release into ONE zip, here, once. The release is thousands
+      # of small PHP files (every Composer-installed plugin/theme), and that
+      # payload used to be compressed up to three times: upload-artifact zipped
+      # the directory, the attach step zipped it again, and each host action
+      # re-zipped it for rsync. Now we deflate exactly once (-1 = fastest; the
+      # bytes are read once on the far end) and every downstream consumer ships
+      # this same file. Contents sit at the zip root (cd release && zip ./) so
+      # the server entrypoints, which unzip into release/, keep working
+      # unchanged — and so does the deploy-time rsync, which hands this archive
+      # straight to the host action via its release-archive input.
+      - name: Package release into a single zip
+        run: |
+          set -euo pipefail
+          cd release
+          zip -1 -rq "$GITHUB_WORKSPACE/release.zip" ./
+          echo "release.zip: $(du -h "$GITHUB_WORKSPACE/release.zip" | cut -f1)"
+
+      # Upload the single zip as the artifact. It is already compressed, so
+      # store it (compression-level 0 — no pointless re-deflate) and, because it
+      # is one file rather than a tree of thousands, upload-artifact skips the
+      # per-file walk/hash that dominated this step. The deploy job downloads
+      # this same zip and rsyncs it without unpacking.
       - name: Upload release artifact
         uses: actions/upload-artifact@v7
         with:
           name: release
-          path: release/
+          path: release.zip
           retention-days: 1
           overwrite: true
-          # The release is thousands of small PHP files (every Composer-installed
-          # plugin/theme), and at the default level 6 deflate is the dominant
-          # cost of this step. This artifact lives one day and is consumed
-          # seconds later by the deploy job over GitHub's own network, so trade
-          # CPU for a little bandwidth: level 1 keeps it compressed (transfer
-          # stays small) while cutting the zip time sharply. Drop to 0 (store)
-          # to push upload speed further if the transfer is not the bottleneck.
-          compression-level: 1
+          compression-level: 0
 
       # Archive the deployable zip on the (already-published) GitHub release so
-      # rollbacks/redeploys can download it instead of rebuilding. Publishing is
+      # rollbacks/redeploys can download it instead of rebuilding. This reuses
+      # the zip packaged above — no second compression. Publishing is
       # release-please's job — this workflow no longer drafts or publishes
       # releases (the draft model broke release-please's changelog boundary
       # detection; production now builds its own zip at deploy time, so there is
@@ -226,9 +242,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # -1 (fastest deflate): this is a rollback/redeploy archive, not a
-          # distribution artifact, so max compression buys nothing but burns
-          # CPU over thousands of plugin files.
-          cd release && zip -1 -rq "$GITHUB_WORKSPACE/release.zip" ./ && cd "$GITHUB_WORKSPACE"
           gh release upload "${{ inputs.release_tag }}" release.zip --clobber --repo "${{ github.repository }}"
           echo "::notice::release.zip archived on ${{ inputs.release_tag }} — available for rollback/redeploy"

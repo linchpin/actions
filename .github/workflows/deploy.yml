@@ -150,12 +150,16 @@ jobs:
 
       # When parking for a backup, the release stays in the run's artifact
       # storage (or on the GitHub release) — the continue run fetches it.
+      #
+      # The artifact is a single release.zip (build.yml packaged it once). Land
+      # it at the workspace root and hand it to the host action as-is — no
+      # unpack here; the server entrypoint performs the only unzip.
       - name: Download built release artifact
         if: ${{ inputs.release_tag == '' && !(vars.HOST == 'pressable' && inputs.do_backup) }}
         uses: actions/download-artifact@v8
         with:
           name: release
-          path: release
+          path: .
 
       - name: Download release.zip from release ${{ inputs.release_tag }}
         if: ${{ inputs.release_tag != '' && !(vars.HOST == 'pressable' && inputs.do_backup) }}
@@ -170,11 +174,10 @@ jobs:
           TAG="${{ inputs.release_tag }}"
           REPO="${{ github.repository }}"
           for attempt in $(seq 1 8); do
+            # Leave release.zip at the workspace root: the host action ships it
+            # straight to the server (no unpack here).
             if gh release download "$TAG" --pattern release.zip --repo "$REPO" --clobber 2>/dev/null; then
               echo "::notice::Deploying prebuilt asset from release $TAG — no rebuild needed"
-              mkdir -p release
-              unzip -oq release.zip -d release
-              rm -f release.zip
               exit 0
             fi
             echo "release.zip not on $TAG yet (attempt $attempt/8) — retrying in 15s…"
@@ -244,7 +247,7 @@ jobs:
           ssh-host: ${{ secrets.SSH_HOST }}
           ssh-user: ${{ secrets.SSH_USER }}
           ssh-key: ${{ secrets.SSH_KEY }}
-          release-directory: release
+          release-archive: ${{ github.workspace }}/release.zip
           maintenance-mode: ${{ inputs.maintenance_mode }}
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
@@ -256,7 +259,7 @@ jobs:
           install-name: ${{ vars.INSTALL_NAME }}
           site-url: ${{ vars.SITE_URL }}
           ssh-key: ${{ secrets.SSH_KEY }}
-          release-directory: release
+          release-archive: ${{ github.workspace }}/release.zip
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
 
@@ -270,7 +273,7 @@ jobs:
           ssh-key: ${{ secrets.SSH_KEY }}
           ssh-pass: ${{ secrets.SSH_PASS }}
           site-url: ${{ vars.SITE_URL }}
-          release-directory: release
+          release-archive: ${{ github.workspace }}/release.zip
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
 

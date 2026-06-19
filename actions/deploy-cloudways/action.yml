@@ -35,9 +35,13 @@ inputs:
     required: false
     default: ""
   release-directory:
-    description: "Local directory containing the cleaned release"
+    description: "Local directory containing the cleaned release. Ignored when release-archive is set."
     required: false
     default: "release"
+  release-archive:
+    description: "Path to a pre-built release zip (contents at root, e.g. plugins/ and themes/ at the top level). When set, it is shipped to the server as-is instead of re-zipping release-directory — the build job already zipped the release, so this avoids a redundant compression pass."
+    required: false
+    default: ""
   deployment-path:
     description: "Remote staging path for uploaded releases"
     required: false
@@ -93,6 +97,8 @@ runs:
         AUTH_TYPE: ${{ inputs.auth-type }}
         SSH_PASS: ${{ inputs.ssh-pass }}
         DEPLOY_PATH: ${{ inputs.deployment-path }}
+        RELEASE_ARCHIVE: ${{ inputs.release-archive }}
+        RELEASE_DIRECTORY: ${{ inputs.release-directory }}
       run: |
         # One code path for both auth types (v3 duplicated every step)
         if [ "$AUTH_TYPE" = "pass" ]; then
@@ -104,12 +110,18 @@ runs:
         fi
 
         ts="$(date +'%s')"
-        cd "${{ inputs.release-directory }}"
-        zip -rq "$GITHUB_WORKSPACE/$ts.zip" ./
-        cd "$GITHUB_WORKSPACE"
+        # Prefer a pre-built archive (the build job already zipped the release);
+        # otherwise zip the release directory here (-1: the server reads it once).
+        if [ -n "$RELEASE_ARCHIVE" ]; then
+          zip_path="$RELEASE_ARCHIVE"
+        else
+          ( cd "$RELEASE_DIRECTORY" && zip -1 -rq "$GITHUB_WORKSPACE/$ts.zip" ./ )
+          zip_path="$GITHUB_WORKSPACE/$ts.zip"
+        fi
 
         run_remote "mkdir -p $DEPLOY_PATH"
-        copy_remote "$ts.zip" "$DEPLOY_PATH/"
+        # Land it on the server as $ts.zip regardless of the local filename.
+        copy_remote "$zip_path" "$DEPLOY_PATH/$ts.zip"
         run_remote "rm -rf $DEPLOY_PATH/release && unzip -o -q $DEPLOY_PATH/$ts.zip -d $DEPLOY_PATH/release && mkdir -p $DEPLOY_PATH/release/.deployment"
         copy_remote "${{ github.action_path }}/cloudways-entrypoint.sh" "$DEPLOY_PATH/release/.deployment/entrypoint.sh"
         copy_remote "${{ github.action_path }}/maintenance.php" "$DEPLOY_PATH/release/.deployment/maintenance.php"
