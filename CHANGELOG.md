@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.2](https://github.com/linchpin/actions/compare/v4.2.1...v4.2.2) (2026-06-19)
+
+
+### Bug Fixes
+
+* publish release with GH_BOT_TOKEN so release:published triggers deploys ([#127](https://github.com/linchpin/actions/issues/127)) ([0758783](https://github.com/linchpin/actions/commit/07587838dce6a5b0873c8ce13a489845a6ebaaa3))
+
 ## [4.2.1](https://github.com/linchpin/actions/compare/v4.2.0...v4.2.1) (2026-06-17)
 
 
