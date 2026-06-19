@@ -100,12 +100,15 @@ jobs:
             --field environment_url="${{ vars.SITE_URL }}" \
             --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
+      # Single release.zip from the original run (build.yml packaged it once).
+      # Land it at the workspace root and pass it through — the server entrypoint
+      # is the only place it gets unzipped.
       - name: Download release artifact from run ${{ inputs.workflow_run_id }}
         if: ${{ inputs.release_tag == '' }}
         uses: actions/download-artifact@v8
         with:
           name: release
-          path: release
+          path: .
           run-id: ${{ inputs.workflow_run_id }}
           github-token: ${{ github.token }}
 
@@ -119,10 +122,8 @@ jobs:
           TAG="${{ inputs.release_tag }}"
           REPO="${{ github.repository }}"
           for attempt in $(seq 1 40); do
+            # Leave release.zip at the workspace root for the host action to ship.
             if gh release download "$TAG" --pattern release.zip --repo "$REPO" --clobber 2>/dev/null; then
-              mkdir -p release
-              unzip -oq release.zip -d release
-              rm -f release.zip
               exit 0
             fi
             echo "release.zip not attached to $TAG yet (attempt $attempt/40) — waiting 15s…"
@@ -142,7 +143,7 @@ jobs:
           ssh-host: ${{ secrets.SSH_HOST }}
           ssh-user: ${{ secrets.SSH_USER }}
           ssh-key: ${{ secrets.SSH_KEY }}
-          release-directory: release
+          release-archive: ${{ github.workspace }}/release.zip
           maintenance-mode: ${{ inputs.maintenance_mode }}
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
