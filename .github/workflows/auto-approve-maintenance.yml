@@ -10,7 +10,7 @@ jobs:
   auto-approve:
     runs-on: ubuntu-latest
 
-    if: startsWith(github.head_ref, 'maintenance/')
+    if: startsWith(github.head_ref, 'maintenance/') || startsWith(github.head_ref, 'security-update/')
 
     steps:
       - name: Checkout repo
