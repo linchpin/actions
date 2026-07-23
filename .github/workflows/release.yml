@@ -44,9 +44,20 @@ jobs:
     name: Release Please
     if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: googleapis/release-please-action@v5
+        id: release-please
+        # The action uses Node.js 24 (undici HTTP client), which can get a
+        # transient "other side closed" (UND_ERR_SOCKET) error when GitHub's API
+        # server closes a keep-alive connection between the git-reference update
+        # and the subsequent PR-creation call.  Allow one retry on failure.
+        continue-on-error: true
+        with:
+          token: ${{ secrets.GH_BOT_TOKEN || github.token }}
+      - name: Retry release-please (transient socket error recovery)
+        if: steps.release-please.outcome == 'failure'
+        uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.GH_BOT_TOKEN || github.token }}
 
