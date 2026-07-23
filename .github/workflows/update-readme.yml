@@ -1,4 +1,4 @@
-# Update README.md (v4)
+# Update README.md + composer.lock (v4)
 #
 # Previous (v3): ran on every push to main regardless of whether composer.lock
 # changed, and wget'd update-readme.sh from the v3 branch at run time.
@@ -6,6 +6,15 @@
 # Next (v4): the script is bundled in the update-readme composite action.
 # Callers should gate this workflow on composer.lock actually changing, e.g.:
 #   if: contains(toJSON(github.event.commits.*.modified), 'composer.lock')
+#
+# v4.4: also re-syncs composer.lock before regenerating the README. release-please
+# bumps the `version` field in composer.json on every release PR without touching
+# the lock, so `composer validate` fails on the release branch (and every branch
+# cut from it) until someone re-locks by hand. Running `composer update --lock`
+# here keeps the release PR's lock valid; the README table is then generated from
+# the fresh lock. The sync is best-effort: if resolution fails (e.g. private
+# repositories needing auth this workflow doesn't have), the lock is left
+# untouched and only the README updates, exactly as before.
 
 name: Update README.md
 
@@ -37,30 +46,46 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # Checkout just the files the script reads/writes
+      # Checkout just the files the steps read/write
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.base }}
           sparse-checkout: |
             README.md
+            composer.json
             composer.lock
           sparse-checkout-cone-mode: false
+
+      # Best-effort: a failed resolution (network, private repos needing auth)
+      # must not break the README update, so restore the lock and continue.
+      - name: Sync composer.lock with composer.json
+        run: |
+          if [ ! -f composer.json ] || [ ! -f composer.lock ]; then
+            echo "No composer.json/composer.lock — skipping lock sync"
+            exit 0
+          fi
+          if composer update --lock --no-install --no-scripts --no-plugins --no-audit --no-interaction; then
+            echo "composer.lock is in sync with composer.json"
+          else
+            echo "::warning::composer update --lock failed; leaving composer.lock unchanged"
+            git checkout -- composer.lock
+          fi
 
       - name: Update README.md from composer.lock
         uses: linchpin/actions/actions/update-readme@v4
 
-      - name: Commit changes to README.md
+      - name: Commit changes to README.md and composer.lock
         id: commit_changes
         run: |
           git config --local user.email "linchpin-bot@github.com"
           git config --local user.name "Linchpin Bot"
-          git add README.md
+          git add README.md composer.lock
           if git diff --cached --quiet; then
             echo "No changes to commit"
             echo "skip_pr=true" >> "$GITHUB_OUTPUT"
           else
-            git commit -m "Update README.md with plugin list"
+            git commit -m "Update README.md plugin list and sync composer.lock"
             echo "skip_pr=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -68,9 +93,9 @@ jobs:
         if: ${{ steps.commit_changes.outputs.skip_pr == 'false' }}
         uses: peter-evans/create-pull-request@v8
         with:
-          commit-message: "[automated] Update Plugin List"
-          title: "[Maintenance] Update README.md WordPress Plugin List"
-          body: "Automated update of the README plugin/theme table from composer.lock."
+          commit-message: "[automated] Update Plugin List / composer.lock"
+          title: "[Maintenance] Update README.md plugin list & sync composer.lock"
+          body: "Automated update of the README plugin/theme table and composer.lock re-sync (release-please bumps composer.json's version field without regenerating the lock, which breaks `composer validate` until re-locked)."
           base: ${{ inputs.base }}
           branch: ${{ inputs.branch }}
           labels: |
