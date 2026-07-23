@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.0](https://github.com/linchpin/actions/compare/v4.3.1...v4.4.0) (2026-07-23)
+
+
+### Features
+
+* sync composer.lock in the update-readme workflow ([#141](https://github.com/linchpin/actions/issues/141)) ([dc2428e](https://github.com/linchpin/actions/commit/dc2428e59389dc1da67e505850f13f830f990e3a))
+
 ## [4.3.1](https://github.com/linchpin/actions/compare/v4.3.0...v4.3.1) (2026-06-19)
 
 
