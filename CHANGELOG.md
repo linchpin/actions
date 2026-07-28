@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.5.0](https://github.com/linchpin/actions/compare/v4.4.0...v4.5.0) (2026-07-28)
+
+
+### Features
+
+* merge the README PR instead of leaving it open ([#143](https://github.com/linchpin/actions/issues/143)) ([2b65e69](https://github.com/linchpin/actions/commit/2b65e6932cbe721ddf057a1fdc5368081b9b3f5c))
+
 ## [4.4.0](https://github.com/linchpin/actions/compare/v4.3.1...v4.4.0) (2026-07-23)
 
 
