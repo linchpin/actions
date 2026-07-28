@@ -15,6 +15,22 @@
 # the fresh lock. The sync is best-effort: if resolution fails (e.g. private
 # repositories needing auth this workflow doesn't have), the lock is left
 # untouched and only the README updates, exactly as before.
+#
+# v4.5: merges the PR it opens. Until now this workflow created the README PR and
+# stopped, and nothing downstream merged it — so the refresh sat open indefinitely
+# while release-please merged its release PR into main without it. The visible
+# symptom is a README whose version is current but whose "Latest Release" date and
+# plugin table are stale by however long the PR has been sitting: release-please
+# writes the version straight into README.md via its `extra-files` config, so that
+# one field lands on main regardless, while the date and plugin list — both
+# produced here — never do. On linchpin.com the README PR had been open for ~3
+# weeks and the date was a full release behind.
+#
+# Merging here rather than in a separate `pull_request_target` workflow avoids a
+# race (the PR number is known directly from create-pull-request's output, so
+# there is nothing to poll for or re-discover) and means consumers do not each
+# need to carry their own auto-merge workflow. Set `automerge: false` to restore
+# the old open-and-stop behavior.
 
 name: Update README.md
 
@@ -31,6 +47,15 @@ on:
         required: false
         default: "release-please--branches--main--readme"
         type: string
+      automerge:
+        description: >-
+          Squash-merge the README PR into `base` once it is mergeable. Defaults to
+          true — an unmerged README refresh is never the desired end state, since
+          the whole point is for it to ride along with the release PR. Set false
+          to open the PR and leave it for a human.
+        required: false
+        default: true
+        type: boolean
     secrets:
       GH_BOT_TOKEN:
         description: "Token used to open the README update PR"
@@ -90,6 +115,7 @@ jobs:
           fi
 
       - name: Create or Update Pull Request
+        id: cpr
         if: ${{ steps.commit_changes.outputs.skip_pr == 'false' }}
         uses: peter-evans/create-pull-request@v8
         with:
@@ -103,3 +129,41 @@ jobs:
             automated pr
             maintenance
           token: ${{ secrets.GH_BOT_TOKEN }}
+
+      # Without this the PR just accumulates. See the v4.5 note at the top.
+      #
+      # GitHub computes mergeability asynchronously, so a freshly-opened PR reports
+      # UNKNOWN for a moment — poll until it settles rather than failing on the
+      # first read. A DIRTY (conflicted) PR is left open on purpose: that means the
+      # base moved in a way this workflow should not silently resolve.
+      - name: Squash-merge the README PR
+        if: ${{ inputs.automerge && steps.commit_changes.outputs.skip_pr == 'false' && steps.cpr.outputs.pull-request-number != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          for i in $(seq 1 10); do
+            state="$(gh pr view "$PR_NUMBER" --json mergeable,state \
+              --jq '.mergeable + "/" + .state')"
+            echo "Attempt $i: $state"
+            case "$state" in
+              MERGEABLE/OPEN)
+                gh pr merge "$PR_NUMBER" --squash
+                echo "Merged README PR #$PR_NUMBER into ${{ inputs.base }}."
+                exit 0
+                ;;
+              */MERGED|*/CLOSED)
+                echo "PR #$PR_NUMBER is already ${state#*/}; nothing to do."
+                exit 0
+                ;;
+              CONFLICTING/*)
+                echo "::warning::README PR #$PR_NUMBER is conflicted; leaving it open for a human."
+                exit 0
+                ;;
+            esac
+            sleep 6
+          done
+          echo "::error::README PR #$PR_NUMBER never became MERGEABLE after 10 attempts."
+          exit 1
