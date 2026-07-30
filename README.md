@@ -66,6 +66,8 @@ Linchpin WordPress based projects including site builds, stand alone plugins and
 | [deploy-**wpengine**.yml](.github/workflows/deploy-wpengine.yml)   | ![Active Status](https://img.shields.io/badge/In%20Use-Active-green) | SSH Access, SSH Key Pair             | Deploy to a [WP Engine](https://wpengine.com) platform based environment                                                                                                                  |
 | [deploy-**cloudways**.yml](.github/workflows/deploy-cloudways.yml) | ![Active Status](https://img.shields.io/badge/In%20Use-Active-green) | SSH Access, SSH Key Pair             | Deploy to a Cloudways platform environment                                                                                                                                                |
 | [phpcs.yml](.github/workflows/phpcs.yml)                           | ![Active Status](https://img.shields.io/badge/In%20Use-Active-green) |                                      | Scan for WordPress Coding standards based on the phpcs.xml config of the project                                                                                                          |
+| [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | ![Active Status](https://img.shields.io/badge/In%20Use-Active-green) | GH_BOT_TOKEN | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
+| [auto-merge-maintenance.yml](.github/workflows/auto-merge-maintenance.yml) | ![Active Status](https://img.shields.io/badge/In%20Use-Active-green) | GH_BOT_TOKEN | Cron-driven: auto-merges open Renovate PRs targeting a `maintenance/YYYY-MM` branch, excluding anything labeled `major`. Never touches main/master |
 
 ## Example Shared Workflow Usage
 
@@ -82,6 +84,31 @@ jobs:
   release-please:
     name: Automated Release
     uses: linchpin/actions/.github/workflows/release-please.yml@v3
+```
+
+To auto-merge non-major Renovate PRs into a monthly `maintenance/YYYY-MM`
+branch, add a caller workflow with its own `schedule` trigger (schedules
+only fire in the repo where they're defined, so this small wrapper has to
+live in the client repo — `auto-merge-maintenance.yml` itself only reacts
+to `workflow_call`):
+
+```yaml
+name: Auto-merge Maintenance PRs
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        type: boolean
+        default: false
+
+jobs:
+  auto-merge:
+    uses: linchpin/actions/.github/workflows/auto-merge-maintenance.yml@v3
+    secrets: inherit
+    with:
+      dry_run: ${{ inputs.dry_run || false }}
 ```
 
 ## Renovate Bot Scanning Configurations

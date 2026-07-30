@@ -32,6 +32,10 @@
         "npm",
         "github-actions"
       ]
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "labels": ["major"]
     }
   ]
 }
