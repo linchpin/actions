@@ -97,6 +97,8 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [deploy-continue.yml](.github/workflows/deploy-continue.yml) | Second half of the backup-and-continue flow — dispatched (via the caller) by Mantle once the Pressable backup completes |
 | [lint.yml](.github/workflows/lint.yml)                     | PR lint: PHP syntax (any version), phpcs on changed files via cs2pr, optional PHPStan                          |
 | [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
+| [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
+| [auto-merge-maintenance.yml](.github/workflows/auto-merge-maintenance.yml) | Cron-driven: auto-merges open Renovate PRs targeting a `maintenance/YYYY-MM` branch, excluding anything labeled `major`. Never touches main/master |
 | [ci.yml](.github/workflows/ci.yml)                         | This repo's own CI: actionlint + yamllint + zizmor                                                             |
 
 ### Composite Actions
@@ -138,6 +140,31 @@ jobs:
       environment: production
       # Build this release, deploy it, and archive the zip on the release.
       build_for_release: ${{ github.event.release.tag_name }}
+```
+
+To auto-merge non-major Renovate PRs into a monthly `maintenance/YYYY-MM`
+branch, add a caller workflow with its own `schedule` trigger (schedules
+only fire in the repo where they're defined, so this small wrapper has to
+live in the client repo — `auto-merge-maintenance.yml` itself only reacts
+to `workflow_call`):
+
+```yaml
+name: Auto-merge Maintenance PRs
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        type: boolean
+        default: false
+
+jobs:
+  auto-merge:
+    uses: linchpin/actions/.github/workflows/auto-merge-maintenance.yml@v4
+    secrets: inherit
+    with:
+      dry_run: ${{ inputs.dry_run || false }}
 ```
 
 ## Renovate Bot Scanning Configurations
