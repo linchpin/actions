@@ -31,6 +31,11 @@ The headlines:
 - **Deploys verify themselves.** A post-deploy health check gates the GitHub
   deployment status; maintenance mode is opt-in; bookkeeping jobs became
   steps.
+- **Symlinked folders are left alone.** Plugins a managed host serves from its
+  own storage (Pressable links `jetpack` and `woocommerce` into `wp-content`) are
+  detected and skipped instead of being rsynced over, and a project can declare
+  additional off-limits paths with `PROTECTED_PATHS`. See
+  [Symlinked and host-managed folders](#symlinked-and-host-managed-folders).
 - **Least-privilege permissions** declared in every workflow, and secrets are
   passed via env (no auth.json on disk).
 
@@ -59,8 +64,8 @@ To learn more [about secrets](https://docs.github.com/en/actions/security-for-gi
 | PRESSABLE_API_CLIENT_SECRET  |         | Pressable API secret                                                                    |
 | MANTLE_API_BEARER            |         | Mantle API token used by the backup-and-continue deploy flow                            |
 | GH_BOT_TOKEN                 |         | Bot token used by update-readme.yml to open PRs                                         |
-| SATISPRESS_USER              |         | Private Packagist auth (remote-plugin-install path — not yet ported to v4)              |
-| SATISPRESS_PASSWORD          |         | Private Packagist auth (remote-plugin-install path — not yet ported to v4)              |
+| SATISPRESS_USER              |         | Private Packagist auth, used only by the `REMOTE_PLUGIN_INSTALL` reconcile               |
+| SATISPRESS_PASSWORD          |         | Private Packagist auth, used only by the `REMOTE_PLUGIN_INSTALL` reconcile               |
 
 ### Variables
 
@@ -73,7 +78,7 @@ To learn more [about variables](https://docs.github.com/en/actions/writing-workf
 | SITE_ID               |         | When using **Pressable** this is how we reference a site                                 |
 | INSTALL_NAME          |         | Install name when project is hosted on WP Engine                                         |
 | DEPLOYMENT_AUTH_TYPE  | key     | Cloudways SSH auth type: `key` or `pass` (Cloudways Autonomous)                          |
-| REMOTE_PLUGIN_INSTALL | false   | Install plugins on the server via WP CLI instead of shipping them (not yet ported to v4) |
+| REMOTE_PLUGIN_INSTALL | false   | Install third-party plugins/themes on the server from `composer.lock` via WP-CLI instead of shipping them — see [below](#remote-plugin-install-composer-on-the-server) |
 | BRANCH                | staging | The default branch associated with the environment                                       |
 | PHP_VERSION           |         | PHP version used for builds and linting (e.g. `8.5`)                                     |
 | NODE_VERSION          |         | Node version used for builds (e.g. `24`)                                                 |
@@ -81,10 +86,118 @@ To learn more [about variables](https://docs.github.com/en/actions/writing-workf
 | PLUGINS               |         | A JSON formatted array of plugins to build Ex `["linchpin-functionality"]`               |
 | THEME_USES_COMPOSER   | false   | Do the theme(s) use composer to load dependencies                                        |
 | PLUGIN_USES_COMPOSER  | true    | Do the plugin(s) use composer to load dependencies                                       |
+| PROTECTED_PATHS       |         | Paths a deploy must never overwrite, relative to `wp-content` — see [below](#symlinked-and-host-managed-folders) |
 
 > v3's `ENVIRONMENT` and `DEPLOYMENT_PATH` variables are no longer read by
 > v4 workflows (deployment paths are composite-action inputs with per-host
 > defaults).
+
+## Symlinked and host-managed folders
+
+Managed hosts serve some plugins from platform-owned storage and link them into
+the site — on Pressable, `jetpack` and `woocommerce` are usually symlinks inside
+`wp-content/plugins` rather than real folders. Syncing a release copy onto such a
+path is destructive either way: rsync follows the link and writes **through** it
+(so `--delete` prunes files the platform owns), or the link is replaced by a real
+directory and the site silently stops receiving platform updates.
+
+**v4 deploys detect this and leave it alone.** Before syncing, the server-side
+entrypoint scans `wp-content` and skips anything that is a symlink:
+
+- `plugins/` and `themes/` are synced one folder at a time, so a symlinked child
+  is skipped whole.
+- `mu-plugins/` is synced as a tree, so symlinked entries become rsync
+  `--exclude` rules — without that, `--delete` would remove the host's own
+  mu-plugins.
+- Every symlink found is printed at the top of the sync log with its target, and
+  everything skipped is listed again in a closing summary. A path the release
+  actually ships but that was not deployed is annotated as a warning, so it can't
+  quietly go missing.
+
+Nothing needs configuring for that — it is on by default. Set `PROTECTED_PATHS`
+when a path is a **real folder today** but is still managed outside the repo
+(a client installs it from WP admin, another pipeline owns it, a vendor ships it
+directly):
+
+```
+# Repo or environment variable — any of these forms work
+PROTECTED_PATHS = plugins/some-client-managed-plugin, plugins/woocommerce*
+PROTECTED_PATHS = ["plugins/some-client-managed-plugin", "themes/legacy"]
+PROTECTED_PATHS = plugins/some-client-managed-plugin
+                  themes/legacy
+```
+
+Paths are relative to `wp-content`, globs are allowed, and a bare name (no
+slash) matches that folder wherever it lives — `woocommerce` covers
+`plugins/woocommerce`. `#` starts a comment.
+
+A single deploy can override the variable with the `protected_paths` input, and
+`preserve_symlinks: false` turns the automatic symlink detection off (only useful
+when a deploy is *meant* to replace symlinks with real directories). On
+Pressable, `plugins/jetpack` and `plugins/akismet` are always protected — v3
+deleted them from the release; v4 keeps them out of the sync and says so in the
+log.
+
+## Remote plugin install (Composer on the server)
+
+By default a deploy ships everything: the build resolves Composer, and the release
+zip carries every third-party plugin and theme. `REMOTE_PLUGIN_INSTALL=true`
+inverts that for the Composer-managed part — the release contains only the
+project's own code plus `composer.json`/`composer.lock`, and after the sync the
+deploy reconciles the server against the lock with one WP-CLI call per package.
+
+**What actually gets faster.** Not the build — set expectations here. Composer was
+never the slow part (its cache is keyed on `composer.lock`); npm theme/plugin
+builds dominate, and those still run on the runner because Pressable has no Node.
+What shrinks is everything downstream of the build: the release zip, the transfer,
+the GitHub release asset kept for rollbacks, the two-zip retention on the server,
+and the sync itself — a Renovate bump of one plugin becomes one `wp plugin install`
+instead of re-rsyncing the whole tree.
+
+**Why not `composer install` over SSH.** Pressable's Composer guide documents an
+"SSH build" that runs `composer install` in the container. This repo deliberately
+does not do that: managed containers cap a single exec at ~300s (Pressable's own
+troubleshooting table lists *"CLI job killed around 300 s — container exec
+timeout"*), which a cold Composer install for a WooCommerce-scale project does not
+reliably fit inside — and it would die mid-write with maintenance mode already on.
+One short WP-CLI call per package stays far inside the cap, keeps Composer and
+registry credentials off the server entirely, and leaves resolution on the runner.
+
+**The lock is the source of truth, in both directions.** A package whose installed
+version differs from the lock is reinstalled *at the locked version*, so deploying
+an older `release_tag` downgrades third-party plugins instead of leaving them ahead
+of the code. (v3 compared with `version_compare` and only ever upgraded, which
+silently made rollbacks a no-op for everything Composer managed.)
+
+**It respects `PROTECTED_PATHS` and symlinks.** Composer's `installer-paths` would
+happily delete a platform symlink and drop a real directory in its place, and
+WP-CLI would too — so every package is checked against the server's symlinks and
+your protected paths before anything is installed. Note the skeleton in Pressable's
+guide lists `wpackagist-plugin/woocommerce` in `require`; on a site where Pressable
+symlinks WooCommerce, that package is skipped and logged rather than fighting the
+platform.
+
+```
+REMOTE_PLUGIN_INSTALL = true
+SATISPRESS_USER / SATISPRESS_PASSWORD   # only if you pull from packagist.linchpin.com
+```
+
+Requirements and caveats:
+
+- **Per-plugin autoloaders only.** This mode skips the root Composer install, so
+  there is no root `vendor/` in the release and nothing creates one on the server.
+  That matches the layout Pressable's guide recommends (each plugin requires its
+  own `vendor/autoload.php`). A project that depends on a *root* autoloader should
+  not enable it.
+- **Packages need a dist archive.** A source-only requirement (typically a `dev-*`
+  VCS branch) has no zip for WP-CLI to install, so `build-release` keeps those in
+  the release and they arrive over rsync as before. This is automatic.
+- **New packages install inactive.** Nothing is activated for you — the run logs a
+  warning listing them; activate via `post_deploy_command: wp plugin activate <slug>`.
+- **Consider `maintenance_mode: true`.** `wp plugin install --force` replaces a
+  plugin directory in place, so an updated plugin is briefly absent.
+- **Key auth only.** Cloudways Autonomous (`DEPLOYMENT_AUTH_TYPE=pass`) is not
+  supported and the deploy fails loudly rather than skipping the reconcile.
 
 ## GitHub Reusable Workflows
 
@@ -105,9 +218,10 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | ----------------------------------------------- | --------------------------------------------------------------------------------- |
 | [setup-wp-php](actions/setup-wp-php)            | PHP via setup-php + cached Composer install + COMPOSER_AUTH (no auth.json on disk) |
 | [build-release](actions/build-release)          | Turn a built tree into a clean release/ dir using the project .distignore          |
-| [deploy-pressable](actions/deploy-pressable)    | Upload + sync a release to Pressable over SSH, maintenance mode, health check      |
-| [deploy-wpengine](actions/deploy-wpengine)      | Upload + sync a release to WP Engine over SSH, health check                        |
-| [deploy-cloudways](actions/deploy-cloudways)    | Upload + sync a release to Cloudways (key or password SSH auth), health check      |
+| [deploy-pressable](actions/deploy-pressable)    | Upload + symlink-aware sync of a release to Pressable over SSH, maintenance mode, health check |
+| [deploy-wpengine](actions/deploy-wpengine)      | Upload + symlink-aware sync of a release to WP Engine over SSH, health check       |
+| [deploy-cloudways](actions/deploy-cloudways)    | Upload + symlink-aware sync of a release to Cloudways (key or password SSH auth), health check |
+| [remote-plugin-install](actions/remote-plugin-install) | Reconcile third-party plugins/themes against composer.lock with per-package WP-CLI calls over SSH |
 | [update-readme](actions/update-readme)          | Regenerate the README plugin/theme table from composer.lock                        |
 
 ## Example Shared Workflow Usage

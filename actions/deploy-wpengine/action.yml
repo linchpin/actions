@@ -34,6 +34,14 @@ inputs:
     description: "Remote staging path for uploaded releases, relative to the site root"
     required: false
     default: "_wpeprivate/releases"
+  protected-paths:
+    description: "Paths this deploy must never overwrite, relative to wp-content — one per line, comma separated, or a JSON array. Globs are allowed (e.g. `plugins/woocommerce*`), and a bare name matches that folder in any of plugins/themes/mu-plugins. Anything that is a symlink on the server is skipped automatically; use this for paths that are still real folders but are managed outside the repo."
+    required: false
+    default: ""
+  preserve-symlinks:
+    description: "Leave any plugin/theme/mu-plugin that is a symlink on the server exactly as it is instead of syncing over it (true/false). Without this, rsync writes through the link into whatever storage the platform manages, or replaces the link with a real directory. Only set this to false if a deploy is meant to replace symlinks with real directories."
+    required: false
+    default: "true"
   post-deploy-command:
     description: "Optional shell command(s) run on the server (from the site root) after the sync"
     required: false
@@ -70,6 +78,43 @@ runs:
           ControlPath $SSH_PATH/ctl/%C
         END
 
+    # Normalise the protection config here, on the runner, so the server-side
+    # entrypoint reads a plain one-path-per-line file — nothing project-supplied
+    # is ever interpolated into a remote shell command.
+    - name: Resolve symlink protection
+      id: protection
+      shell: bash
+      env:
+        PROTECTED_PATHS: ${{ inputs.protected-paths }}
+        PRESERVE_SYMLINKS: ${{ inputs.preserve-symlinks }}
+      run: |
+        list="$RUNNER_TEMP/protected-paths.txt"
+        : > "$list" # always written, so a stale file from a prior deploy is replaced
+        if [ -n "$PROTECTED_PATHS" ]; then
+          # Accept a JSON array (matching the THEMES/PLUGINS convention) or a
+          # comma/newline separated list.
+          if printf '%s' "$PROTECTED_PATHS" | jq -e 'type == "array"' >/dev/null 2>&1; then
+            printf '%s' "$PROTECTED_PATHS" | jq -r '.[]' >> "$list"
+          else
+            printf '%s\n' "$PROTECTED_PATHS" | tr ',' '\n' >> "$list"
+          fi
+          # Trim whitespace, wrapping quotes and leading/trailing slashes, then
+          # drop comments and blanks. Paths reach the server as bare
+          # wp-content-relative globs.
+          sed -i -e 's#^[[:space:]"/]*##' -e 's#[[:space:]"/]*$##' -e '/^#/d' -e '/^$/d' "$list"
+        fi
+        # Narrowed to a literal true/false before it reaches the ssh command line.
+        case "$PRESERVE_SYMLINKS" in
+          false|False|FALSE|0|no|No|NO) preserve=false ;;
+          *) preserve=true ;;
+        esac
+        echo "preserve=$preserve" >> "$GITHUB_OUTPUT"
+        echo "Preserve server symlinks: $preserve"
+        if [ -s "$list" ]; then
+          echo "Protected paths (never overwritten on the server):"
+          sed 's/^/  • /' "$list"
+        fi
+
     - name: Upload release and entrypoint
       id: upload
       shell: bash
@@ -92,13 +137,15 @@ runs:
         # Land it on the server as $ts.zip regardless of the local filename.
         rsync -e "ssh -p 22" -W "$zip_path" "wpengine:$REMOTE_BASE/$ts.zip"
         rsync -e "ssh -p 22" -W "${{ github.action_path }}/wpengine-entrypoint.sh" "wpengine:$REMOTE_BASE/entrypoint.sh"
+        rsync -e "ssh -p 22" -W "$RUNNER_TEMP/protected-paths.txt" "wpengine:$REMOTE_BASE/protected-paths.txt"
 
     - name: Sync release on the server
       shell: bash
       env:
         REMOTE_BASE: "~/sites/${{ inputs.install-name }}/${{ inputs.deployment-path }}"
+        PRESERVE_SYMLINKS: ${{ steps.protection.outputs.preserve }}
       run: |
-        ssh wpengine "cd $REMOTE_BASE/ && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.upload.outputs.ts }}"
+        ssh wpengine "cd $REMOTE_BASE/ && chmod +x ./entrypoint.sh && PRESERVE_SYMLINKS=$PRESERVE_SYMLINKS bash ./entrypoint.sh ${{ steps.upload.outputs.ts }}"
 
     - name: Run post-deploy command
       if: ${{ inputs.post-deploy-command != '' }}

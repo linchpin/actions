@@ -67,6 +67,29 @@ survives the rewrite:
    entrypoint and update-readme.sh were fetched from the v3 *branch* at run
    time, so a pinned caller still executed unpinned code. v4 bundles all
    scripts inside composite actions (`github.action_path`).
+9. **Deploys rsynced over platform symlinks** — managed hosts link
+   platform-owned plugins (Pressable: jetpack, woocommerce) into `wp-content`.
+   rsync follows a symlinked destination, so `--delete` pruned files the
+   platform owned, and the mu-plugins tree sync could delete the host's own
+   mu-plugins outright. v4 detects symlinks and skips them.
+10. **Remote plugin install could only ever upgrade** —
+    `.deployment/remote-plugin-install.sh` compared versions with
+    `php -r version_compare` and acted only when the lock was *newer*, so
+    deploying an older release left every Composer-managed plugin ahead of the
+    code: rollbacks were a silent no-op for third-party packages. Its
+    authenticated fallback also called `wp plugin install` on the **runner**
+    rather than over SSH, so the fallback could never work; it opened a fresh
+    SSH connection per package; and it counted with `((var++))`, which returns
+    1 on the first increment and would abort any `set -e` port. v4's
+    `actions/remote-plugin-install` treats the lock as authoritative in both
+    directions, reuses one multiplexed connection, and verifies the result.
+11. **`REMOTE_PLUGIN_INSTALL` unset disabled the Composer install** —
+    `build.yml` gated PHP setup and the root `composer install` on
+    `vars.REMOTE_PLUGIN_INSTALL == 'false'`. The documented default is false,
+    but an *unset* variable is `''`, not `'false'`, so any repo that had never
+    defined it built with no dependencies installed and whatever PHP the runner
+    image shipped. The step is now unconditional; only the install itself is
+    conditional, through setup-wp-php's new `install` input.
 
 ## Behavioral changes (intentional)
 
@@ -108,6 +131,34 @@ survives the rewrite:
   used a draft release plus `create-release.yml` to attach-then-publish, but the
   draft broke release-please's changelog boundary detection (it re-scanned all
   history on every release), so the model was inverted.
+- **Symlinked folders are detected and never overwritten.** Managed hosts serve
+  some plugins from platform-owned storage and link them into `wp-content`
+  (Pressable does this for `jetpack` and `woocommerce`). v3 rsynced straight onto
+  those paths, which either wrote *through* the link into platform storage — with
+  `--delete` pruning files the platform owns — or replaced the link with a real
+  directory, detaching the site from platform updates. v4 scans `wp-content`
+  before syncing, skips every symlinked plugin/theme/mu-plugin, logs each one
+  with its target, and lists everything skipped in a closing summary. Paths that
+  are still real folders but are managed outside the repo can be declared in
+  `vars.PROTECTED_PATHS` (or per-deploy via the `protected_paths` input);
+  `preserve_symlinks: false` opts out of the automatic detection. Two related v3
+  behaviours changed as a consequence: Pressable's hardcoded
+  `rm -rf plugins/{jetpack,akismet}` became protected paths (same outcome, now
+  visible in the log), and Cloudways' legacy-symlink cleanup now only removes
+  links that point back into the deployment tree instead of any symlink at
+  `wp-content/{themes,plugins,mu-plugins}`.
+- **`REMOTE_PLUGIN_INSTALL` now works, and changes what the release contains.**
+  With it enabled, `build-release` drops every plugin/theme that `composer.lock`
+  covers *and* has a dist archive, keeping the lock instead; after the sync, the
+  deploy reconciles the server against the lock with one WP-CLI call per package
+  (`actions/remote-plugin-install`). The win is payload and sync volume, not build
+  time — Composer was already cached and the npm builds still run on the runner.
+  Deliberately **not** `composer install` over SSH (Pressable's "SSH build"): a
+  managed container caps one exec at ~300s, which a cold install for a large
+  project does not reliably fit inside, and it would fail mid-write with
+  maintenance mode on. Two requirements come with the mode: the project must use
+  per-plugin autoloaders (there is no root `vendor/` in this mode), and SSH key
+  auth is required (Cloudways `DEPLOYMENT_AUTH_TYPE=pass` fails loudly).
 - **phpcbf is no longer run in CI.** Run `composer fixcs` locally (ideally in
   a pre-commit hook via husky/lint-staged). The v3 flow — CI bot opening an
   "Auto Fix Formatting" PR that itself triggers more CI — was one of the most
@@ -267,11 +318,15 @@ Unchanged from v3 — same names, same levels:
   `PLUGIN_USES_COMPOSER`, `REMOTE_PLUGIN_INSTALL`,
   `DEPLOYMENT_AUTH_TYPE` (cloudways: key|pass), `INSTALL_NAME` (wpengine)
 - Environment vars: `SITE_ID`, `SITE_URL`, `BRANCH`
+- **New in v4:** `PROTECTED_PATHS` (repo or environment) — `wp-content`-relative
+  paths a deploy must never overwrite. Optional; symlinks are skipped without it.
 
 v4 reusable workflows declare their secrets explicitly (documenting the
 contract); `secrets: inherit` from callers still works. `vars.ENVIRONMENT`
-is no longer read. `SATISPRESS_USER`/`SATISPRESS_PASSWORD` are only used by
-the not-yet-ported remote-plugin-install path.
+is no longer read. `SATISPRESS_USER`/`SATISPRESS_PASSWORD` are used only by the
+`REMOTE_PLUGIN_INSTALL` reconcile — and because v4 declares secrets explicitly,
+they are now declared in `deploy.yml`/`deploy-continue.yml`; a caller that passes
+secrets individually rather than with `secrets: inherit` must add them.
 
 ## Versioning plan for v4
 
@@ -309,7 +364,10 @@ GA sequence after this PR merges into main:
 - [ ] Update Mantle to dispatch the continue workflow with explicit
       `inputs: {deployment_id, workflow_run_id}` (v3 dispatched without
       inputs, which could never work)
-- [ ] `REMOTE_PLUGIN_INSTALL=true` flow (`.deployment/remote-plugin-install.sh`)
+- [x] `REMOTE_PLUGIN_INSTALL=true` flow — ported to
+      [`actions/remote-plugin-install`](../actions/remote-plugin-install).
+      `.deployment/remote-plugin-install.sh` is superseded and no longer read by
+      anything in v4. Still needs validating against a live client site.
 - [ ] WP Engine / Cloudways equivalents for `do_backup` (was already a TODO in v3)
 - [ ] Make actionlint/zizmor blocking in `ci.yml` and pin actionlint by digest
 - [ ] Consider `ubuntu-24.04-arm` runners (~37% cheaper minutes) once v4 is stable

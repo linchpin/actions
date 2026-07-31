@@ -76,6 +76,25 @@ on:
         required: false
         default: true
         type: boolean
+      protected_paths:
+        description: >-
+          Paths this deploy must never overwrite, relative to wp-content
+          (one per line, comma separated, or a JSON array; globs allowed).
+          Defaults to vars.PROTECTED_PATHS. Symlinks on the server are already
+          skipped automatically — this is for paths that are still real folders
+          but are managed outside the repo.
+        required: false
+        default: ""
+        type: string
+      preserve_symlinks:
+        description: >-
+          Leave plugins/themes/mu-plugins that are symlinks on the server exactly
+          as they are (managed hosts link platform-owned plugins such as jetpack
+          and woocommerce into wp-content). Set false only to let a deploy
+          replace symlinks with real directories.
+        required: false
+        default: true
+        type: boolean
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON:
         required: false
@@ -92,6 +111,12 @@ on:
       SSH_PASS:
         required: false
       MANTLE_API_BEARER:
+        required: false
+      SATISPRESS_USER:
+        description: "Private Packagist username, used only by the REMOTE_PLUGIN_INSTALL reconcile"
+        required: false
+      SATISPRESS_PASSWORD:
+        description: "Private Packagist password, used only by the REMOTE_PLUGIN_INSTALL reconcile"
         required: false
 
 jobs:
@@ -251,6 +276,8 @@ jobs:
           maintenance-mode: ${{ inputs.maintenance_mode }}
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
+          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          preserve-symlinks: ${{ inputs.preserve_symlinks }}
 
       - name: Deploy to WP Engine
         if: ${{ vars.HOST == 'wpengine' }}
@@ -262,6 +289,8 @@ jobs:
           release-archive: ${{ github.workspace }}/release.zip
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
+          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          preserve-symlinks: ${{ inputs.preserve_symlinks }}
 
       - name: Deploy to Cloudways
         if: ${{ vars.HOST == 'cloudways' }}
@@ -276,12 +305,82 @@ jobs:
           release-archive: ${{ github.workspace }}/release.zip
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
+          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          preserve-symlinks: ${{ inputs.preserve_symlinks }}
 
       - name: Unsupported host
         if: ${{ !contains(fromJSON('["pressable","wpengine","cloudways"]'), vars.HOST) }}
         run: |
           echo "::error::HOST='${{ vars.HOST }}' is not supported by linchpin/actions v4 (expected pressable, wpengine, or cloudways)"
           exit 1
+
+      # Remote plugin install (vars.REMOTE_PLUGIN_INSTALL). The release that just
+      # landed carries only the project's own code; third-party plugins and themes
+      # are reconciled here from composer.lock, one short WP-CLI call per package.
+      # The lock travels inside release.zip, so this works identically for a fresh
+      # build and for a release_tag rollback — and because the lock is the source
+      # of truth in both directions, a rollback downgrades plugins rather than
+      # leaving them ahead of the code.
+      # Cloudways Autonomous authenticates with a password, and remote-plugin-install
+      # only does key auth. Fail before the reconcile rather than skipping it and
+      # reporting a successful deploy that shipped no third-party plugins.
+      - name: Remote plugin install unsupported for this auth type
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'true' && vars.HOST == 'cloudways' && vars.DEPLOYMENT_AUTH_TYPE == 'pass' }}
+        run: |
+          echo "::error::REMOTE_PLUGIN_INSTALL is not supported with DEPLOYMENT_AUTH_TYPE=pass (password SSH)."
+          echo "Use key auth, or unset REMOTE_PLUGIN_INSTALL."
+          exit 1
+
+      - name: Extract composer.lock from the release
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'true' }}
+        run: |
+          if ! unzip -o -q "${{ github.workspace }}/release.zip" composer.lock -d "${{ github.workspace }}"; then
+            echo "::error::composer.lock is not in release.zip."
+            echo "REMOTE_PLUGIN_INSTALL needs it — check that the project .distignore does not exclude it."
+            exit 1
+          fi
+
+      - name: Remote plugin install (Pressable)
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'true' && vars.HOST == 'pressable' }}
+        uses: linchpin/actions/actions/remote-plugin-install@v4
+        with:
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          wp-path: /srv/htdocs
+          composer-lock: ${{ github.workspace }}/composer.lock
+          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          preserve-symlinks: ${{ inputs.preserve_symlinks }}
+          package-auth-user: ${{ secrets.SATISPRESS_USER }}
+          package-auth-password: ${{ secrets.SATISPRESS_PASSWORD }}
+
+      - name: Remote plugin install (WP Engine)
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'true' && vars.HOST == 'wpengine' }}
+        uses: linchpin/actions/actions/remote-plugin-install@v4
+        with:
+          ssh-host: ${{ vars.INSTALL_NAME }}.ssh.wpengine.net
+          ssh-user: ${{ vars.INSTALL_NAME }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          wp-path: ~/sites/${{ vars.INSTALL_NAME }}
+          composer-lock: ${{ github.workspace }}/composer.lock
+          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          preserve-symlinks: ${{ inputs.preserve_symlinks }}
+          package-auth-user: ${{ secrets.SATISPRESS_USER }}
+          package-auth-password: ${{ secrets.SATISPRESS_PASSWORD }}
+
+      - name: Remote plugin install (Cloudways)
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'true' && vars.HOST == 'cloudways' && vars.DEPLOYMENT_AUTH_TYPE != 'pass' }}
+        uses: linchpin/actions/actions/remote-plugin-install@v4
+        with:
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          wp-path: ~/public_html
+          composer-lock: ${{ github.workspace }}/composer.lock
+          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          preserve-symlinks: ${{ inputs.preserve_symlinks }}
+          package-auth-user: ${{ secrets.SATISPRESS_USER }}
+          package-auth-password: ${{ secrets.SATISPRESS_PASSWORD }}
 
       # When the deploy is parked for a backup, the deployment stays `queued`
       # and the continue workflow is responsible for the final status.
