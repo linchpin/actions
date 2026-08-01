@@ -1,0 +1,157 @@
+name: "Remote Plugin Install"
+description: >-
+  Reconcile the third-party plugins and themes in composer.lock with what is
+  installed on the server, using one short-run WP-CLI call per package over SSH.
+  Pair it with a host deploy action: the release ships only your own code, and
+  everything Composer manages is resolved on the server from the lock file.
+
+  v4 note (previous/next): in v3 this was .deployment/remote-plugin-install.sh,
+  gated behind vars.REMOTE_PLUGIN_INSTALL and never ported past WP Engine. That
+  script hardcoded /home/wpe-user paths and the `wpengine` SSH alias, ran its
+  fallback `wp plugin install` on the RUNNER instead of over SSH (so the fallback
+  could never work), opened a fresh SSH connection per package, counted with
+  `((var++))` (which returns 1 on the first increment and would abort under
+  `set -e`), and compared versions with `php -r version_compare` so it only ever
+  upgraded — rolling back to an older release left third-party plugins ahead of
+  the lock. v4 fixes all of that, takes the host layout as inputs, reuses one
+  multiplexed SSH connection, treats the lock as the source of truth in both
+  directions, skips platform symlinks and protected paths, and verifies the
+  result before reporting success.
+
+  Deliberately NOT `composer install` on the server (the "SSH build" in
+  Pressable's Composer Workflows doc): managed containers cap a single exec at
+  ~300s, which a cold Composer install for a large project does not reliably fit
+  inside, and it would fail mid-write with maintenance mode already on. One short
+  WP-CLI call per package stays well inside the cap and keeps Composer and
+  registry credentials off the server entirely.
+
+inputs:
+  ssh-host:
+    description: "SSH host"
+    required: true
+  ssh-user:
+    description: "SSH user"
+    required: true
+  ssh-key:
+    description: "SSH private key. Password auth is not supported by this action — Cloudways Autonomous (DEPLOYMENT_AUTH_TYPE=pass) installs cannot use remote plugin install yet."
+    required: true
+  wp-path:
+    description: "Absolute (or ~-relative) path to the WordPress root on the server. Pressable: /srv/htdocs. WP Engine: ~/sites/<install>. Cloudways: ~/public_html."
+    required: true
+  composer-lock:
+    description: "Path to composer.lock on the runner. It is the source of truth: any package whose installed version differs is reinstalled at the locked version, so a rollback downgrades rather than leaving plugins ahead."
+    required: false
+    default: "composer.lock"
+  protected-paths:
+    description: "Paths this action must never install over, relative to wp-content — same format as the deploy actions (one per line, comma separated, or a JSON array; globs allowed)."
+    required: false
+    default: ""
+  preserve-symlinks:
+    description: "Skip any package whose target directory is a symlink on the server (true/false). Composer's installer-paths would delete such a link and replace it with a real directory; WP-CLI would too, so this is checked before every install."
+    required: false
+    default: "true"
+  package-auth-host:
+    description: "Hostname of the private Composer registry whose dist URLs need credentials (e.g. packagist.linchpin.com). Packages served from anywhere else are downloaded unauthenticated."
+    required: false
+    default: "packagist.linchpin.com"
+  package-auth-user:
+    description: "Username for the private registry (v3's SATISPRESS_USER)"
+    required: false
+    default: ""
+  package-auth-password:
+    description: "Password for the private registry (v3's SATISPRESS_PASSWORD)"
+    required: false
+    default: ""
+  dry-run:
+    description: "Print the plan and make no changes (true/false)"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure SSH connection
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_USER: ${{ inputs.ssh-user }}
+        SSH_KEY: ${{ inputs.ssh-key }}
+      run: |
+        SSH_PATH="$HOME/.ssh"
+        mkdir -p "$SSH_PATH" "$SSH_PATH/ctl"
+        ssh-keyscan -t rsa "$SSH_HOST" >> "$SSH_PATH/known_hosts" 2>/dev/null
+        echo "$SSH_KEY" > "$SSH_PATH/remote_install"
+        chmod 700 "$SSH_PATH"
+        chmod 644 "$SSH_PATH/known_hosts"
+        chmod 600 "$SSH_PATH/remote_install"
+        # Its own alias, so pairing this action with a host deploy action in the
+        # same job does not collide with that action's Host block. ControlPath %C
+        # hashes host/port/user rather than the alias, so the two aliases still
+        # share one multiplexed connection — the per-package calls below cost a
+        # single handshake between them.
+        cat >> "$SSH_PATH/config" <<END
+          Host remoteinstall
+          HostName $SSH_HOST
+          User $SSH_USER
+          IdentityFile $SSH_PATH/remote_install
+          StrictHostKeyChecking no
+          ControlMaster auto
+          ControlPath $SSH_PATH/ctl/%C
+          ControlPersist 60
+        END
+
+    # Same normalisation as the deploy actions, so PROTECTED_PATHS means exactly
+    # the same thing whether a package arrives over rsync or over WP-CLI.
+    - name: Resolve symlink protection
+      id: protection
+      shell: bash
+      env:
+        PROTECTED_PATHS: ${{ inputs.protected-paths }}
+        PRESERVE_SYMLINKS: ${{ inputs.preserve-symlinks }}
+      run: |
+        list="$RUNNER_TEMP/protected-paths.txt"
+        : > "$list" # always written, so a stale file from a prior deploy is replaced
+        if [ -n "$PROTECTED_PATHS" ]; then
+          # Accept a JSON array (matching the THEMES/PLUGINS convention) or a
+          # comma/newline separated list.
+          if printf '%s' "$PROTECTED_PATHS" | jq -e 'type == "array"' >/dev/null 2>&1; then
+            printf '%s' "$PROTECTED_PATHS" | jq -r '.[]' >> "$list"
+          else
+            printf '%s\n' "$PROTECTED_PATHS" | tr ',' '\n' >> "$list"
+          fi
+          # Trim whitespace, wrapping quotes and leading/trailing slashes, then
+          # drop comments and blanks. Paths reach the server as bare
+          # wp-content-relative globs.
+          sed -i -e 's#^[[:space:]"/]*##' -e 's#[[:space:]"/]*$##' -e '/^#/d' -e '/^$/d' "$list"
+        fi
+        # Narrowed to a literal true/false before it reaches the ssh command line.
+        case "$PRESERVE_SYMLINKS" in
+          false|False|FALSE|0|no|No|NO) preserve=false ;;
+          *) preserve=true ;;
+        esac
+        echo "preserve=$preserve" >> "$GITHUB_OUTPUT"
+        echo "Preserve server symlinks: $preserve"
+        if [ -s "$list" ]; then
+          echo "Protected paths (never installed over):"
+          sed 's/^/  • /' "$list"
+        fi
+
+    - name: Reconcile packages from composer.lock
+      shell: bash
+      env:
+        SSH_ALIAS: remoteinstall
+        WP_PATH: ${{ inputs.wp-path }}
+        COMPOSER_LOCK: ${{ inputs.composer-lock }}
+        PROTECTED_PATHS_FILE: ${{ runner.temp }}/protected-paths.txt
+        PRESERVE_SYMLINKS: ${{ steps.protection.outputs.preserve }}
+        PACKAGE_AUTH_HOST: ${{ inputs.package-auth-host }}
+        PACKAGE_AUTH_USER: ${{ inputs.package-auth-user }}
+        PACKAGE_AUTH_PASSWORD: ${{ inputs.package-auth-password }}
+        DRY_RUN: ${{ inputs.dry-run }}
+      run: |
+        # WP-CLI echoes the URL it downloads from, and that URL carries registry
+        # credentials for private packages. Mask both halves so neither shows up
+        # in the run log.
+        if [ -n "$PACKAGE_AUTH_USER" ]; then echo "::add-mask::$PACKAGE_AUTH_USER"; fi
+        if [ -n "$PACKAGE_AUTH_PASSWORD" ]; then echo "::add-mask::$PACKAGE_AUTH_PASSWORD"; fi
+        bash "${{ github.action_path }}/remote-plugin-install.sh"

@@ -28,11 +28,49 @@ fi
 EXCLUDES="$(mktemp)"
 cp "$DISTIGNORE" "$EXCLUDES"
 
-# When installing plugins remotely the server needs the composer files,
-# so remove them from the exclude list.
+# Remote plugin install: the server resolves third-party plugins and themes from
+# composer.lock itself (see actions/remote-plugin-install), so the lock has to
+# ship and the packages it covers must not. Dropping them is where this mode pays
+# for itself — vendor-installed plugins are the bulk of a release, and a release
+# that carries only the project's own code transfers, stores and syncs in a
+# fraction of the time.
 if [ "$REMOTE_PLUGIN_INSTALL" = "true" ]; then
   echo "Keeping composer.json/composer.lock in the release for remote plugin install"
   sed -i '/composer.json\|composer.lock/d' "$EXCLUDES"
+
+  LOCK="$SRC/composer.lock"
+  if [ ! -f "$LOCK" ]; then
+    echo "::error::REMOTE_PLUGIN_INSTALL is true but no composer.lock was found at $LOCK"
+    exit 1
+  fi
+
+  # Only packages that actually have a dist archive: WP-CLI installs from a zip
+  # URL, so a source-only requirement (typically a dev-* VCS branch) has nothing
+  # to install from and must keep travelling in the release instead.
+  excluded_packages=0
+  while IFS=$'\t' read -r name type; do
+    slug="${name##*/}"
+    case "$type" in
+      wordpress-plugin) printf '/plugins/%s/\n' "$slug" >> "$EXCLUDES" ;;
+      wordpress-theme) printf '/themes/%s/\n' "$slug" >> "$EXCLUDES" ;;
+      *) continue ;;
+    esac
+    excluded_packages=$((excluded_packages + 1))
+  done < <(jq -r '
+    .packages[]
+    | select((.type == "wordpress-plugin" or .type == "wordpress-theme")
+             and (.dist.url // "") != "")
+    | [.name, .type]
+    | @tsv
+  ' "$LOCK")
+
+  echo "Excluding $excluded_packages Composer-managed package(s) — the server installs these from composer.lock"
+
+  # Note: this mode does not run the root Composer install on the runner either,
+  # so there is no root vendor/ to ship and nothing creates one on the server.
+  # It suits the per-plugin autoloader layout Pressable's Composer guide
+  # recommends (each plugin requires its own vendor/autoload.php); a project that
+  # depends on a ROOT autoloader should not use REMOTE_PLUGIN_INSTALL.
 fi
 
 # Never ship these, regardless of what the project .distignore says.

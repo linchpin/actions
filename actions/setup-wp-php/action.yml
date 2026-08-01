@@ -34,6 +34,10 @@ inputs:
     description: "Tools for shivammathur/setup-php"
     required: false
     default: "composer, cs2pr"
+  install:
+    description: "Run the Composer install (true/false). Set false to get the pinned PHP and a warm Composer cache without installing — used by the remote-plugin-install build, where the server resolves packages from composer.lock and installing them on the runner would only be thrown away."
+    required: false
+    default: "true"
 
 runs:
   using: "composite"
@@ -64,6 +68,7 @@ runs:
           composer-${{ runner.os }}-php${{ inputs.php-version }}-
 
     - name: Composer install
+      if: ${{ inputs.install != 'false' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:

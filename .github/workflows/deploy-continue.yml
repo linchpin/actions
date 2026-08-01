@@ -61,6 +61,22 @@ on:
         required: false
         default: true
         type: boolean
+      protected_paths:
+        description: >-
+          Paths this deploy must never overwrite, relative to wp-content
+          (one per line, comma separated, or a JSON array; globs allowed).
+          Defaults to vars.PROTECTED_PATHS.
+        required: false
+        default: ""
+        type: string
+      preserve_symlinks:
+        description: >-
+          Leave plugins/themes/mu-plugins that are symlinks on the server exactly
+          as they are (Pressable links platform-owned plugins such as jetpack and
+          woocommerce into wp-content).
+        required: false
+        default: true
+        type: boolean
     secrets:
       PRESSABLE_API_CLIENT_ID:
         required: false
@@ -71,6 +87,12 @@ on:
       SSH_USER:
         required: false
       SSH_KEY:
+        required: false
+      SATISPRESS_USER:
+        description: "Private Packagist username, used only by the REMOTE_PLUGIN_INSTALL reconcile"
+        required: false
+      SATISPRESS_PASSWORD:
+        description: "Private Packagist password, used only by the REMOTE_PLUGIN_INSTALL reconcile"
         required: false
 
 jobs:
@@ -147,12 +169,40 @@ jobs:
           maintenance-mode: ${{ inputs.maintenance_mode }}
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
+          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          preserve-symlinks: ${{ inputs.preserve_symlinks }}
 
       - name: Unsupported host
         if: ${{ vars.HOST != 'pressable' }}
         run: |
           echo "::error::The backup-and-continue flow currently supports HOST=pressable only (the backup is a Pressable API feature)"
           exit 1
+
+      # Mirrors deploy.yml: without this, a do_backup deploy would finish here
+      # having synced only the project's own code and never reconciled the
+      # Composer-managed packages, while still reporting success.
+      - name: Extract composer.lock from the release
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'true' }}
+        run: |
+          if ! unzip -o -q "${{ github.workspace }}/release.zip" composer.lock -d "${{ github.workspace }}"; then
+            echo "::error::composer.lock is not in release.zip."
+            echo "REMOTE_PLUGIN_INSTALL needs it — check that the project .distignore does not exclude it."
+            exit 1
+          fi
+
+      - name: Remote plugin install
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'true' }}
+        uses: linchpin/actions/actions/remote-plugin-install@v4
+        with:
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          wp-path: /srv/htdocs
+          composer-lock: ${{ github.workspace }}/composer.lock
+          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          preserve-symlinks: ${{ inputs.preserve_symlinks }}
+          package-auth-user: ${{ secrets.SATISPRESS_USER }}
+          package-auth-password: ${{ secrets.SATISPRESS_PASSWORD }}
 
       - name: Mark deployment successful
         if: ${{ success() }}

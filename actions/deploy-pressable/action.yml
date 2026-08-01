@@ -46,6 +46,14 @@ inputs:
     description: "Remote staging path for uploaded releases"
     required: false
     default: "/tmp/releases"
+  protected-paths:
+    description: "Paths this deploy must never overwrite, relative to wp-content — one per line, comma separated, or a JSON array. Globs are allowed (e.g. `plugins/woocommerce*`), and a bare name matches that folder in any of plugins/themes/mu-plugins. Anything that is a symlink on the server is skipped automatically; use this for paths that are still real folders but are managed outside the repo. Pressable's own jetpack and akismet are always protected."
+    required: false
+    default: ""
+  preserve-symlinks:
+    description: "Leave any plugin/theme/mu-plugin that is a symlink on the server exactly as it is instead of syncing over it (true/false). Pressable serves platform-managed plugins (jetpack, woocommerce) this way, and rsync would otherwise write through the link into platform-owned storage or replace the link with a real directory. Only set this to false if a deploy is meant to replace symlinks with real directories."
+    required: false
+    default: "true"
   maintenance-mode:
     description: "Enable Pressable maintenance mode during the sync (true/false)"
     required: false
@@ -121,6 +129,43 @@ runs:
           ControlPath $SSH_PATH/ctl/%C
         END
 
+    # Normalise the protection config here, on the runner, so the server-side
+    # entrypoint reads a plain one-path-per-line file — nothing project-supplied
+    # is ever interpolated into a remote shell command.
+    - name: Resolve symlink protection
+      id: protection
+      shell: bash
+      env:
+        PROTECTED_PATHS: ${{ inputs.protected-paths }}
+        PRESERVE_SYMLINKS: ${{ inputs.preserve-symlinks }}
+      run: |
+        list="$RUNNER_TEMP/protected-paths.txt"
+        : > "$list" # always written, so a stale file from a prior deploy is replaced
+        if [ -n "$PROTECTED_PATHS" ]; then
+          # Accept a JSON array (matching the THEMES/PLUGINS convention) or a
+          # comma/newline separated list.
+          if printf '%s' "$PROTECTED_PATHS" | jq -e 'type == "array"' >/dev/null 2>&1; then
+            printf '%s' "$PROTECTED_PATHS" | jq -r '.[]' >> "$list"
+          else
+            printf '%s\n' "$PROTECTED_PATHS" | tr ',' '\n' >> "$list"
+          fi
+          # Trim whitespace, wrapping quotes and leading/trailing slashes, then
+          # drop comments and blanks. Paths reach the server as bare
+          # wp-content-relative globs.
+          sed -i -e 's#^[[:space:]"/]*##' -e 's#[[:space:]"/]*$##' -e '/^#/d' -e '/^$/d' "$list"
+        fi
+        # Narrowed to a literal true/false before it reaches the ssh command line.
+        case "$PRESERVE_SYMLINKS" in
+          false|False|FALSE|0|no|No|NO) preserve=false ;;
+          *) preserve=true ;;
+        esac
+        echo "preserve=$preserve" >> "$GITHUB_OUTPUT"
+        echo "Preserve server symlinks: $preserve"
+        if [ -s "$list" ]; then
+          echo "Protected paths (never overwritten on the server):"
+          sed 's/^/  • /' "$list"
+        fi
+
     - name: Upload release and entrypoint
       id: upload
       shell: bash
@@ -144,6 +189,7 @@ runs:
         # v4: the entrypoint ships with this action instead of being wget'd
         # from a branch on the server.
         rsync -e "ssh -p 22" -W "${{ github.action_path }}/pressable-entrypoint.sh" "pressable:${{ inputs.deployment-path }}/entrypoint.sh"
+        rsync -e "ssh -p 22" -W "$RUNNER_TEMP/protected-paths.txt" "pressable:${{ inputs.deployment-path }}/protected-paths.txt"
 
     - name: Enable maintenance mode
       if: ${{ inputs.maintenance-mode == 'true' }}
@@ -154,8 +200,10 @@ runs:
 
     - name: Sync release on the server
       shell: bash
+      env:
+        PRESERVE_SYMLINKS: ${{ steps.protection.outputs.preserve }}
       run: |
-        ssh pressable "cd ${{ inputs.deployment-path }}/ && chmod +x ./entrypoint.sh && bash ./entrypoint.sh ${{ steps.upload.outputs.ts }}"
+        ssh pressable "cd ${{ inputs.deployment-path }}/ && chmod +x ./entrypoint.sh && PRESERVE_SYMLINKS=$PRESERVE_SYMLINKS bash ./entrypoint.sh ${{ steps.upload.outputs.ts }}"
 
     - name: Disable maintenance mode
       if: ${{ always() && inputs.maintenance-mode == 'true' }}

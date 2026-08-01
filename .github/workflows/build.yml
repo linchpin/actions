@@ -89,12 +89,23 @@ jobs:
       # though `composer install` correctly tolerates it (warns, succeeds). The
       # PR-time gate (validate-composer.yml) uses `composer install` for the
       # same reason.
+      # This step is unconditional on purpose. It used to carry
+      # `if: vars.REMOTE_PLUGIN_INSTALL == 'false'`, which skipped PHP setup and
+      # the root Composer install for every repo that had simply never defined the
+      # variable ('' != 'false') — the documented default is false, so the common
+      # case silently built with no dependencies installed and whatever PHP the
+      # runner image happened to ship. PHP is now always pinned and the Composer
+      # cache always warmed; only the install itself is conditional, via the
+      # action's `install` input.
       - name: Setup PHP and install project Composer dependencies
-        if: ${{ vars.REMOTE_PLUGIN_INSTALL == 'false' }}
         uses: linchpin/actions/actions/setup-wp-php@v4
         with:
           php-version: ${{ inputs.php_version || vars.PHP_VERSION }}
           composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+          # Remote plugin install resolves third-party packages on the server from
+          # composer.lock, so installing them here would only be excluded from the
+          # release again by build-release.
+          install: ${{ vars.REMOTE_PLUGIN_INSTALL == 'true' && 'false' || 'true' }}
 
       - name: Setup Node.js (npm cache)
         if: ${{ hashFiles('themes/*/package-lock.json', 'plugins/*/package-lock.json', 'plugins/*/blocks/package-lock.json') != '' }}
