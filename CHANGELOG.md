@@ -1,5 +1,14 @@
 # Changelog
 
+## [4.6.0](https://github.com/linchpin/actions/compare/v4.5.0...v4.6.0) (2026-08-01)
+
+
+### Features
+
+* **LINCHPIN-4917:** Add auto-merge for non-major renovate PRs into maintenance branches ([7892715](https://github.com/linchpin/actions/commit/7892715a2b2a93b256dde293de6bd17b9c0d196a))
+* **LINCHPIN-4917:** Add auto-merge for non-major renovate PRs into maintenance branches ([0c4382f](https://github.com/linchpin/actions/commit/0c4382fff0971b5afbf9e2f5d2de11d16f392ec4))
+* **NO-TASK:** symlink-aware deploys and remote Composer plugin install ([#147](https://github.com/linchpin/actions/issues/147)) ([474d390](https://github.com/linchpin/actions/commit/474d3906e523d1a233e573afb8976a9f49583ca1))
+
 ## [4.5.0](https://github.com/linchpin/actions/compare/v4.4.0...v4.5.0) (2026-07-28)
 
 
