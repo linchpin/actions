@@ -212,6 +212,7 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
 | [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
 | [auto-merge-maintenance.yml](.github/workflows/auto-merge-maintenance.yml) | Cron-driven: auto-merges open Renovate PRs targeting a `maintenance/YYYY-MM` branch, excluding anything labeled `major`. Never touches main/master |
+| [check-overrides.yml](.github/workflows/check-overrides.yml) | Report npm `overrides` pins that no longer do anything, optionally tracking them in a single reusable issue     |
 | [ci.yml](.github/workflows/ci.yml)                         | This repo's own CI: actionlint + yamllint + zizmor                                                             |
 
 ### Composite Actions
@@ -225,6 +226,7 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [deploy-cloudways](actions/deploy-cloudways)    | Upload + symlink-aware sync of a release to Cloudways (key or password SSH auth), health check |
 | [remote-plugin-install](actions/remote-plugin-install) | Reconcile third-party plugins/themes against composer.lock with per-package WP-CLI calls over SSH |
 | [update-readme](actions/update-readme)          | Regenerate the README plugin/theme table from composer.lock                        |
+| [check-overrides](actions/check-overrides)      | Probe each npm `overrides` pin and report the ones that are redundant or dangling  |
 
 ## Example Shared Workflow Usage
 
@@ -255,6 +257,42 @@ jobs:
       # Build this release, deploy it, and archive the zip on the release.
       build_for_release: ${{ github.event.release.tag_name }}
 ```
+
+### Checking npm overrides
+
+Transitive advisories in build tooling get pinned with npm `overrides`, because
+the dependents keep declaring a vulnerable range long after a fix ships. Nothing
+otherwise tells you the day upstream catches up and a pin stops doing anything,
+so they accumulate — and each one is a silent veto on a dependency the rest of
+the tree wants to move.
+
+Point it at every project in the repo that has its own lockfile:
+
+```yaml
+name: Check npm overrides
+on:
+  schedule:
+    - cron: "0 9 1 * *" # 09:00 UTC on the 1st
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  overrides:
+    uses: linchpin/actions/.github/workflows/check-overrides.yml@v4
+    with:
+      # A wp-content-shaped repo usually has several npm projects.
+      directories: |
+        .
+        themes/my-theme
+        plugins/my-functionality
+        plugins/my-functionality/blocks
+      open_issue: true
+```
+
+Findings are reported, never enforced: a redundant override may still be wanted
+as a security floor, so `fail_on_redundant` is off by default.
 
 To auto-merge non-major Renovate PRs into a monthly `maintenance/YYYY-MM`
 branch, add a caller workflow with its own `schedule` trigger (schedules

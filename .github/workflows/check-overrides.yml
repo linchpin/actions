@@ -1,0 +1,136 @@
+# Check npm overrides (v4)
+#
+# Why this exists: transitive advisories in build tooling are remediated with
+# npm `overrides` pins, because the dependents (@wordpress/scripts and friends)
+# often keep declaring a vulnerable range long after a fix ships. That works,
+# but the pins are write-only in practice — nothing ever tells you the day
+# upstream catches up and the override stops doing anything. Projects end up
+# carrying a dozen pins where two are load-bearing, and every one of them is a
+# silent veto on a dependency the rest of the tree wants to move.
+#
+# This workflow probes each override independently and reports the ones that
+# have gone inert. It never fails a PR by default: an override held as a
+# security floor is legitimately kept even when the tree already satisfies it,
+# so the call belongs to a human.
+
+name: Check npm overrides
+
+on:
+  workflow_call:
+    inputs:
+      directories:
+        description: >-
+          Newline-separated list of directories to check, each with a
+          package.json and package-lock.json. Defaults to the repository root.
+        required: false
+        default: "."
+        type: string
+      node_version:
+        description: "Node version. Defaults to vars.NODE_VERSION, then 24"
+        required: false
+        default: ""
+        type: string
+      fail_on_redundant:
+        description: "Fail the job when an override is redundant or dangling"
+        required: false
+        default: false
+        type: boolean
+      open_issue:
+        description: >-
+          Open (or update) a single tracking issue listing removable overrides,
+          and close it once there are none. Intended for scheduled runs.
+        required: false
+        default: false
+        type: boolean
+      issue_label:
+        description: "Label used to find and mark the tracking issue"
+        required: false
+        default: "dependencies"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  check-overrides:
+    name: npm overrides staleness
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # Only needed when open_issue is true; harmless otherwise.
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check overrides
+        id: check
+        uses: linchpin/actions/actions/check-overrides@v4
+        with:
+          directories: ${{ inputs.directories }}
+          node-version: ${{ inputs.node_version || vars.NODE_VERSION || '24' }}
+          fail-on-redundant: ${{ inputs.fail_on_redundant }}
+          json-out: overrides-report.json
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: npm-overrides-report
+          path: overrides-report.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # A single reusable issue, kept in sync — so a monthly run does not create
+      # a new issue every month for the same unchanged set of pins.
+      - name: Sync tracking issue
+        if: ${{ inputs.open_issue }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "Removable npm overrides"
+          LABEL: ${{ inputs.issue_label }}
+          REMOVABLE: ${{ steps.check.outputs.removable-count }}
+          NEEDED: ${{ steps.check.outputs.needed-count }}
+          RUN_URL: >-
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          existing="$(gh issue list --state open --label "$LABEL" \
+            --search "$TITLE in:title" --json number,title \
+            --jq "map(select(.title == \"$TITLE\")) | .[0].number // empty")"
+
+          if [ "${REMOVABLE:-0}" -eq 0 ]; then
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" \
+                --body "All $NEEDED override(s) are load-bearing again as of $(date -u +%Y-%m-%d). Closing."
+              gh issue close "$existing"
+              echo "Closed #$existing — nothing removable."
+            else
+              echo "Nothing removable, no open issue. Done."
+            fi
+            exit 0
+          fi
+
+          {
+            echo "$REMOVABLE npm override(s) no longer appear to do anything."
+            echo
+            echo "Each was probed on its own: removed from a scratch copy of the"
+            echo "manifest, graph re-resolved, result compared against the pin."
+            echo
+            echo "**A redundant override is not automatically safe to delete.** One"
+            echo "added to hold a security floor still guards against a future"
+            echo "downgrade. Review each before removing."
+            echo
+            echo "Full table in the [workflow run summary]($RUN_URL)."
+            echo
+            echo "<sub>Updated automatically by check-overrides.yml.</sub>"
+          } > issue-body.md
+
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file issue-body.md
+            echo "Updated #$existing."
+          else
+            gh issue create --title "$TITLE" --label "$LABEL" --body-file issue-body.md
+          fi
