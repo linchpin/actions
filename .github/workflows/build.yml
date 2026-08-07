@@ -124,6 +124,76 @@ jobs:
         with:
           node-version: ${{ inputs.node_version || vars.NODE_VERSION }}
 
+      # A directory listed in THEMES/PLUGINS but missing on disk already fails
+      # loudly below. The dangerous case is the mirror image: a theme or plugin
+      # that needs building but was never added to the list. Nothing warns —
+      # the loop simply never visits it, the build goes green, and the release
+      # ships that package with no build/ and no vendor/. Whether the site then
+      # white-screens or just loses its assets depends on the package.
+      #
+      # It stops being hypothetical the moment a package moves from Composer
+      # into the repo: it used to arrive prebuilt from the registry, so nobody
+      # had to think about the build list, and now it does not.
+      #
+      # Two signals, and both are needed. A lockfile alone is not enough:
+      # Composer-managed packages are gitignored dist copies that frequently
+      # ship their own package-lock.json (wp-theme/ollie and
+      # linchpin/clickup-budgets both do), and they arrive prebuilt, so they
+      # are correctly absent from the list. Git tracking is what separates
+      # "source this repo builds" from "artifact this repo installs".
+      #
+      # So: tracked by git AND has a lockfile the build loops key off. A
+      # package missing either is inert or prebuilt, and correctly unlisted.
+      #
+      # Warns by default, and only fails when STRICT_BUILD_LIST is 'true'.
+      # Failing everywhere would have been wrong: centro, techconnect and
+      # nutrience-ca set no THEMES/PLUGINS at all and still deploy happily
+      # (they commit their build output), so a hard error would have broken
+      # three live projects to protect a fourth. Opt in per repo once its list
+      # is known good.
+      - name: Check every buildable theme and plugin is configured
+        env:
+          THEMES_JSON: ${{ inputs.themes || vars.THEMES || '["none"]' }}
+          PLUGINS_JSON: ${{ inputs.plugins || vars.PLUGINS || '["none"]' }}
+          STRICT: ${{ vars.STRICT_BUILD_LIST }}
+        run: |
+          set -euo pipefail
+          missing=0
+          if [ "$STRICT" = "true" ]; then level="error"; else level="warning"; fi
+          for kind in themes plugins; do
+            [ -d "$kind" ] || continue
+            case "$kind" in
+              themes) configured="$THEMES_JSON"; var_name="THEMES" ;;
+              plugins) configured="$PLUGINS_JSON"; var_name="PLUGINS" ;;
+            esac
+            for dir in "$kind"/*/; do
+              [ -d "$dir" ] || continue
+              name="$(basename "$dir")"
+              # Composer-managed (gitignored) packages arrive prebuilt — skip.
+              if [ -z "$(git ls-files -- "$dir" | head -1)" ]; then
+                continue
+              fi
+              # Tracked but nothing to build — correctly unlisted.
+              if [ ! -f "$dir/package-lock.json" ] && [ ! -f "$dir/composer.lock" ]; then
+                continue
+              fi
+              if [ "$(echo "$configured" | jq -r --arg n "$name" 'index($n) // "null"')" != "null" ]; then
+                continue
+              fi
+              echo "::$level file=$dir::$name is tracked in git and has a lockfile, but is not listed in $var_name — it will not be built, so the release would ship it without build/ or vendor/. Add it to the $var_name repository variable."
+              missing=$((missing + 1))
+            done
+          done
+          if [ "$missing" -gt 0 ]; then
+            if [ "$STRICT" = "true" ]; then
+              echo "::error::$missing buildable package(s) missing from THEMES/PLUGINS. Refusing to build an incomplete release."
+              exit 1
+            fi
+            echo "::warning::$missing buildable package(s) missing from THEMES/PLUGINS. Set the STRICT_BUILD_LIST repository variable to 'true' to make this fail the build."
+          else
+            echo "All buildable themes and plugins are configured."
+          fi
+
       - name: Build themes
         env:
           THEMES_JSON: ${{ inputs.themes || vars.THEMES || '["none"]' }}
