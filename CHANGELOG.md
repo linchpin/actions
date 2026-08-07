@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.0](https://github.com/linchpin/actions/compare/v4.6.0...v4.7.0) (2026-08-07)
+
+
+### Features
+
+* **NO-TASK:** Warn when a buildable theme or plugin is missing from the list ([#150](https://github.com/linchpin/actions/issues/150)) ([da2c23b](https://github.com/linchpin/actions/commit/da2c23bfe74baa94cbd510b5a04d9c93817b079c))
+
 ## [4.6.0](https://github.com/linchpin/actions/compare/v4.5.0...v4.6.0) (2026-08-01)
 
 
