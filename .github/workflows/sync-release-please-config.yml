@@ -1,0 +1,226 @@
+# Sync release-please-config.json (v4)
+#
+# Why this exists: release-please has no `extends`. Its config schema is
+# `additionalProperties: false`, and release-please reads the file through the
+# GitHub API off the target branch — `github.getFileJson(configFile, branch)` —
+# not from the workflow's checkout. So a shared standard cannot be referenced,
+# and it cannot be generated at run time either: the JSON has to be committed in
+# every repo that uses it.
+#
+# That normally means a hand-made pull request per repo every time the standard
+# changes, across ~30 repos. This workflow removes that. The standard ships as
+# @linchpinagency/release-please-config on npm, Renovate bumps it like any other
+# dependency, and this job regenerates the committed JSON onto that same PR — so
+# the version bump and the config it implies land together, and the existing
+# auto-approve-maintenance / auto-merge-maintenance path carries it home
+# untouched (`release-please-config.json` is already on both allow-lists).
+#
+# The regeneration uses the version the PR just installed, never `@latest`. The
+# lockfile stays the source of truth, so `check` in CI is deterministic and
+# Renovate — not the clock — decides when a repo moves.
+#
+# Project-specific settings survive: `sync` replaces only the changelog sections
+# and the shared release keys, and carries release-type, packages, extra-files,
+# versioning and search depths across as they were.
+
+name: Sync release-please config
+
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        description: "Node version. Defaults to vars.NODE_VERSION, then 24"
+        required: false
+        default: ""
+        type: string
+      sync_args:
+        description: >-
+          Extra arguments for the sync command. Only needed by a project that
+          declares legitimate section overrides; sync otherwise reads everything
+          it needs from the existing config file.
+        required: false
+        default: ""
+        type: string
+      allowed_actor:
+        description: >-
+          Only run when the pull request was opened by this actor. Guards the
+          push below — see the security note on the checkout step.
+        required: false
+        default: "renovate[bot]"
+        type: string
+      dry_run:
+        description: "Report what would change without pushing anything"
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      GH_BOT_TOKEN:
+        description: >-
+          Token used to push the regenerated config. A PAT rather than
+          github.token, because a push made with github.token does not trigger
+          workflow runs — the PR's own checks would never re-run against the
+          commit this job adds.
+        required: true
+
+permissions:
+  contents: read
+
+# Renovate force-pushes its branches. Two overlapping runs would race on the
+# push below, so they are serialised per pull request — and never cancelled
+# mid-flight, which could abort a run between its commit and its push.
+concurrency:
+  group: sync-release-please-config-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Regenerate committed config
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Two hard guards, kept here rather than left to the caller so that wiring
+    # this workflow up loosely cannot turn it into an arbitrary-code path:
+    #
+    #   - Same-repository pull requests only. A fork PR must never reach the
+    #     checkout below, which combines the PR's head ref with a PAT.
+    #   - The expected bot only. Anything else is a human PR that should be
+    #     reviewed, not rewritten underneath its author.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == inputs.allowed_actor
+
+    steps:
+      # Checks out the PR's head branch so the regenerated file can be committed
+      # back onto it. Safe only because of the fork and actor guards above.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          # Full history: the push below is a fast-forward onto a branch that
+          # Renovate may have force-pushed since this run was queued.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ inputs.node_version || vars.NODE_VERSION || '24' }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Nothing to do unless this PR actually moved the standard. Renovate
+      # batches unrelated dependencies into the same maintenance PR, so most
+      # runs of this workflow should stop here.
+      - name: Check whether the standard moved
+        id: moved
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          pkg="@linchpinagency/release-please-config"
+
+          before="$(git show "$BASE_SHA:package.json" 2>/dev/null \
+            | jq -r --arg p "$pkg" '(.devDependencies[$p] // .dependencies[$p]) // empty')"
+          after="$(jq -r --arg p "$pkg" \
+            '(.devDependencies[$p] // .dependencies[$p]) // empty' package.json)"
+
+          echo "before: ${before:-<absent>}"
+          echo "after:  ${after:-<absent>}"
+
+          if [ -z "$after" ]; then
+            echo "The standard is not a dependency of this repo — nothing to sync."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif [ ! -f release-please-config.json ]; then
+            # A repo can legitimately depend on the package for `check` alone
+            # before it has a config. Failing every Renovate PR over that would
+            # be worse than saying so once and moving on — `sync` has nothing to
+            # merge into, and `init` is a deliberate, human decision.
+            echo "No release-please-config.json to sync. Run \`init\` first."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif [ "$before" = "$after" ]; then
+            echo "Declared version unchanged. Skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            echo "installed=$(node -p "require('$pkg/package.json').version" 2>/dev/null || echo unknown)"
+          } >> "$GITHUB_OUTPUT"
+
+      # --no-install is the load-bearing flag: it makes npx fail rather than
+      # silently fetch from the registry, so this can only ever run the version
+      # the lockfile just pinned.
+      - name: Sync
+        if: steps.moved.outputs.run == 'true'
+        env:
+          SYNC_ARGS: ${{ inputs.sync_args }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          npx --no-install release-please-config sync $SYNC_ARGS
+
+      - name: Verify the result matches the standard
+        if: steps.moved.outputs.run == 'true'
+        env:
+          SYNC_ARGS: ${{ inputs.sync_args }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          npx --no-install release-please-config check $SYNC_ARGS
+
+      - name: Commit and push
+        if: steps.moved.outputs.run == 'true'
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          INSTALLED: ${{ steps.moved.outputs.installed }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- release-please-config.json; then
+            echo "Config already matched the new version. Nothing to commit."
+            echo "Config already matched \`$INSTALLED\`." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git diff --stat -- release-please-config.json
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "dry-run: would commit the diff above"
+            {
+              echo "### Dry run"
+              echo
+              echo '```diff'
+              git diff -- release-please-config.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Renovate's own identity, so the PR keeps a single consistent author
+          # and auto-merge-maintenance's `author == renovate[bot]` guard holds.
+          git config user.name 'renovate[bot]'
+          git config user.email '29139614+renovate[bot]@users.noreply.github.com'
+
+          # Scope-limited on purpose. If a future sync ever touched anything
+          # else, this add would leave it uncommitted rather than sweep it into
+          # a PR that auto-merges.
+          git add release-please-config.json
+
+          # build(deps) satisfies @linchpinagency/commitlint-config, and matches
+          # the type Renovate uses for the bump this commit accompanies.
+          git commit -m "build(deps): Regenerate release-please config for ${INSTALLED}"
+
+          # Rebase rather than merge: Renovate force-pushes its branches, and a
+          # merge commit here would confuse its next update.
+          git pull --rebase --autostash origin "$HEAD_REF"
+          git push origin "HEAD:$HEAD_REF"
+
+          {
+            echo "### Regenerated \`release-please-config.json\`"
+            echo
+            echo "Standard moved to \`$INSTALLED\`; the committed config was updated to match."
+          } >> "$GITHUB_STEP_SUMMARY"

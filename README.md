@@ -213,6 +213,7 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
 | [auto-merge-maintenance.yml](.github/workflows/auto-merge-maintenance.yml) | Cron-driven: auto-merges open Renovate PRs targeting a `maintenance/YYYY-MM` branch, excluding anything labeled `major`. Never touches main/master |
 | [ci.yml](.github/workflows/ci.yml)                         | This repo's own CI: actionlint + yamllint + zizmor                                                             |
+| [sync-release-please-config.yml](.github/workflows/sync-release-please-config.yml) | Regenerate the committed `release-please-config.json` onto a Renovate PR that bumped `@linchpinagency/release-please-config` |
 
 ### Composite Actions
 
@@ -225,6 +226,51 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [deploy-cloudways](actions/deploy-cloudways)    | Upload + symlink-aware sync of a release to Cloudways (key or password SSH auth), health check |
 | [remote-plugin-install](actions/remote-plugin-install) | Reconcile third-party plugins/themes against composer.lock with per-package WP-CLI calls over SSH |
 | [update-readme](actions/update-readme)          | Regenerate the README plugin/theme table from composer.lock                        |
+
+### Keeping release-please config in standard
+
+[release-please](https://github.com/googleapis/release-please) has no `extends`,
+and it reads `release-please-config.json` through the GitHub API off the target
+branch rather than from the workflow checkout — so a shared standard can neither
+be referenced nor generated at run time. The JSON has to be committed in every
+repo.
+
+[`@linchpinagency/release-please-config`](https://github.com/linchpin/release-please-config)
+ships that standard on npm. Renovate bumps it like any other dependency, and this
+workflow regenerates the committed JSON onto the same PR, so the version bump and
+the config it implies land together. `release-please-config.json` is already on
+the `auto-approve-maintenance` / `auto-merge-maintenance` allow-lists, so the
+existing maintenance path carries it the rest of the way with no changes.
+
+```yaml
+name: Sync release-please config
+on:
+  pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    uses: linchpin/actions/.github/workflows/sync-release-please-config.yml@v4
+    secrets: inherit
+```
+
+The workflow only acts when the PR actually moved the declared version of the
+standard, and it regenerates using the version the PR just installed — never
+`@latest` — so the lockfile stays the source of truth and `check` in CI is
+deterministic. It runs for same-repository Renovate PRs only; both guards are in
+the workflow itself, not left to the caller.
+
+A project that declares legitimate section overrides passes them through:
+
+```yaml
+    with:
+      sync_args: "--release-type php --name mantle"
+```
 
 ## Example Shared Workflow Usage
 
