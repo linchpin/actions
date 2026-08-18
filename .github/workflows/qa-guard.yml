@@ -120,8 +120,15 @@ jobs:
     permissions:
       contents: read
     steps:
+      # persist-credentials: false on both checkouts. Neither pushes anything, and
+      # the second one authenticates with QA_SCHEMA_TOKEN — a token for a
+      # different repository. Left persisted it sits in .qa-schema/.git/config
+      # where any later step in the job could reach linchpin/automated-testing
+      # with it, which is a wider grant than reading one directory needs.
       - name: Checkout the client repository
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Checkout the QA schema
         uses: actions/checkout@v6
@@ -130,6 +137,7 @@ jobs:
           ref: ${{ inputs.schema_ref }}
           token: ${{ secrets.QA_SCHEMA_TOKEN }}
           path: .qa-schema
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
