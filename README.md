@@ -66,6 +66,7 @@ To learn more [about secrets](https://docs.github.com/en/actions/security-for-gi
 | GH_BOT_TOKEN                 |         | Bot token used by update-readme.yml to open PRs                                         |
 | SATISPRESS_USER              |         | Private Packagist auth, used only by the `REMOTE_PLUGIN_INSTALL` reconcile               |
 | SATISPRESS_PASSWORD          |         | Private Packagist auth, used only by the `REMOTE_PLUGIN_INSTALL` reconcile               |
+| QA_SCHEMA_TOKEN              |         | Reads linchpin/automated-testing so qa-guard.yml can validate against the one QA schema  |
 
 ### Variables
 
@@ -213,6 +214,7 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
 | [auto-merge-maintenance.yml](.github/workflows/auto-merge-maintenance.yml) | Cron-driven: auto-merges open Renovate PRs targeting a `maintenance/YYYY-MM` branch, excluding anything labeled `major`. Never touches main/master |
 | [ci.yml](.github/workflows/ci.yml)                         | This repo's own CI: actionlint + yamllint + zizmor                                                             |
+| [qa-guard.yml](.github/workflows/qa-guard.yml)             | PR gate for `qa/` browser tests: validates them against the QA platform's schema, and fails a platform-authored PR that touches anything outside `qa/` |
 
 ### Composite Actions
 
@@ -280,6 +282,40 @@ jobs:
     with:
       dry_run: ${{ inputs.dry_run || false }}
 ```
+
+## QA Guard
+
+For client repositories with a `qa/` directory of browser tests managed by the
+[QA platform](https://github.com/linchpin/automated-testing).
+
+```yaml
+name: QA Guard
+on:
+  pull_request:
+
+jobs:
+  qa-guard:
+    uses: linchpin/actions/.github/workflows/qa-guard.yml@v4
+    secrets:
+      QA_SCHEMA_TOKEN: ${{ secrets.QA_SCHEMA_TOKEN }}
+```
+
+Two independent jobs:
+
+- **boundary** — fails when a PR authored by the QA platform's GitHub App changes
+  anything outside `qa/`. The platform opens PRs into client production
+  repositories, so this is the guardrail on our own tooling. It does not apply to
+  PRs authored by people, who legitimately change application code and its tests
+  together.
+- **schema** — validates every `qa/` file against the Zod schema in
+  `linchpin/automated-testing`, and reports targets a test references but
+  `targets.yaml` never defines. That last one otherwise fails at run time with
+  `Unknown target`, which is a slower and more confusing way to learn about a
+  typo.
+
+Set `schema_ref` to pin the schema version if you want the gate to be
+reproducible rather than tracking `main`. `qa_path` must match the project's
+`qa_path` in the platform, and defaults to `qa`.
 
 ## Renovate Bot Scanning Configurations
 
