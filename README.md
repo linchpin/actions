@@ -211,6 +211,7 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [deploy-continue.yml](.github/workflows/deploy-continue.yml) | Second half of the backup-and-continue flow — dispatched (via the caller) by Mantle once the Pressable backup completes |
 | [lint.yml](.github/workflows/lint.yml)                     | PR lint: PHP syntax (any version), phpcs on changed files via cs2pr, optional PHPStan                          |
 | [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
+| [qa-run.yml](.github/workflows/qa-run.yml)                 | Trigger a QA platform run on deploy, poll it to a terminal state, and fail the job on a red test — the Ghost Inspector replacement |
 | [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
 | [auto-merge-maintenance.yml](.github/workflows/auto-merge-maintenance.yml) | Cron-driven: auto-merges open Renovate PRs targeting a `maintenance/YYYY-MM` branch, excluding anything labeled `major`. Never touches main/master |
 | [ci.yml](.github/workflows/ci.yml)                         | This repo's own CI: actionlint + yamllint + zizmor                                                             |
@@ -281,6 +282,32 @@ jobs:
     secrets: inherit
     with:
       dry_run: ${{ inputs.dry_run || false }}
+```
+
+To run the QA platform on deploy — the replacement for the old Ghost
+Inspector job — add a job that runs after the deploy. It triggers a run,
+polls it to a terminal state, and **fails the deploy when a test is red**
+(the `--errorOnFail` behaviour). The only setup a client repo needs is a
+per-project bearer token in the `QA_API_TOKEN` secret (minted from the QA
+platform):
+
+```yaml
+jobs:
+  # ... your build + deploy jobs ...
+
+  qa:
+    needs: [deploy]
+    uses: linchpin/actions/.github/workflows/qa-run.yml@v4
+    secrets:
+      QA_API_TOKEN: ${{ secrets.QA_API_TOKEN }}
+    with:
+      project: linchpin-com
+      environment: production
+      # Optional: narrow to one suite, override the recorded ref, or tune waits.
+      # suite: smoke
+      # ref: ${{ github.sha }}
+      # poll_interval_seconds: 10
+      # timeout_minutes: 20
 ```
 
 ## QA Guard
