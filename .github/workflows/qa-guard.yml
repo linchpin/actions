@@ -97,8 +97,7 @@ jobs:
 
           # A PR that changes nothing outside qa/ is the only shape the platform
           # should ever produce.
-          outside="$(grep -v "^${QA_PATH}/" changed.txt || true)"
-
+          outside="$(awk -v p="${QA_PATH}/" 'index($0, p) != 1 { print }' changed.txt)"
           if [ -n "$outside" ]; then
             echo "::error::This PR was authored by the QA platform but changes" \
               "files outside ${QA_PATH}/. That should never happen, and the PR" \
@@ -140,8 +139,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
+        uses: actions/setup-node@v6
           node-version: ${{ inputs.node_version || vars.NODE_VERSION || '24' }}
           cache: npm
           cache-dependency-path: .qa-schema/package-lock.json
