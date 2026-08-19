@@ -1,0 +1,260 @@
+# QA Run (v4)
+#
+# The deploy-time gate that replaces the Ghost Inspector job in client repos. A
+# deploy job calls this, it triggers a run on the QA platform, waits for the
+# result, and fails the deploy when a test is red — the `--errorOnFail`
+# behaviour the team asked to keep. Anything less is decorative.
+#
+# Why it polls instead of holding one request: Cloudflare's edge times out a
+# held HTTP connection at ~100 seconds and a real suite takes minutes, so a
+# blocking call would die mid-run and report a false failure. The platform is
+# built for this — `POST /runs` returns a batch id immediately (202), and
+# `GET /runs/{id}` reports aggregate status — so this triggers once and then
+# polls that id to a terminal state. Ghost Inspector's own CLI polls for the
+# same reason.
+#
+# Why a null batch id is a success, not an error: the platform de-duplicates
+# identical queued runs. If a redeploy of the same ref re-triggers a suite that
+# is already queued, `POST /runs` returns `batchId: null` — nothing new is
+# running because the existing run already covers this. Failing here would break
+# a re-run of a green deploy; blocking forever would hang it. So an empty batch
+# id short-circuits to a pass.
+#
+# Why the token is a per-project secret: the platform scopes each bearer token
+# to one project (see linchpin/automated-testing AT-28). A client repo holds
+# only its own project's token, so a leaked token cannot trigger or read another
+# client's runs. This workflow never sees the token's scope — it just presents
+# it — but a token for the wrong project surfaces as a 403 on trigger.
+
+name: QA Run
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: "Project slug as registered in the QA platform."
+        required: true
+        type: string
+      environment:
+        description: "Environment name to run against, e.g. production."
+        required: true
+        type: string
+      suite:
+        description: "Optional suite path to narrow the run. Omit to run every active test."
+        required: false
+        default: ""
+        type: string
+      ref:
+        description: "The deployed ref, recorded on the run as provenance. Defaults to the calling commit SHA."
+        required: false
+        default: ""
+        type: string
+      api_base:
+        description: "Base URL of the QA platform. Override only for staging."
+        required: false
+        default: "https://qa.linchpin.com"
+        type: string
+      poll_interval_seconds:
+        description: "Seconds between status polls."
+        required: false
+        default: 10
+        type: number
+      timeout_minutes:
+        description: "How long to wait for a terminal result before failing cleanly."
+        required: false
+        default: 20
+        type: number
+    secrets:
+      QA_API_TOKEN:
+        description: "Per-project bearer token minted by the QA platform. Fails closed if absent."
+        required: true
+
+jobs:
+  qa-run:
+    name: QA run
+    runs-on: ubuntu-latest
+    # An outer backstop only. The script's own timer (timeout_minutes) is the
+    # meaningful deadline — it fails with a message that names what timed out,
+    # which a job kill at this ceiling cannot. Kept comfortably above the default
+    # script timeout so the script always wins the race.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Trigger the run
+        id: trigger
+        env:
+          API_BASE: ${{ inputs.api_base }}
+          QA_API_TOKEN: ${{ secrets.QA_API_TOKEN }}
+          PROJECT: ${{ inputs.project }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          SUITE: ${{ inputs.suite }}
+          # Fall back to the commit that called the workflow, so provenance is
+          # recorded even when the caller does not pass an explicit ref.
+          REF: ${{ inputs.ref || github.sha }}
+        run: |
+          set -euo pipefail
+
+          # Build the body with jq so slugs, refs and suite paths are encoded
+          # safely rather than pasted into a string. suite and ref are omitted
+          # when empty — the API treats an absent suite as "every active test".
+          body="$(jq -n \
+            --arg project "$PROJECT" \
+            --arg environment "$ENVIRONMENT" \
+            --arg suite "$SUITE" \
+            --arg ref "$REF" \
+            '{project: $project, environment: $environment}
+              + (if $suite != "" then {suite: $suite} else {} end)
+              + (if $ref   != "" then {ref: $ref}     else {} end)')"
+
+          # -w appends the status code on its own line; everything above it is the
+          # response body. --fail is deliberately NOT used — we want to read the
+          # platform's Problem body on a 4xx, not just see curl exit non-zero.
+          response="$(curl -sS -X POST "${API_BASE%/}/api/v1/runs" \
+            -H "authorization: Bearer ${QA_API_TOKEN}" \
+            -H "content-type: application/json" \
+            -d "$body" \
+            -w $'\n%{http_code}')"
+
+          status="$(printf '%s' "$response" | tail -n1)"
+          payload="$(printf '%s' "$response" | sed '$d')"
+
+          if [ "$status" != "202" ]; then
+            detail="$(printf '%s' "$payload" \
+              | jq -r '.detail // .error // "no detail"' 2>/dev/null || echo 'unparseable response')"
+            echo "::error::Triggering the run failed (HTTP $status): $detail"
+            exit 1
+          fi
+
+          batch_id="$(printf '%s' "$payload" | jq -r '.batchId // empty')"
+          queued="$(printf '%s' "$payload" | jq -r '.queued // 0')"
+          skipped="$(printf '%s' "$payload" | jq -r '.skipped // 0')"
+
+          if [ -z "$batch_id" ]; then
+            # Everything requested was already queued — nothing new to wait on.
+            echo "::notice::All $skipped test(s) already queued by an earlier trigger; nothing new to run."
+            echo "skipped_all=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::notice::Triggered batch $batch_id ($queued queued, $skipped de-duplicated)."
+          echo "skipped_all=false" >> "$GITHUB_OUTPUT"
+          echo "batch_id=$batch_id" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the result
+        if: steps.trigger.outputs.skipped_all == 'false'
+        env:
+          API_BASE: ${{ inputs.api_base }}
+          QA_API_TOKEN: ${{ secrets.QA_API_TOKEN }}
+          BATCH_ID: ${{ steps.trigger.outputs.batch_id }}
+          POLL_INTERVAL: ${{ inputs.poll_interval_seconds }}
+          TIMEOUT_MINUTES: ${{ inputs.timeout_minutes }}
+        run: |
+          set -euo pipefail
+
+          run_url="${API_BASE%/}/runs/${BATCH_ID}"
+
+          # timeout_minutes feeds the integer arithmetic below and
+          # poll_interval_seconds feeds sleep. The workflow input type is `number`,
+          # which also permits fractions, so reject anything that is not a whole
+          # number here rather than let bash abort mid-run on `1.5 * 60`.
+          for pair in "timeout_minutes=$TIMEOUT_MINUTES" "poll_interval_seconds=$POLL_INTERVAL"; do
+            name="${pair%%=*}"
+            value="${pair#*=}"
+            case "$value" in
+              ''|*[!0-9]*)
+                echo "::error::$name must be a whole number (got '$value')."
+                exit 1
+                ;;
+            esac
+          done
+
+          deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+
+          get() {
+            # Status endpoint is bearer-gated like the trigger. Emit body then code.
+            curl -sS "${API_BASE%/}/api/v1/runs/${BATCH_ID}${1:-}" \
+              -H "authorization: Bearer ${QA_API_TOKEN}" \
+              -w $'\n%{http_code}'
+          }
+
+          while true; do
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Run $BATCH_ID did not reach a terminal state within ${TIMEOUT_MINUTES} minute(s). See $run_url"
+              exit 1
+            fi
+
+            response="$(get)"
+            status="$(printf '%s' "$response" | tail -n1)"
+            payload="$(printf '%s' "$response" | sed '$d')"
+
+            if [ "$status" != "200" ]; then
+              # Retry only genuinely transient statuses. A permanent 4xx — a
+              # revoked or wrong-project token (401/403), or a batch this token
+              # cannot see (404) — will never clear, so failing fast surfaces the
+              # real problem instead of a misleading "did not reach a terminal
+              # state" timeout minutes later.
+              case "$status" in
+                408|425|429|500|502|503|504)
+                  echo "::warning::Status poll got HTTP $status; retrying."
+                  sleep "$POLL_INTERVAL"
+                  continue
+                  ;;
+                *)
+                  detail="$(printf '%s' "$payload" \
+                    | jq -r '.detail // .error // "no detail"' 2>/dev/null || echo 'unparseable response')"
+                  echo "::error::Status poll failed (HTTP $status): $detail. See $run_url"
+                  exit 1
+                  ;;
+              esac
+            fi
+
+            state="$(printf '%s' "$payload" | jq -r '.state')"
+            case "$state" in
+              queued|running)
+                sleep "$POLL_INTERVAL"
+                ;;
+              succeeded)
+                passed="$(printf '%s' "$payload" | jq -r '.tests.passed')"
+                total="$(printf '%s' "$payload" | jq -r '.tests.total')"
+                echo "::notice::All $total test(s) passed. $run_url"
+                {
+                  echo "### ✅ QA run passed"
+                  echo ""
+                  echo "$passed/$total tests passed — [run detail]($run_url)"
+                } >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+              failed|cancelled)
+                # Name the failing tests from the results endpoint. Best-effort:
+                # if it cannot be read, the batch state alone still fails the job.
+                results="$(get /results | sed '$d')"
+                failing="$(printf '%s' "$results" \
+                  | jq -r '.runs[].tests[] | select(.status == "failed" or .status == "cancelled")
+                           | "  - \(.testPath)\(if .errorMessage then ": " + .errorMessage else "" end)"' \
+                  2>/dev/null || true)"
+
+                echo "::error::QA run $state. See $run_url"
+                if [ -n "$failing" ]; then
+                  echo "Failing tests:"
+                  printf '%s\n' "$failing"
+                fi
+                {
+                  echo "### ❌ QA run $state"
+                  echo ""
+                  echo "[run detail]($run_url)"
+                  if [ -n "$failing" ]; then
+                    echo ""
+                    echo "**Failing tests:**"
+                    echo ""
+                    printf '%s\n' "$failing"
+                  fi
+                } >> "$GITHUB_STEP_SUMMARY"
+                exit 1
+                ;;
+              *)
+                echo "::warning::Unexpected state '$state'; retrying."
+                sleep "$POLL_INTERVAL"
+                ;;
+            esac
+          done
