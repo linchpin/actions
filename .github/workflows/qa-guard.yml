@@ -140,6 +140,7 @@ jobs:
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
+        with:
           node-version: ${{ inputs.node_version || vars.NODE_VERSION || '24' }}
           cache: npm
           cache-dependency-path: .qa-schema/package-lock.json
