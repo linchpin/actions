@@ -1,5 +1,23 @@
 # Changelog
 
+## [4.8.0](https://github.com/linchpin/actions/compare/v4.7.0...v4.8.0) (2026-08-19)
+
+
+### Features
+
+* **AT-29:** Reusable qa-run workflow to gate deploys on QA results ([33ddcde](https://github.com/linchpin/actions/commit/33ddcde412245452da59e6651a3e0de89ee7d433))
+* **AT-29:** Reusable qa-run workflow to gate deploys on QA results ([9cda64d](https://github.com/linchpin/actions/commit/9cda64d992c89c05f868675ac77315046bd27424))
+* **NO-TASK:** Add the qa-guard reusable workflow ([25c589e](https://github.com/linchpin/actions/commit/25c589ed79e82c915367585e3c87930320739e1f))
+* **NO-TASK:** Add the qa-guard reusable workflow ([d1de866](https://github.com/linchpin/actions/commit/d1de86694f249022da436d2b2a014b14dd3a826c))
+
+
+### Bug Fixes
+
+* **AT-21:** Apply co-pilot recommended updates ([28b4722](https://github.com/linchpin/actions/commit/28b472261dd20b99794b24296b31bd87e08853a5))
+* **AT-21:** Restore the missing with: key on qa-guard's Node setup ([6d5a406](https://github.com/linchpin/actions/commit/6d5a4069341889f4cfc3cf5cacac960af41e95fc))
+* **AT-29:** Fail fast on permanent poll errors and validate numeric inputs ([6bcd299](https://github.com/linchpin/actions/commit/6bcd299fea4cf97fbaf599c1dd2d72775670d019))
+* **NO-TASK:** Do not persist checkout credentials in qa-guard ([c2fd54e](https://github.com/linchpin/actions/commit/c2fd54ed9f1bc517e9fc4edc250e6e412ef098f9))
+
 ## [4.7.0](https://github.com/linchpin/actions/compare/v4.6.0...v4.7.0) (2026-08-07)
 
 
