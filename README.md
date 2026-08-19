@@ -67,6 +67,7 @@ To learn more [about secrets](https://docs.github.com/en/actions/security-for-gi
 | SATISPRESS_USER              |         | Private Packagist auth, used only by the `REMOTE_PLUGIN_INSTALL` reconcile               |
 | SATISPRESS_PASSWORD          |         | Private Packagist auth, used only by the `REMOTE_PLUGIN_INSTALL` reconcile               |
 | QA_SCHEMA_TOKEN              |         | Reads linchpin/automated-testing so qa-guard.yml can validate against the one QA schema  |
+| QA_API_TOKEN                 |         | Per-project bearer token used by qa-run.yml to trigger and read runs on the QA platform   |
 
 ### Variables
 
