@@ -1,0 +1,163 @@
+# QA Guard (v4)
+#
+# The PR-time gate for `qa/` directories in client repositories. Two independent
+# jobs, because they answer two different questions:
+#
+#   boundary — did a platform-authored PR touch anything outside `qa/`?
+#   schema   — are the `qa/` files actually valid?
+#
+# Why the boundary check exists: the QA platform opens pull requests into client
+# production repositories. A bug in that code — a bad path, a mis-scoped commit —
+# would put unwanted changes in a client's codebase, and the PR would look
+# ordinary to a reviewer skimming it. This gate makes that specific failure loud
+# and unmergeable. It is the guardrail for our own tooling, not for people.
+#
+# Why it only binds platform-authored PRs: a human working on a site legitimately
+# changes application code and its tests in one PR, and failing that would be an
+# obstruction with no safety benefit. Authorship is taken from
+# `pull_request.user.login`, not `github.actor`, so a human pushing a fixup commit
+# to the platform's branch does not quietly disable the check.
+#
+# Why the schema job checks out linchpin/automated-testing: the Zod schema there
+# is the single definition of a valid test, shared by the Worker, the API and the
+# AI generator. Re-implementing validation here would create a second definition
+# that drifts, and a `qa/` file that passes CI but fails at run time is precisely
+# what this gate is meant to prevent. The cost is that the schema repository is
+# private, so a token is required — see QA_SCHEMA_TOKEN below. If that becomes
+# awkward across many client repos, the alternative is publishing the schema as a
+# package and dropping the checkout.
+
+name: QA Guard
+
+on:
+  workflow_call:
+    inputs:
+      qa_path:
+        description: "Directory holding the tests. Must match the project's qa_path in the platform."
+        required: false
+        default: "qa"
+        type: string
+      platform_actor:
+        description: "Login of the GitHub App's bot account. PRs authored by it are held to the path boundary."
+        required: false
+        default: "linchpin-qa[bot]"
+        type: string
+      schema_ref:
+        description: "Ref of linchpin/automated-testing to validate against. Pin this to make the gate reproducible."
+        required: false
+        default: "main"
+        type: string
+      node_version:
+        description: "Node version. Defaults to vars.NODE_VERSION, then 24."
+        required: false
+        default: ""
+        type: string
+    secrets:
+      QA_SCHEMA_TOKEN:
+        description: "Token that can read linchpin/automated-testing. Without it the schema job cannot run and fails closed."
+        required: true
+
+jobs:
+  boundary:
+    name: qa/ only (platform-authored PRs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check the changed paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          PLATFORM_ACTOR: ${{ inputs.platform_actor }}
+          QA_PATH: ${{ inputs.qa_path }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PR:-}" ]; then
+            echo "::notice::Not a pull request, so there are no changed paths to check."
+            exit 0
+          fi
+
+          if [ "$AUTHOR" != "$PLATFORM_ACTOR" ]; then
+            echo "::notice::PR authored by $AUTHOR, not the QA platform" \
+              "($PLATFORM_ACTOR). The path boundary applies only to" \
+              "platform-authored PRs."
+            exit 0
+          fi
+
+          # Read from the API rather than diffing locally: it paginates properly
+          # and needs no full-history checkout to compare against the base.
+          gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' > changed.txt
+          echo "Changed files:"
+          sed 's/^/  /' changed.txt
+
+          # A PR that changes nothing outside qa/ is the only shape the platform
+          # should ever produce.
+          outside="$(awk -v p="${QA_PATH}/" 'index($0, p) != 1 { print }' changed.txt)"
+          if [ -n "$outside" ]; then
+            echo "::error::This PR was authored by the QA platform but changes" \
+              "files outside ${QA_PATH}/. That should never happen, and the PR" \
+              "must not be merged until it is understood."
+            echo "$outside" | while IFS= read -r path; do
+              [ -n "$path" ] || continue
+              echo "::error file=$path::Outside ${QA_PATH}/ — not something the" \
+                "QA platform should be changing."
+            done
+            exit 1
+          fi
+
+          echo "::notice::Every changed path is inside ${QA_PATH}/."
+
+  schema:
+    name: qa/ files are valid
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # persist-credentials: false on both checkouts. Neither pushes anything, and
+      # the second one authenticates with QA_SCHEMA_TOKEN — a token for a
+      # different repository. Left persisted it sits in .qa-schema/.git/config
+      # where any later step in the job could reach linchpin/automated-testing
+      # with it, which is a wider grant than reading one directory needs.
+      - name: Checkout the client repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Checkout the QA schema
+        uses: actions/checkout@v6
+        with:
+          repository: linchpin/automated-testing
+          ref: ${{ inputs.schema_ref }}
+          token: ${{ secrets.QA_SCHEMA_TOKEN }}
+          path: .qa-schema
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node_version || vars.NODE_VERSION || '24' }}
+          cache: npm
+          cache-dependency-path: .qa-schema/package-lock.json
+
+      # --ignore-scripts because the validator needs only the schema and its two
+      # runtime dependencies. Postinstall scripts here would be slower and would
+      # run code in a client's CI for no benefit.
+      - name: Install the schema's dependencies
+        working-directory: .qa-schema
+        run: npm ci --ignore-scripts
+
+      # Run from the schema checkout so `tsx` and the schema's imports resolve
+      # there, against an absolute path into the client's checkout.
+      - name: Validate ${{ inputs.qa_path }}/
+        working-directory: .qa-schema
+        env:
+          QA_DIR: ${{ github.workspace }}/${{ inputs.qa_path }}
+        run: |
+          set -euo pipefail
+          npx tsx scripts/validate-qa.ts "$QA_DIR"
