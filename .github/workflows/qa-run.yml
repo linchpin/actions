@@ -153,6 +153,22 @@ jobs:
           set -euo pipefail
 
           run_url="${API_BASE%/}/runs/${BATCH_ID}"
+
+          # timeout_minutes feeds the integer arithmetic below and
+          # poll_interval_seconds feeds sleep. The workflow input type is `number`,
+          # which also permits fractions, so reject anything that is not a whole
+          # number here rather than let bash abort mid-run on `1.5 * 60`.
+          for pair in "timeout_minutes=$TIMEOUT_MINUTES" "poll_interval_seconds=$POLL_INTERVAL"; do
+            name="${pair%%=*}"
+            value="${pair#*=}"
+            case "$value" in
+              ''|*[!0-9]*)
+                echo "::error::$name must be a whole number (got '$value')."
+                exit 1
+                ;;
+            esac
+          done
+
           deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
 
           get() {
@@ -173,12 +189,24 @@ jobs:
             payload="$(printf '%s' "$response" | sed '$d')"
 
             if [ "$status" != "200" ]; then
-              # A transient 5xx/503 should not abort the deploy — keep polling
-              # until the deadline. A 401/403/404 will simply never clear, and the
-              # timeout will report it rather than a confusing mid-loop exit.
-              echo "::warning::Status poll returned HTTP $status; retrying."
-              sleep "$POLL_INTERVAL"
-              continue
+              # Retry only genuinely transient statuses. A permanent 4xx — a
+              # revoked or wrong-project token (401/403), or a batch this token
+              # cannot see (404) — will never clear, so failing fast surfaces the
+              # real problem instead of a misleading "did not reach a terminal
+              # state" timeout minutes later.
+              case "$status" in
+                408|425|429|500|502|503|504)
+                  echo "::warning::Status poll got HTTP $status; retrying."
+                  sleep "$POLL_INTERVAL"
+                  continue
+                  ;;
+                *)
+                  detail="$(printf '%s' "$payload" \
+                    | jq -r '.detail // .error // "no detail"' 2>/dev/null || echo 'unparseable response')"
+                  echo "::error::Status poll failed (HTTP $status): $detail. See $run_url"
+                  exit 1
+                  ;;
+              esac
             fi
 
             state="$(printf '%s' "$payload" | jq -r '.state')"
