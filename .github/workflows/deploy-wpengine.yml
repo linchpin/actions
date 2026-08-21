@@ -109,7 +109,7 @@ jobs:
           ssh_host: "${{ vars.INSTALL_NAME }}.ssh.wpengine.net"
 
       - name: Remote Plugin Install
-        if: ${{ vars.REMOTE_PLUGIN_INSTALL != false }}
+        if: ${{ vars.REMOTE_PLUGIN_INSTALL != 'false' }}
         id: parse_composer_lock
         shell: bash
         run: |
