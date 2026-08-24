@@ -78,7 +78,23 @@ jobs:
             exit 0
           fi
           echo "Checking ${#files[@]} changed PHP file(s)"
-          vendor/bin/phpcs -q --report=checkstyle "${files[@]}" | cs2pr
+          # `ignore_warnings_on_exit` makes warnings annotate without failing the
+          # job. phpcs exits 1 for a warnings-only run and 2 when there are errors,
+          # and this pipeline runs under `set -euo pipefail` — so without the flag a
+          # single warning anywhere in a changed file fails lint no matter what the
+          # change was.
+          #
+          # That is not hypothetical. On linchpin.com it meant touching any of the
+          # eleven files carrying the standard `defined( 'ABSPATH' ) || exit;` guard
+          # hard-failed lint, because PSR1.Files.SideEffects warns about it; the
+          # project had to set that sniff to severity 0 in its own ruleset to work
+          # around this step, and #989 was merged red for exactly this reason.
+          #
+          # Errors still fail, which is the intended gate. Warnings are advisory by
+          # definition — a standard that wanted them to block would raise them to
+          # errors.
+          vendor/bin/phpcs -q --runtime-set ignore_warnings_on_exit 1 \
+            --report=checkstyle "${files[@]}" | cs2pr
 
       - name: PHPStan
         if: ${{ inputs.run_phpstan }}

@@ -1,0 +1,86 @@
+name: "Check npm overrides"
+description: >-
+  Report which entries in a package.json "overrides" block no longer do
+  anything, so pins added to dodge an advisory get removed once upstream
+  catches up instead of accumulating forever.
+
+  Each override is probed on its own: it is removed from a scratch copy of the
+  manifest, the graph is re-resolved with --package-lock-only, and the result is
+  compared against the pin. An override that still holds a package above its
+  pin is STILL NEEDED; one the tree already satisfies is REDUNDANT; one whose
+  package has left the tree entirely is DANGLING.
+
+  Reports by default and never fails the job — a redundant override may still be
+  wanted as a security floor, so removal is a judgement call for a human.
+
+inputs:
+  directories:
+    description: >-
+      Newline-separated list of directories to check, each containing a
+      package.json and package-lock.json. Monorepo-shaped WordPress projects
+      usually have several (root, theme, functionality plugin, blocks).
+    required: false
+    default: "."
+  node-version:
+    description: "Node version used to resolve the dependency graphs"
+    required: false
+    default: "24"
+  fail-on-redundant:
+    description: >-
+      Fail the job when any override is redundant or dangling (true/false).
+      Off by default: this is a hygiene signal, not a gate.
+    required: false
+    default: "false"
+  fail-on-error:
+    description: "Fail the job when an override probe itself errors (true/false)"
+    required: false
+    default: "false"
+  json-out:
+    description: "Optional path to write the machine-readable results to"
+    required: false
+    default: ""
+
+outputs:
+  removable-count:
+    description: "Number of overrides that are redundant or dangling"
+    value: ${{ steps.check.outputs.removable-count }}
+  redundant-count:
+    description: "Number of overrides the tree already satisfies"
+    value: ${{ steps.check.outputs.redundant-count }}
+  dangling-count:
+    description: "Number of overrides whose package has left the tree"
+    value: ${{ steps.check.outputs.dangling-count }}
+  needed-count:
+    description: "Number of overrides still holding a package above its pin"
+    value: ${{ steps.check.outputs.needed-count }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Probe overrides
+      id: check
+      shell: bash
+      env:
+        FAIL_ON_REDUNDANT: ${{ inputs.fail-on-redundant }}
+        FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        OVERRIDES_JSON_OUT: ${{ inputs.json-out }}
+      run: |
+        # Turn the newline-separated input into arguments, dropping blanks and
+        # comments so callers can annotate the list in their workflow.
+        mapfile -t DIRS < <(printf '%s\n' "${{ inputs.directories }}" \
+          | sed -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d' -e '/^[[:space:]]*#/d')
+
+        if [ "${#DIRS[@]}" -eq 0 ]; then
+          echo "::error::No directories to check"
+          exit 1
+        fi
+
+        printf 'Checking %d project(s):\n' "${#DIRS[@]}"
+        printf '  %s\n' "${DIRS[@]}"
+
+        node "${{ github.action_path }}/check-overrides.mjs" "${DIRS[@]}"
