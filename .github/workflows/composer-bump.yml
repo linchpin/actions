@@ -1,0 +1,278 @@
+# Composer bump → pull request (v4)
+#
+# Regenerates a wp-content repository's composer.lock for a single package and
+# opens the pull request. Dispatched by the Linchpin Governing plugin when an
+# operator pushes an update, so the update survives the next deploy:
+# `actions/remote-plugin-install` reinstalls whatever composer.lock names, which
+# means a version applied straight to a server is reverted until the lock agrees.
+#
+# Why this runs here rather than on the SatisPress host, where the rest of the
+# lane lives: regenerating a lock means running composer, and composer is a PHP
+# phar. Pressable's web tier has no PHP CLI binary at all — no `php` on PATH, no
+# /usr/bin/env, and PHP_BINARY points at a file that does not exist — so composer
+# cannot execute in a web request however it is installed. Action Scheduler's
+# default runner *is* a web request. A runner has PHP and composer already, which
+# is the same reason Renovate and Dependabot do their resolution in CI.
+#
+# This workflow acts on a *target* repository rather than on itself, so it needs
+# a token minted for that repository. One workflow therefore serves every site
+# repo, and no caller workflow has to be committed into each one.
+
+name: Composer bump
+
+run-name: >-
+  Bump ${{ inputs.slug }} to ${{ inputs.version }} in ${{ inputs.repo }}
+  [${{ inputs.correlation_id }}]
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Target repository, owner/name"
+        required: true
+        type: string
+      slug:
+        description: "WordPress package slug, e.g. mantle"
+        required: true
+        type: string
+      version:
+        description: "Version to pin"
+        required: true
+        type: string
+      package:
+        description: >-
+          Composer package name, when the caller already knows it. Left empty the
+          workflow reads it out of the target's composer.json, which is the only
+          reliable source: the vendor prefix varies per package and per project,
+          and courier-notices ships as wpackagist-plugin/courier-notices next to
+          linchpin/mantle in the same require block.
+        required: false
+        default: ""
+        type: string
+      base_branch:
+        description: "Branch to open the pull request against. Empty uses the repository default."
+        required: false
+        default: ""
+        type: string
+      reason:
+        description: "Why this bump is being made; shown in the pull request body."
+        required: false
+        default: ""
+        type: string
+      sites:
+        description: "Governed sites this covers, comma separated; shown in the body."
+        required: false
+        default: ""
+        type: string
+      branch:
+        description: >-
+          Branch to open the pull request from. Supplied by the caller rather
+          than derived here: the caller finds the resulting pull request by head
+          branch, so the name is a contract and must not be computed twice.
+        required: true
+        type: string
+      correlation_id:
+        description: >-
+          Opaque id echoed into the run name. workflow_dispatch returns no run id,
+          so this is how the caller finds the run it started.
+        required: false
+        default: ""
+        type: string
+
+permissions: {}
+
+jobs:
+  bump:
+    name: Bump and open PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Scoped to the one repository being changed, rather than to everything the
+      # app can see.
+      - name: Mint a token for the target repository
+        id: token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.LINCHPIN_GOVERNING_APP_ID }}
+          private-key: ${{ secrets.LINCHPIN_GOVERNING_APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ inputs.repo }}
+
+      - name: Checkout the target repository
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.base_branch }}
+          token: ${{ steps.token.outputs.token }}
+          # The manifest is all this needs; these repositories carry an entire
+          # wp-content and cloning it to edit two files is waste.
+          sparse-checkout: |
+            composer.json
+            composer.lock
+          sparse-checkout-cone-mode: false
+
+      - name: Set up PHP and Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: composer:v2
+          coverage: none
+
+      # No lock, nothing to protect: remote-plugin-install reconciles against
+      # .packages[] in composer.lock, so a repository without one is never
+      # reconciled and this update was never at risk.
+      - name: Require a lock file
+        run: |
+          if [ ! -f composer.json ]; then
+            echo "::error::${{ inputs.repo }} has no composer.json."
+            exit 1
+          fi
+          if [ ! -f composer.lock ]; then
+            echo "::warning::${{ inputs.repo }} has no composer.lock, so the deploy does not reconcile plugin versions there and this update is not at risk."
+            echo "NO_PR=no_lock_file" >> "$GITHUB_ENV"
+          fi
+
+      - name: Resolve the composer package name
+        if: ${{ !env.NO_PR }}
+        env:
+          SLUG: ${{ inputs.slug }}
+          HINT: ${{ inputs.package }}
+        run: |
+          set -euo pipefail
+
+          # Match the require key whose name segment equals the slug. This is the
+          # same mapping remote-plugin-install.sh uses on the deploy side, where
+          # it reduces each locked package to the part after the slash.
+          found="$(jq -r --arg slug "$SLUG" '
+            ((.require // {}) + (."require-dev" // {}))
+            | to_entries
+            | map(select((.key | split("/") | last | ascii_downcase) == ($slug | ascii_downcase)))
+            | .[0].key // ""' composer.json)"
+
+          if [ -n "$found" ]; then
+            current="$(jq -r --arg p "$found" '((.require // {}) + (."require-dev" // {}))[$p] // ""' composer.json)"
+            {
+              echo "PACKAGE=$found"
+              echo "FROM_VERSION=$current"
+              echo "CHANGE=bump"
+            } >> "$GITHUB_ENV"
+            echo "Found $found pinned at $current"
+            exit 0
+          fi
+
+          # Not required at all. That is a real case rather than an error: plenty
+          # of what runs on a composer-managed site was installed outside
+          # composer. Adding it is a scope change, and the pull request says so.
+          if [ -n "$HINT" ]; then
+            {
+              echo "PACKAGE=$HINT"
+              echo "CHANGE=added"
+            } >> "$GITHUB_ENV"
+            echo "Not required; using caller hint $HINT"
+            exit 0
+          fi
+
+          for candidate in "linchpin/$SLUG" "wpackagist-plugin/$SLUG"; do
+            if composer show --available "$candidate" >/dev/null 2>&1; then
+              {
+                echo "PACKAGE=$candidate"
+                echo "CHANGE=added"
+              } >> "$GITHUB_ENV"
+              echo "Not required; resolved to $candidate"
+              exit 0
+            fi
+          done
+
+          echo "::warning::$SLUG is not in ${{ inputs.repo }}'s composer.json and is published by neither packagist.linchpin.com nor wpackagist, so there is nothing to require."
+          echo "NO_PR=package_not_published" >> "$GITHUB_ENV"
+
+      - name: Bump the constraint and regenerate the lock
+        if: ${{ !env.NO_PR }}
+        env:
+          COMPOSER_AUTH: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+          COMPOSER_MEMORY_LIMIT: "-1"
+        run: |
+          set -euo pipefail
+          cp composer.lock composer.lock.before 2>/dev/null || true
+
+          # `composer require --no-update` writes the constraint the way composer
+          # itself would, rather than hand-editing JSON.
+          composer require "${PACKAGE}:${{ inputs.version }}" \
+            --no-update --no-scripts --no-plugins --no-interaction --no-ansi
+
+          # Never a wholesale update: these repositories are already behind their
+          # servers in places, and refreshing everything would bury a one-package
+          # bump in an unreviewable diff.
+          composer update "${PACKAGE}" --with-dependencies \
+            --no-install --no-scripts --no-plugins --no-audit --no-interaction --no-ansi
+
+      - name: Summarise what the lock moved
+        if: ${{ !env.NO_PR }}
+        run: |
+          set -euo pipefail
+          {
+            echo "LOCK_DIFF<<EOF"
+            if [ -f composer.lock.before ]; then
+              jq -n --slurpfile a composer.lock.before --slurpfile b composer.lock '
+                def versions: (.[0].packages // []) + (.[0]."packages-dev" // [])
+                  | map({ (.name): .version }) | add // {};
+                ($a | versions) as $old | ($b | versions) as $new
+                | ($new | to_entries | map(select($old[.key] != .value)
+                    | "| `\(.key)` | \($old[.key] // "—") | \(.value) |")) as $changed
+                | ($old | to_entries | map(select($new[.key] == null)
+                    | "| `\(.key)` | \(.value) | removed |")) as $gone
+                | ($changed + $gone | join("\n"))' -r
+            fi
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+          rm -f composer.lock.before
+
+      - name: Open the pull request
+        if: ${{ !env.NO_PR }}
+        id: cpr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ steps.token.outputs.token }}
+          path: .
+          base: ${{ inputs.base_branch }}
+          branch: ${{ inputs.branch }}
+          commit-message: "chore(deps): bump ${{ env.PACKAGE }} to ${{ inputs.version }}"
+          title: "chore(deps): bump ${{ env.PACKAGE }} to ${{ inputs.version }}"
+          add-paths: |
+            composer.json
+            composer.lock
+          labels: |
+            automated pr
+            dependencies
+          body: |
+            ${{ env.CHANGE == 'added' && format('Adds `{0}` at `{1}`.
+
+            **This is a scope change, not a version bump.** The package is installed on the site but this repository did not require it, so it was being managed outside composer.', env.PACKAGE, inputs.version) || format('Bumps `{0}` from `{1}` to `{2}`.', env.PACKAGE, env.FROM_VERSION, inputs.version) }}
+
+            ${{ inputs.reason && format('### Why
+
+            {0}
+            ', inputs.reason) || '' }}
+            ${{ inputs.sites && format('### Governed sites on this repository
+
+            {0}
+            ', inputs.sites) || '' }}
+            ### Lock file changes
+
+            | Package | From | To |
+            | --- | --- | --- |
+            ${{ env.LOCK_DIFF }}
+
+            More than one row means the lock was regenerated with `--with-dependencies`. These repositories are known to sit behind their servers, so a refresh can surface drift that predates this change — worth reading before merging.
+
+            ---
+
+            Opened by Linchpin Governing. Without this merge the update does not survive: `remote-plugin-install` reinstalls any package whose installed version differs from `composer.lock`, so an update applied directly to the server is reverted by the next deploy.
+
+      - name: Report
+        run: |
+          if [ -n "${NO_PR:-}" ]; then
+            echo "No pull request opened: ${NO_PR}" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "Pull request: ${{ steps.cpr.outputs.pull-request-url }}" >> "$GITHUB_STEP_SUMMARY"
