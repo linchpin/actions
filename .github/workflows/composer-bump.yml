@@ -35,9 +35,22 @@ on:
         description: "WordPress package slug, e.g. mantle"
         required: true
         type: string
+      operation:
+        description: >-
+          bump to pin a package at a version, or remove to stop the repository
+          pinning it at all. A removal matters for the same reason a bump does:
+          the deploy reinstalls whatever composer.lock names, so dropping a
+          plugin from a site without dropping it from the lock brings it back.
+        required: false
+        default: bump
+        type: choice
+        options:
+          - bump
+          - remove
       version:
-        description: "Version to pin"
-        required: true
+        description: "Version to pin. Ignored for a removal."
+        required: false
+        default: ""
         type: string
       package:
         description: >-
@@ -188,6 +201,12 @@ jobs:
             exit 0
           fi
 
+          if [ "${{ inputs.operation }}" = "remove" ]; then
+            echo "::warning::$SLUG is not required by $REPO's composer.json, so there is nothing to remove."
+            echo "NO_PR=not_required" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
           # Not required at all. That is a real case rather than an error: plenty
           # of what runs on a composer-managed site was installed outside
           # composer. Adding it is a scope change, and the pull request says so.
@@ -220,9 +239,18 @@ jobs:
           COMPOSER_AUTH: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
           COMPOSER_MEMORY_LIMIT: "-1"
           VERSION: ${{ inputs.version }}
+          OPERATION: ${{ inputs.operation }}
         run: |
           set -euo pipefail
           cp composer.lock composer.lock.before 2>/dev/null || true
+
+          if [ "$OPERATION" = "remove" ]; then
+            # Rewrites the manifest and the lock together, so the result has the
+            # same shape as a bump.
+            composer remove "${PACKAGE}" \
+              --no-install --no-scripts --no-plugins --no-audit --no-interaction --no-ansi
+            exit 0
+          fi
 
           # A version is a version. Anything else is refused here rather than
           # handed to composer, since this value reaches a command line.
@@ -271,8 +299,10 @@ jobs:
           path: .
           base: ${{ inputs.base_branch }}
           branch: ${{ inputs.branch }}
-          commit-message: "chore(deps): bump ${{ env.PACKAGE }} to ${{ inputs.version }}"
-          title: "chore(deps): bump ${{ env.PACKAGE }} to ${{ inputs.version }}"
+          commit-message: >-
+            ${{ inputs.operation == 'remove' && format('chore(deps): remove {0}', env.PACKAGE) || format('chore(deps): bump {0} to {1}', env.PACKAGE, inputs.version) }}
+          title: >-
+            ${{ inputs.operation == 'remove' && format('chore(deps): remove {0}', env.PACKAGE) || format('chore(deps): bump {0} to {1}', env.PACKAGE, inputs.version) }}
           add-paths: |
             composer.json
             composer.lock
@@ -280,7 +310,9 @@ jobs:
             automated pr
             dependencies
           body: |
-            ${{ env.CHANGE == 'added' && format('Adds `{0}` at `{1}`.
+            ${{ inputs.operation == 'remove' && format('Removes `{0}`.
+
+            The site no longer runs this package. Until the repository stops pinning it, the next deploy reinstalls what was just removed.', env.PACKAGE) || env.CHANGE == 'added' && format('Adds `{0}` at `{1}`.
 
             **This is a scope change, not a version bump.** The package is installed on the site but this repository did not require it, so it was being managed outside composer.', env.PACKAGE, inputs.version) || format('Bumps `{0}` from `{1}` to `{2}`.', env.PACKAGE, env.FROM_VERSION, inputs.version) }}
 
