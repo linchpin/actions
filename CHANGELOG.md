@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.9.0](https://github.com/linchpin/actions/compare/v4.8.0...v4.9.0) (2026-08-26)
+
+
+### Features
+
+* **NO-TASK:** Add composer-bump, dispatched to regenerate a lock and open the PR ([#159](https://github.com/linchpin/actions/issues/159)) ([9181723](https://github.com/linchpin/actions/commit/9181723efb99d3a5563fba4bad70181d3be24430))
+
+
+### Bug Fixes
+
+* **NO-TASK:** Stop a phpcs warning from failing the lint job ([#153](https://github.com/linchpin/actions/issues/153)) ([50191a2](https://github.com/linchpin/actions/commit/50191a2a594da1800664cadf155cabad0d12d185))
+
 ## [4.8.0](https://github.com/linchpin/actions/compare/v4.7.0...v4.8.0) (2026-08-19)
 
 
