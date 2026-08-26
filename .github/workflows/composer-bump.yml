@@ -87,8 +87,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # Parsed and constrained before anything acts on it. This workflow lives in
+      # a public repository, so while dispatching it already requires write
+      # access here, the target is still checked rather than trusted: it must be
+      # owner/name and it must be inside this organisation.
+      - name: Parse the target repository
+        id: target
+        env:
+          REPO: ${{ inputs.repo }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          case "$REPO" in
+            */*/*|*/|/*|"") echo "::error::repo must be owner/name"; exit 1 ;;
+            */*) : ;;
+            *) echo "::error::repo must be owner/name"; exit 1 ;;
+          esac
+          owner="${REPO%%/*}"
+          name="${REPO#*/}"
+          if [ "$owner" != "$OWNER" ]; then
+            echo "::error::Refusing to act on $owner; this workflow only touches $OWNER."
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
       # Scoped to the one repository being changed, rather than to everything the
-      # app can see.
+      # app can see. create-github-app-token takes bare repository names, not
+      # owner/name, which is why the parse step exists.
       - name: Mint a token for the target repository
         id: token
         uses: actions/create-github-app-token@v2
@@ -96,7 +121,7 @@ jobs:
           app-id: ${{ secrets.LINCHPIN_GOVERNING_APP_ID }}
           private-key: ${{ secrets.LINCHPIN_GOVERNING_APP_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ inputs.repo }}
+          repositories: ${{ steps.target.outputs.name }}
 
       - name: Checkout the target repository
         uses: actions/checkout@v6
@@ -122,13 +147,15 @@ jobs:
       # .packages[] in composer.lock, so a repository without one is never
       # reconciled and this update was never at risk.
       - name: Require a lock file
+        env:
+          REPO: ${{ inputs.repo }}
         run: |
           if [ ! -f composer.json ]; then
-            echo "::error::${{ inputs.repo }} has no composer.json."
+            echo "::error::$REPO has no composer.json."
             exit 1
           fi
           if [ ! -f composer.lock ]; then
-            echo "::warning::${{ inputs.repo }} has no composer.lock, so the deploy does not reconcile plugin versions there and this update is not at risk."
+            echo "::warning::$REPO has no composer.lock, so the deploy does not reconcile plugin versions there and this update is not at risk."
             echo "NO_PR=no_lock_file" >> "$GITHUB_ENV"
           fi
 
@@ -137,6 +164,7 @@ jobs:
         env:
           SLUG: ${{ inputs.slug }}
           HINT: ${{ inputs.package }}
+          REPO: ${{ inputs.repo }}
         run: |
           set -euo pipefail
 
@@ -183,7 +211,7 @@ jobs:
             fi
           done
 
-          echo "::warning::$SLUG is not in ${{ inputs.repo }}'s composer.json and is published by neither packagist.linchpin.com nor wpackagist, so there is nothing to require."
+          echo "::warning::$SLUG is not in $REPO's composer.json and is published by neither packagist.linchpin.com nor wpackagist, so there is nothing to require."
           echo "NO_PR=package_not_published" >> "$GITHUB_ENV"
 
       - name: Bump the constraint and regenerate the lock
@@ -191,13 +219,20 @@ jobs:
         env:
           COMPOSER_AUTH: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
           COMPOSER_MEMORY_LIMIT: "-1"
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           cp composer.lock composer.lock.before 2>/dev/null || true
 
+          # A version is a version. Anything else is refused here rather than
+          # handed to composer, since this value reaches a command line.
+          case "$VERSION" in
+            *[!0-9A-Za-z._+-]*|"") echo "::error::Refusing version '$VERSION'."; exit 1 ;;
+          esac
+
           # `composer require --no-update` writes the constraint the way composer
           # itself would, rather than hand-editing JSON.
-          composer require "${PACKAGE}:${{ inputs.version }}" \
+          composer require "${PACKAGE}:${VERSION}" \
             --no-update --no-scripts --no-plugins --no-interaction --no-ansi
 
           # Never a wholesale update: these repositories are already behind their
