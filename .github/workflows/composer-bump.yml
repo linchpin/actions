@@ -84,6 +84,23 @@ on:
           branch, so the name is a contract and must not be computed twice.
         required: true
         type: string
+      labels:
+        description: >-
+          Comma-separated labels for the pull request. Defaults deliberately
+          avoid "automated pr": these are opened because an operator pushed an
+          update, not by a bot on a schedule, and whoever triages the queue
+          needs to tell those apart.
+        required: false
+        default: "governing,dependencies"
+        type: string
+      security:
+        description: >-
+          Whether this change addresses a known vulnerability. Adds a security
+          label and says so in the body, so it can be prioritised over routine
+          maintenance.
+        required: false
+        default: false
+        type: boolean
       correlation_id:
         description: >-
           Opaque id echoed into the run name. workflow_dispatch returns no run id,
@@ -178,6 +195,10 @@ jobs:
           SLUG: ${{ inputs.slug }}
           HINT: ${{ inputs.package }}
           REPO: ${{ inputs.repo }}
+          # Without this, `composer show` against packagist.linchpin.com gets a
+          # 401 and a package we publish is indistinguishable from one nobody
+          # publishes.
+          COMPOSER_AUTH: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
         run: |
           set -euo pipefail
 
@@ -219,7 +240,18 @@ jobs:
             exit 0
           fi
 
-          for candidate in "linchpin/$SLUG" "wpackagist-plugin/$SLUG"; do
+          # Vendors this repository already uses come first, so a project part
+          # way through the wpackagist-plugin to wp-plugin migration resolves
+          # without anyone editing this list.
+          own_vendors="$(jq -r '((.require // {}) + (."require-dev" // {})) | keys[] | select(contains("/")) | split("/")[0]' composer.json | sort -u)"
+          tried=""
+
+          for vendor in $own_vendors linchpin wp-plugin wp-theme wpackagist-plugin wpackagist-theme; do
+            candidate="$vendor/$SLUG"
+
+            case " $tried " in *" $candidate "*) continue ;; esac
+            tried="$tried $candidate"
+
             if composer show --available "$candidate" >/dev/null 2>&1; then
               {
                 echo "PACKAGE=$candidate"
@@ -229,6 +261,8 @@ jobs:
               exit 0
             fi
           done
+
+          echo "Tried:$tried"
 
           echo "::warning::$SLUG is not in $REPO's composer.json and is published by neither packagist.linchpin.com nor wpackagist, so there is nothing to require."
           echo "NO_PR=package_not_published" >> "$GITHUB_ENV"
@@ -306,11 +340,12 @@ jobs:
           add-paths: |
             composer.json
             composer.lock
-          labels: |
-            automated pr
-            dependencies
+          labels: >-
+            ${{ inputs.security && format('{0},security', inputs.labels) || inputs.labels }}
           body: |
-            ${{ inputs.operation == 'remove' && format('Removes `{0}`.
+            ${{ inputs.security && '> **Security update.** This addresses a known vulnerability, so it is worth merging ahead of routine maintenance.
+
+            ' || '' }}${{ inputs.operation == 'remove' && format('Removes `{0}`.
 
             The site no longer runs this package. Until the repository stops pinning it, the next deploy reinstalls what was just removed.', env.PACKAGE) || env.CHANGE == 'added' && format('Adds `{0}` at `{1}`.
 
