@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.9.1](https://github.com/linchpin/actions/compare/v4.9.0...v4.9.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **NO-TASK:** Accept the operation input composer-bump is dispatched with ([#160](https://github.com/linchpin/actions/issues/160)) ([6b6ed04](https://github.com/linchpin/actions/commit/6b6ed0403def6ff92f90d429f7ebd80500db9863))
+* **NO-TASK:** Resolve packages the caller can actually publish, and label honestly ([#162](https://github.com/linchpin/actions/issues/162)) ([2aaaa92](https://github.com/linchpin/actions/commit/2aaaa92c545ac73a79d62f7ff85349ae712e3049))
+
 ## [4.9.0](https://github.com/linchpin/actions/compare/v4.8.0...v4.9.0) (2026-08-26)
 
 
