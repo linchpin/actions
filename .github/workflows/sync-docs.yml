@@ -1,0 +1,106 @@
+name: Sync docs to WordPress
+
+# Publishes docs/ to docs.linchpin.com via DocsPress.
+#
+# SAFETY POSTURE — this workflow is intentionally inert on first commit:
+#   * manual trigger only (no push trigger)
+#   * dry-run: true      — plans every operation, writes nothing
+#   * status: draft      — created pages are drafts, not public
+#   * delete-mode: trash — removals go to Trash, never hard-deleted
+#
+# Promote it in this order, confirming the Actions summary at each step:
+#   1. Run manually as-is. Review the planned create/update/delete counts.
+#   2. Set dry-run: false. Pages are created as drafts. Review the page tree.
+#   3. Set status: publish once the content and hierarchy look right.
+#   4. Only then add the push trigger commented out at the bottom.
+#
+# ACCESS — these pages are public, which is the default tier. Nothing to
+# configure in WordPress.
+#
+# ⚠️ This repository is PUBLIC and this job holds a WordPress write token.
+# Never add pull_request or pull_request_target triggers: a fork could then
+# propose a workflow change that exfiltrates the token.
+#
+# actions/checkout is pinned to an immutable commit SHA: it is third party, and
+# this job is exposed to a WordPress token. linchpin/docspress is not pinned —
+# it is our own fork, in our own organisation, behind branch protection, so a
+# SHA pin defends against nothing here while guaranteeing we miss its fixes.
+# See its README for the v1 contract.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Plan only, write nothing"
+        type: boolean
+        default: true
+      status:
+        description: "Status for created or updated pages"
+        type: choice
+        options:
+          - draft
+          - publish
+        default: draft
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docspress-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # actions/checkout v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # v1 moves forward as fixes land; a breaking change becomes v2.
+      - uses: linchpin/docspress@v1
+        with:
+          mode: publish
+
+          # Self-hosted target. Do not append /wp-json — DocsPress does that.
+          # docs.linchpin.com is a subsite of the Linchpin multisite.
+          wordpress-url: https://docs.linchpin.com
+          wordpress-site: docs.linchpin.com
+          wordpress-access-token: ${{ secrets.WP_ACCESS_TOKEN }}
+
+          docs-dir: docs
+
+          # This repository owns the whole tree under its root, so the root it
+          # generates is its own rather than one shared with other
+          # repositories.
+          #
+          # managed-path is stated explicitly even though it equals root-slug,
+          # so that anyone moving this under a shared parent has to change it
+          # here deliberately rather than inherit a default that would scope
+          # deletion to the entire shared subtree.
+          root-slug: actions
+          root-title: GitHub Actions
+          managed-path: actions
+
+          # The DocsPress theme renders the page title itself, so do not let
+          # the action inject a duplicate H1 block.
+          create-h1: false
+
+          # Rewrite relative Markdown links to the generated page URLs.
+          rewrite-links: true
+
+          status: ${{ inputs.status || 'draft' }}
+          delete-mode: trash
+          dry-run: ${{ inputs.dry-run == false && 'false' || 'true' }}
+
+# Step 4 — add automatic syncing only after the manual lifecycle above has
+# succeeded and ongoing publication has been approved:
+#
+# on:
+#   push:
+#     branches: [main]
+#     paths:
+#       - "docs/**/*.md"
+#       - ".github/workflows/sync-docs.yml"
+#   workflow_dispatch:
