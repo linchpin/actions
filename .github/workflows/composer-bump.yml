@@ -371,6 +371,20 @@ jobs:
 
             Opened by Linchpin Governing. Without this merge the update does not survive: `remote-plugin-install` reinstalls any package whose installed version differs from `composer.lock`, so an update applied directly to the server is reverted by the next deploy.
 
+            <details>
+            <summary>Commands you can leave in a comment</summary>
+
+            | Comment | What happens |
+            | --- | --- |
+            | `@linchpin-packagist rebase` | Regenerates the lock against the base branch. Not a merge — the lock is resolved from scratch, so there is no conflict to settle. Refused if anybody else has committed to this branch. |
+            | `@linchpin-packagist recreate` | The same, but force-pushes over other people's commits on this branch. The only way past that refusal, so read it as discarding them. |
+            | `@linchpin-packagist close` | Closes this and deletes the branch. Pushing the same update again will reopen it. |
+
+            Commands need write access to this repository, and are picked up within about fifteen minutes rather than instantly — they are read by polling, not by a webhook.
+
+            Two things happen without being asked: this closes itself if a newer version of the same package opens its own pull request, or if the base branch already has the change. Neither needs a comment.
+            </details>
+
       - name: Report
         run: |
           if [ -n "${NO_PR:-}" ]; then
