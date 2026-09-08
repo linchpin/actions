@@ -374,9 +374,15 @@ permissions:
 jobs:
   release-post:
     uses: linchpin/actions/.github/workflows/release-post.yml@v4
-    secrets: inherit
     with:
       product: Block Alchemy
+    # Passed explicitly rather than with `secrets: inherit`, so the four a new
+    # product has to be given are visible at the call site.
+    secrets:
+      WP_USER: ${{ secrets.WP_USER }}
+      WP_PASS: ${{ secrets.WP_PASS }}
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 ```
 
 Two things have to be true before a release actually gets announced:
