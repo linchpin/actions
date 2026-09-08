@@ -214,6 +214,7 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
 | [qa-run.yml](.github/workflows/qa-run.yml)                 | Trigger a QA platform run on deploy, poll it to a terminal state, and fail the job on a red test — the Ghost Inspector replacement |
 | [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
+| [maintenance.yml](.github/workflows/maintenance.yml)       | Opens the monthly window: creates `maintenance/YYYY-MM` and the draft PR that Renovate stacks its dependency PRs onto |
 | [auto-merge-maintenance.yml](.github/workflows/auto-merge-maintenance.yml) | Cron-driven: auto-merges open Renovate PRs targeting a `maintenance/YYYY-MM` branch, excluding anything labeled `major`. Never touches main/master |
 | [check-overrides.yml](.github/workflows/check-overrides.yml) | Report npm `overrides` pins that no longer do anything, optionally tracking them in a single reusable issue     |
 | [ci.yml](.github/workflows/ci.yml)                         | This repo's own CI: actionlint + yamllint + zizmor                                                             |
@@ -382,6 +383,51 @@ Two independent jobs:
 Set `schema_ref` to pin the schema version if you want the gate to be
 reproducible rather than tracking `main`. `qa_path` must match the project's
 `qa_path` in the platform, and defaults to `qa`.
+
+## The monthly maintenance window
+
+Three workflows make up the maintenance model, and they only work together:
+
+| Workflow | Does |
+| --- | --- |
+| `maintenance.yml` | **Opens** `maintenance/YYYY-MM` and the draft PR |
+| `auto-approve-maintenance.yml` | Approves Renovate PRs stacked onto it |
+| `auto-merge-maintenance.yml` | Merges the approved ones |
+
+Only the last two were shared. The first was copied into 43 repositories, and
+42 of those copies push a bare branch and open no PR — so auto-approve has
+nothing to approve.
+
+```yaml
+name: Monthly Maintenance Branch
+on:
+  schedule:
+    - cron: '0 0 1 * *'  # 00:00 on the first of the month
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report what would be created and write nothing"
+        type: boolean
+        default: false
+
+jobs:
+  open-window:
+    uses: linchpin/actions/.github/workflows/maintenance.yml@v4
+    with:
+      dry_run: ${{ inputs.dry_run || false }}
+    secrets:
+      GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+```
+
+- `base` defaults to the repository's own default branch. Don't hardcode `main`
+  — eight of these repositories use `master`.
+- `label` defaults to `maintenance` and is created if missing; `gh pr create
+  --label` fails outright without it.
+- Idempotent, so a `workflow_dispatch` re-run after a partial failure is safe.
+- `GH_BOT_TOKEN` must not be swapped for `GITHUB_TOKEN` — a PR it authors
+  triggers no required checks.
+- The branch name shape is **not** an input: `auto-merge-maintenance.yml` guards
+  on `^maintenance/[0-9]{4}-[0-9]{2}$`.
 
 ## Renovate Bot Scanning Configurations
 
