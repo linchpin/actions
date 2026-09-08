@@ -1,0 +1,183 @@
+# Release Post (v4)
+#
+# Announces a published release on builditbelieveit.com. linchpin/release-post
+# reports the release to the site, which writes a draft post — an AI-generated
+# overview plus the changelog rendered from the release notes — for a human to
+# review and publish.
+#
+# Why this is a reusable workflow rather than a copied file: it was copied
+# three times (mantle, linchpin-blocks, block-alchemy) and the copies had
+# already drifted. block-alchemy grew a credential guard and a named step that
+# the other two never got, so the same release on two products behaved
+# differently for no reason anyone chose. Everything that legitimately differs
+# per product is one input: the product name.
+#
+# The release event supplies repository, tag, notes and URL, so the caller
+# passes none of them — a reusable workflow sees the caller's event payload.
+#
+# NOT-CONFIGURED IS NOT THE SAME AS BROKEN. release-post already refuses to
+# fail a release over a blog outage, but with no credentials it would write an
+# ::error:: annotation onto every release. An error nobody can act on until
+# four secrets exist is an error people learn to scroll past, so this skips
+# with a warning instead. WP_USER, WP_PASS, CF_ACCESS_CLIENT_ID and
+# CF_ACCESS_CLIENT_SECRET are repository secrets, not organisation ones, so
+# each product has to be given them before its releases get announced.
+#
+# THIS ONLY FIRES FOR A RELEASE CREATED WITH GH_BOT_TOKEN. A release created
+# by GITHUB_TOKEN raises no `release: published` event at all, so a caller
+# whose release-please step uses the default token will never reach this
+# workflow. See the token note in your release-please.yml.
+#
+# linchpin/release-post is not SHA-pinned: it is our own action, in our own
+# organisation, behind branch protection, so a pin defends against nothing
+# here while guaranteeing we miss its fixes. Nothing third party runs in this
+# job, and there is no checkout — the job never touches repository content.
+
+name: Release Post
+
+on:
+  workflow_call:
+    inputs:
+      product:
+        description: >-
+          Human-readable product name for the post title and tag, e.g.
+          "Block Alchemy". Defaults to the repository name with separators
+          turned into spaces, which is usually close but rarely how you would
+          write it — set it.
+        required: false
+        default: ""
+        type: string
+      site-url:
+        description: "Origin of the site that writes the post. No trailing slash, no /wp-json"
+        required: false
+        default: "https://builditbelieveit.com"
+        type: string
+      force:
+        description: >-
+          Rewrite the post even when it is already published or has been edited
+          by hand. Off by default; this overwrites human work.
+        required: false
+        default: false
+        type: boolean
+      dry-run:
+        description: "Print the payload and post nothing"
+        required: false
+        default: false
+        type: boolean
+      fail-on-error:
+        description: >-
+          Fail the job when the post could not be written. Off by default so a
+          blog outage cannot fail a release.
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      WP_USER:
+        description: "WordPress username the Application Password belongs to"
+        required: false
+      WP_PASS:
+        description: "WordPress Application Password for that user"
+        required: false
+      CF_ACCESS_CLIENT_ID:
+        description: >-
+          Cloudflare Access service token client ID. builditbelieveit.com sits
+          behind Zero Trust, so without this the runner is answered by the
+          Access login page rather than WordPress.
+        required: false
+      CF_ACCESS_CLIENT_SECRET:
+        description: "Cloudflare Access service token client secret"
+        required: false
+    outputs:
+      post-id:
+        description: "ID of the post created, updated or skipped. Empty when nothing was written"
+        value: ${{ jobs.release-post.outputs.post-id }}
+      action:
+        description: "created, updated, skipped, or error"
+        value: ${{ jobs.release-post.outputs.action }}
+      edit-url:
+        description: "wp-admin edit URL for the post"
+        value: ${{ jobs.release-post.outputs.edit-url }}
+
+permissions:
+  contents: read
+
+# Never two at once for the same release: `edited` can arrive while the run for
+# `published` is still going, and both would write the same post.
+#
+# This workflow owns the group, so a caller must NOT declare a concurrency
+# group of its own. When a reusable workflow is invoked via workflow_call the
+# caller's group is already held while this job queues on its own, and two
+# groups that resolve to the same name deadlock the release.
+concurrency:
+  group: release-post-${{ github.repository }}-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  release-post:
+    name: Draft the release post
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    outputs:
+      post-id: ${{ steps.post.outputs.post-id }}
+      action: ${{ steps.post.outputs.action }}
+      edit-url: ${{ steps.post.outputs.edit-url }}
+
+    steps:
+      - name: Check for blog credentials
+        id: creds
+        env:
+          WP_USER: ${{ secrets.WP_USER }}
+        run: |
+          if [ -n "${WP_USER:-}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # echo joins its arguments with a space, so the annotation stays one
+          # line — and therefore one annotation — while the source does not.
+          echo "::warning::WP_USER is not set, so this release was not announced." \
+            "Add WP_USER, WP_PASS, CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET" \
+            "to this repository to enable the release post."
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+
+      - name: Draft the post
+        id: post
+        if: steps.creds.outputs.ready == 'true'
+        uses: linchpin/release-post@v1
+        with:
+          product: ${{ inputs.product }}
+          site-url: ${{ inputs.site-url }}
+          wp-user: ${{ secrets.WP_USER }}
+          wp-app-password: ${{ secrets.WP_PASS }}
+          cf-access-client-id: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          cf-access-client-secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          force: ${{ inputs.force && 'true' || 'false' }}
+          dry-run: ${{ inputs.dry-run && 'true' || 'false' }}
+          fail-on-error: ${{ inputs.fail-on-error && 'true' || 'false' }}
+
+      # Says where the draft landed, so nobody has to open the log to find the
+      # edit link. Values reach this through the environment: release notes are
+      # built from commit messages, so anything interpolated into a run block
+      # would be a shell injection.
+      - name: Summarise
+        if: ${{ !cancelled() && steps.creds.outputs.ready == 'true' }}
+        env:
+          RESULT: ${{ steps.post.outputs.action }}
+          POST_ID: ${{ steps.post.outputs.post-id }}
+          EDIT_URL: ${{ steps.post.outputs.edit-url }}
+          REASON: ${{ steps.post.outputs.skipped-reason }}
+        run: |
+          {
+            echo "### Release post"
+            echo
+            echo "| Field | Value |"
+            echo "| ----- | ----- |"
+            echo "| Result | ${RESULT:-unknown} |"
+            echo "| Post ID | ${POST_ID:-—} |"
+            if [ -n "${REASON:-}" ]; then
+              echo "| Skipped because | ${REASON} |"
+            fi
+            if [ -n "${EDIT_URL:-}" ]; then
+              echo "| Edit | ${EDIT_URL} |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -212,6 +212,7 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [deploy-continue.yml](.github/workflows/deploy-continue.yml) | Second half of the backup-and-continue flow — dispatched (via the caller) by Mantle once the Pressable backup completes |
 | [lint.yml](.github/workflows/lint.yml)                     | PR lint: PHP syntax (any version), phpcs on changed files via cs2pr, optional PHPStan                          |
 | [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
+| [release-post.yml](.github/workflows/release-post.yml)     | Announce a published release as a draft blog post on builditbelieveit.com                                      |
 | [qa-run.yml](.github/workflows/qa-run.yml)                 | Trigger a QA platform run on deploy, poll it to a terminal state, and fail the job on a red test — the Ghost Inspector replacement |
 | [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
 | [auto-merge-maintenance.yml](.github/workflows/auto-merge-maintenance.yml) | Cron-driven: auto-merges open Renovate PRs targeting a `maintenance/YYYY-MM` branch, excluding anything labeled `major`. Never touches main/master |
@@ -348,6 +349,54 @@ jobs:
       # poll_interval_seconds: 10
       # timeout_minutes: 20
 ```
+
+### Release blog posts
+
+Turns a published release into a draft post on
+[builditbelieveit.com](https://builditbelieveit.com) — an overview plus the
+changelog — for a human to review and publish. Repository, tag, notes and URL
+all come from the release event, so the only thing a caller states is the
+product name.
+
+```yaml
+name: Release Post
+on:
+  release:
+    types: [published, edited]
+
+permissions:
+  contents: read
+
+# No `concurrency:` here. release-post.yml owns the group (one run per
+# repository per tag); a group declared in the caller is already held while the
+# called job queues on its own, and two that resolve to the same name deadlock.
+
+jobs:
+  release-post:
+    uses: linchpin/actions/.github/workflows/release-post.yml@v4
+    secrets: inherit
+    with:
+      product: Block Alchemy
+```
+
+Two things have to be true before a release actually gets announced:
+
+1. **The four secrets exist on the repository.** `WP_USER`, `WP_PASS`,
+   `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` are repository secrets,
+   not organisation ones. Without `WP_USER` the workflow skips with a warning
+   rather than erroring — not-configured is not the same as broken — so a
+   product you have not set up yet stays quiet instead of annotating every
+   release.
+2. **The release is created with `GH_BOT_TOKEN`.** A release created by
+   `GITHUB_TOKEN` raises no `release: published` event at all, so nothing here
+   ever runs. Check the token on the release-please step in your
+   `release-please.yml`.
+
+`dry-run: true` prints the payload and posts nothing. `force: true` rewrites a
+post that is already published or has been edited by hand — it overwrites human
+work, so it is off by default. Re-running is otherwise safe: the endpoint keys
+on repository plus tag, so a second run updates the draft it wrote earlier and
+leaves a published or hand-edited post alone.
 
 ## QA Guard
 
