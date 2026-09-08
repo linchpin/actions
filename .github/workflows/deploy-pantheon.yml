@@ -1,0 +1,92 @@
+name: Deploy to Pantheon
+
+on:
+  workflow_call:
+    inputs:
+      site:
+        description: "The site you are deploying to on the pantheon platform"
+        required: false
+        default: "_wpeprivate/releases"
+        type: string
+      deployment_id:
+        description: "The deployment ID from previous jobs"
+        required: true
+        type: string
+      workflow_run_id:
+        description: "Workflow Run ID to get artifacts from"
+        required: true
+        type: string
+      do_backup:
+        # @todo implement remote backups on Pantheon possibly using terminus
+        description: "Backup the current site before deploying"
+        required: false
+        default: false
+        type: boolean
+      environment:
+        description: "The Environment to deploy and grab env.vars from"
+        required: true
+        type: string  
+      inherit_build:
+        description: "This allows projects with multiple deployments to share a build from another job, it must be provided a job ID"
+        required: false
+        type: string
+
+jobs:
+  deploy:
+    name: To ${{ vars.HOST }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Deployment In Progress
+        id: in_progress_deployment
+        uses: octokit/request-action@v2
+        with:
+          route: POST /repos/{repo}/deployments/{deployment}/statuses
+          repo: ${{ github.repository }}
+          deployment: ${{ inputs.deployment }}
+          environment: ${{ vars.ENVIRONMENT }}
+          environment_url: ${{ vars.SITE_URL }}
+          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          state: in_progress
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Install Terminus
+        uses: pantheon-systems/terminus-github-actions@v1
+        with:
+          pantheon-machine-token: ${{ secrets.PANTHEON_MACHINE_TOKEN }}
+
+      - name: Push to Pantheon
+        uses: pantheon-systems/push-to-pantheon@0.6.0
+        with:
+          ssh_key: ${{ secrets.SSH_KEY }}
+          machine_token: ${{ secrets.PANTHEON_MACHINE_TOKEN }}
+          site: ${{ vars.PANTHEON_SITE_MACHINE_NAME }}
+
+      - name: Set Deployment Status as Successful
+        if: ${{ success() }}
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repo}/deployments/{deployment}/statuses
+          repo: ${{ github.repository }}
+          deployment: ${{ inputs.deployment }}
+          environment: ${{ vars.ENVIRONMENT }}
+          environment_url: ${{ vars.SITE_URL }}
+          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          state: success
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Set Deployment Status as Failboat
+        if: ${{ failure() }}
+        uses: octokit/request-action@v2.x
+        with:
+          route: POST /repos/{repo}/deployments/{deployment}/statuses
+          repo: ${{ github.repository }}
+          deployment: ${{ inputs.deployment }}
+          environment: ${{ vars.ENVIRONMENT }}
+          environment_url: ${{ vars.SITE_URL }}
+          log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          state: failure
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
