@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.10.0](https://github.com/linchpin/actions/compare/v4.9.1...v4.10.0) (2026-09-09)
+
+
+### Features
+
+* **NO-TASK:** Add a check-overrides action to find npm pins that went inert ([#149](https://github.com/linchpin/actions/issues/149)) ([9ae4f0c](https://github.com/linchpin/actions/commit/9ae4f0cd82c1020b02c76e339ddf35f1d3b93181))
+* **NO-TASK:** Share the three workflows plugin repos duplicate ([#170](https://github.com/linchpin/actions/issues/170)) ([1417c61](https://github.com/linchpin/actions/commit/1417c61aede3a853e4abc82f0e2960514ee6ca6e))
+
 ## [4.9.1](https://github.com/linchpin/actions/compare/v4.9.0...v4.9.1) (2026-08-27)
 
 
