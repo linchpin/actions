@@ -42,7 +42,7 @@ cd "$PUBLIC_DIR"
 
 # Start maintenance mode
 
-wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/main/maintenance.php
+wget -O maintenance.php https://raw.githubusercontent.com/linchpin/actions/v2/maintenance.php
 wp maintenance-mode activate
 
 # Backup our database
@@ -89,7 +89,7 @@ if [ -d "${RELEASE_DIR}/mu-plugins/" ] ; then
 
   if [ ! -e "${RELEASE_DIR}/.distignore" ]; then
     echo "::warning::ℹ︎ Loading default .distignore from github.com/linchpin/actions, you should add one to your project"
-    wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/main/default.distignore
+    wget -O .distignore https://raw.githubusercontent.com/linchpin/actions/v2/default.distignore
   fi;
 
   rsync -rxc --delete --exclude-from=".distignore" ${RELEASE_DIR}/mu-plugins/. ${PUBLIC_DIR}/wp-content/mu-plugins
