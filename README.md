@@ -211,6 +211,9 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [deploy.yml](.github/workflows/deploy.yml)                 | Deploys a fresh build (staging), builds + deploys + archives a release (production via `build_for_release`), or redeploys a prebuilt asset (rollback via `release_tag`) to Pressable, WP Engine, or Cloudways |
 | [deploy-continue.yml](.github/workflows/deploy-continue.yml) | Second half of the backup-and-continue flow — dispatched (via the caller) by Mantle once the Pressable backup completes |
 | [lint.yml](.github/workflows/lint.yml)                     | PR lint: PHP syntax (any version), phpcs on changed files via cs2pr, optional PHPStan                          |
+| [php-checks.yml](.github/workflows/php-checks.yml)         | Plugin/package PHP: parse lint, PHPStan, PHPUnit on two runtimes, branch-scoped PHPCS |
+| [plugin-check.yml](.github/workflows/plugin-check.yml)     | Build the distributable and run wordpress/plugin-check-action against it |
+| [wp-version-checker.yml](.github/workflows/wp-version-checker.yml) | Open an issue when the plugin's `Tested up to` header falls behind WordPress |
 | [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
 | [qa-run.yml](.github/workflows/qa-run.yml)                 | Trigger a QA platform run on deploy, poll it to a terminal state, and fail the job on a red test — the Ghost Inspector replacement |
 | [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
@@ -223,7 +226,7 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 
 | Action                                          | Description                                                                       |
 | ----------------------------------------------- | --------------------------------------------------------------------------------- |
-| [setup-wp-php](actions/setup-wp-php)            | PHP via setup-php + cached Composer install + COMPOSER_AUTH (no auth.json on disk) |
+| [setup-wp-php](actions/setup-wp-php)            | PHP via setup-php (extensions, ini-values) + cached Composer install + COMPOSER_AUTH (no auth.json on disk) |
 | [build-release](actions/build-release)          | Turn a built tree into a clean release/ dir using the project .distignore          |
 | [deploy-pressable](actions/deploy-pressable)    | Upload + symlink-aware sync of a release to Pressable over SSH, maintenance mode, health check |
 | [deploy-wpengine](actions/deploy-wpengine)      | Upload + symlink-aware sync of a release to WP Engine over SSH, health check       |
@@ -348,6 +351,56 @@ jobs:
       # poll_interval_seconds: 10
       # timeout_minutes: 20
 ```
+
+## Plugin repositories
+
+mantle and block-alchemy had arrived at the same three workflows independently.
+`lint.yml` does not fit a plugin — it is the site shape, with no test suite — so
+`php-checks.yml` is the plugin shape instead.
+
+```yaml
+jobs:
+  php:
+    uses: linchpin/actions/.github/workflows/php-checks.yml@v4
+    secrets: inherit
+    with:
+      php_version: '8.2'
+      php_extra_version: '8.4'   # second runtime for the suite; empty runs it once
+      php_extensions: 'dom, libxml, mbstring'
+      setup_command: composer install-wp-core
+      composer_scripts: fixer:test
+```
+
+Expects `php-lint` and (when PHPCS is on) `check-branch-cs` as composer scripts.
+PHPCS runs on pull requests only, since it diffs the base branch. Repo-specific
+checks stay in the caller as their own job — mantle's grep for silently-ignored
+REST arg keys is not worth parameterising.
+
+```yaml
+jobs:
+  plugin-check:
+    uses: linchpin/actions/.github/workflows/plugin-check.yml@v4
+    with:
+      build_dir: ./build/mantle
+      build_command: |
+        npm ci
+        npm run build
+        bash scripts/build.sh
+      exclude_directories: vendor,third-party
+      exclude_checks: plugin_updater        # check NAMES
+      ignore_codes: plugin_updater_detected # the codes a check emits
+
+  wp-version-checker:
+    uses: linchpin/actions/.github/workflows/wp-version-checker.yml@v4
+```
+
+`exclude-checks` and `ignore-codes` take different kinds of value and neither
+errors on the wrong one — mantle carried codes in `exclude-checks` for a while,
+which silently excluded nothing.
+
+Node is resolved to one value: `node_version`, else `.nvmrc`, else `lts/*`, and
+setup is skipped entirely without a `package-lock.json` since `cache: npm` fails
+outright without one.
 
 ## QA Guard
 

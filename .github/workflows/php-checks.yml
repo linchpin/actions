@@ -1,0 +1,151 @@
+# PHP checks for a plugin or package (v4)
+#
+# lint.yml is the site shape: PHPCS on changed files and optional PHPStan, no
+# test suite. This is the plugin shape mantle and block-alchemy arrived at
+# independently — parse lint, PHPStan, PHPUnit, branch-scoped PHPCS, then
+# PHPUnit again on a second runtime, all as steps in one job.
+#
+# Every check carries `!cancelled()` so one failure still lets the rest
+# annotate. As steps that is free; as separate jobs it was a billed minute each.
+#
+# Expects the caller's composer.json to define `php-lint` and, when PHPCS is
+# enabled, `check-branch-cs` (which writes ./phpcs-report.xml).
+
+name: PHP checks
+
+on:
+  workflow_call:
+    inputs:
+      php_version:
+        description: "Primary PHP version. Defaults to vars.PHP_VERSION, then 8.2"
+        required: false
+        default: ""
+        type: string
+      php_extra_version:
+        description: "Second runtime for the test suite. Empty runs it once"
+        required: false
+        default: ""
+        type: string
+      php_extensions:
+        description: "Extra PHP extensions, e.g. dom, libxml, mbstring"
+        required: false
+        default: ""
+        type: string
+      setup_command:
+        description: "Shell run after Composer install, before the checks (e.g. composer install-wp-core)"
+        required: false
+        default: ""
+        type: string
+      composer_scripts:
+        description: "Newline-separated extra composer scripts, e.g. fixer:test"
+        required: false
+        default: ""
+        type: string
+      run_phpstan:
+        description: "Run composer phpstan"
+        required: false
+        default: true
+        type: boolean
+      run_phpunit:
+        description: "Run vendor/bin/phpunit"
+        required: false
+        default: true
+        type: boolean
+      run_phpcs:
+        description: "Run branch-scoped PHPCS. Pull requests only, since it diffs the base"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      PACKAGIST_COMPOSER_AUTH_JSON:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    name: PHP checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # Full history, so PHPCS can diff against the base branch.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: linchpin/actions/actions/setup-wp-php@v4
+        with:
+          php-version: ${{ inputs.php_version || vars.PHP_VERSION || '8.2' }}
+          extensions: ${{ inputs.php_extensions }}
+          ini-values: "zend.assertions=1, error_reporting=-1, display_errors=On"
+          dev: "yes"
+          composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+          tools: "composer:v2, cs2pr"
+
+      - name: Setup
+        if: ${{ inputs.setup_command != '' }}
+        env:
+          SETUP_COMMAND: ${{ inputs.setup_command }}
+        run: bash -eo pipefail -c "$SETUP_COMMAND"
+
+      # The lowest supported version only: a parse that succeeds there cannot
+      # fail on a newer runtime, so a version matrix bought nothing.
+      - name: Lint against parse errors
+        if: ${{ !cancelled() }}
+        run: composer php-lint -- --checkstyle | cs2pr
+
+      - name: PHPStan
+        if: ${{ !cancelled() && inputs.run_phpstan }}
+        run: composer phpstan
+
+      - name: Extra composer scripts
+        if: ${{ !cancelled() && inputs.composer_scripts != '' }}
+        env:
+          SCRIPTS: ${{ inputs.composer_scripts }}
+        run: |
+          # Explicit, because a failing extra script must fail the job rather
+          # than fall through to the next one.
+          set -euo pipefail
+          while IFS= read -r script; do
+            [ -z "$script" ] && continue
+            echo "::group::composer $script"
+            composer "$script"
+            echo "::endgroup::"
+          done <<< "$SCRIPTS"
+
+      - name: PHPUnit
+        if: ${{ !cancelled() && inputs.run_phpunit }}
+        run: vendor/bin/phpunit
+
+      # Pull requests only, so it can diff the base and report on the changed
+      # code rather than the whole tree.
+      - name: Coding standards for the branch's changes
+        id: phpcs
+        if: ${{ !cancelled() && inputs.run_phpcs && github.event_name == 'pull_request' }}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          composer validate --no-check-all
+          composer check-branch-cs -- "origin/$BASE_REF"
+
+      - name: Show PHPCS results in the PR
+        if: ${{ !cancelled() && steps.phpcs.outcome == 'failure' }}
+        run: cs2pr ./phpcs-report.xml
+
+      # Runtime behaviour can differ across versions in a way parsing cannot, so
+      # the suite also runs on the newest supported release. Swapping the CLI in
+      # place costs seconds; a matrix job costs a whole billed minute.
+      - name: Install PHP ${{ inputs.php_extra_version }}
+        if: ${{ !cancelled() && inputs.php_extra_version != '' && inputs.run_phpunit }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php_extra_version }}
+          extensions: ${{ inputs.php_extensions }}
+          coverage: none
+
+      - name: PHPUnit on PHP ${{ inputs.php_extra_version }}
+        if: ${{ !cancelled() && inputs.php_extra_version != '' && inputs.run_phpunit }}
+        run: vendor/bin/phpunit

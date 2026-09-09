@@ -1,0 +1,30 @@
+# WordPress Version Checker (v4)
+#
+# Opens an issue when the plugin's "Tested up to" header falls behind WordPress.
+# Cron only: a push trigger fired ~46 extra times per 8 days to re-check the
+# same header.
+#
+# No inputs — the action reads wordpress-version-checker.json (or the same key
+# in composer.json / package.json) from the caller's repository. Shared so the
+# version pin lives in one place.
+
+name: WordPress Version Checker
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Check the Tested up to header
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # SHA-pinned (v2.2.3): third party, and it receives a token with
+      # issues: write. Same reasoning as sync-docs.yml.
+      - uses: skaut/wordpress-version-checker@9d247334f5b30202cb9c1f4aee74c52f37399f69
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}

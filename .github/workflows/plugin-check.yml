@@ -1,0 +1,140 @@
+# WordPress Plugin Check (v4)
+#
+# Builds the distributable and runs wordpress/plugin-check-action against it.
+# Copied into mantle and block-alchemy with the same shape and different
+# settings; everything that differed is now an input.
+#
+# No `concurrency` here: invoked via workflow_call, `github.workflow` resolves
+# to the caller's name, so a group defined here can deadlock against the
+# caller's own — the caller waits for this job, this job waits for the caller's
+# group.
+
+name: WordPress Plugin Check
+
+on:
+  workflow_call:
+    inputs:
+      build_dir:
+        description: "Directory the build produces, e.g. ./build/mantle"
+        required: true
+        type: string
+      build_command:
+        description: "Shell to build the distributable. Multi-line is fine"
+        required: false
+        default: "bash scripts/build.sh"
+        type: string
+      php_version:
+        description: "PHP version. Defaults to vars.PHP_VERSION, then 8.2"
+        required: false
+        default: ""
+        type: string
+      php_extensions:
+        description: "Extra PHP extensions"
+        required: false
+        default: ""
+        type: string
+      node_version:
+        description: "Node version. Empty uses the caller's .nvmrc"
+        required: false
+        default: ""
+        type: string
+      categories:
+        description: "Newline-separated plugin-check categories"
+        required: false
+        default: |
+          general
+          performance
+          accessibility
+          security
+          plugin_repo
+        type: string
+      exclude_directories:
+        description: "Comma-separated directories to skip, e.g. vendor,third-party"
+        required: false
+        default: ""
+        type: string
+      exclude_checks:
+        description: "Comma-separated check NAMES to skip (not codes)"
+        required: false
+        default: ""
+        type: string
+      ignore_codes:
+        description: "Comma-separated codes to ignore (not check names)"
+        required: false
+        default: ""
+        type: string
+      include_experimental:
+        description: "Include experimental checks"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      PACKAGIST_COMPOSER_AUTH_JSON:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  plugin-check:
+    name: Plugin Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: linchpin/actions/actions/setup-wp-php@v4
+        with:
+          php-version: ${{ inputs.php_version || vars.PHP_VERSION || '8.2' }}
+          extensions: ${{ inputs.php_extensions }}
+          dev: "no"
+          composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+          tools: "composer:v2"
+
+      # Resolved to a single value rather than letting setup-node choose between
+      # node-version and node-version-file: passing both makes it warn and
+      # ignore one, and `cache: npm` hard-fails on a repo with no lockfile.
+      - name: Resolve Node
+        id: node
+        env:
+          INPUT_VERSION: ${{ inputs.node_version }}
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No package-lock.json — skipping Node setup."
+          fi
+
+          if [ -n "${INPUT_VERSION:-}" ]; then
+            echo "version=${INPUT_VERSION}" >> "$GITHUB_OUTPUT"
+          elif [ -f .nvmrc ]; then
+            echo "version=$(tr -d ' \n' < .nvmrc)" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=lts/*" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The build usually compiles editor assets, so it needs node as well as
+      # PHP — without it the script stops on "npm is not installed".
+      - uses: actions/setup-node@v7
+        if: steps.node.outputs.present == 'true'
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          cache: npm
+
+      # Run through the environment rather than interpolated into the script.
+      - name: Build the distributable
+        env:
+          BUILD_COMMAND: ${{ inputs.build_command }}
+        run: bash -eo pipefail -c "$BUILD_COMMAND"
+
+      - name: Run Plugin Check
+        uses: wordpress/plugin-check-action@v1
+        with:
+          build-dir: ${{ inputs.build_dir }}
+          exclude-directories: ${{ inputs.exclude_directories }}
+          exclude-checks: ${{ inputs.exclude_checks }}
+          ignore-codes: ${{ inputs.ignore_codes }}
+          categories: ${{ inputs.categories }}
+          include-experimental: ${{ inputs.include_experimental }}
