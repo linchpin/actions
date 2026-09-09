@@ -1,0 +1,215 @@
+# Monthly Maintenance Branch (v4)
+#
+# Creates `maintenance/YYYY-MM` and the draft PR that Renovate stacks its
+# grouped and major dependency PRs onto. The draft PR is the review surface for
+# the batch; marking it ready merges it.
+#
+# The two workflows that act on this branch — auto-approve-maintenance and
+# auto-merge-maintenance — were already shared. This one was copied into 43
+# repositories, and 42 of those copies push a bare branch and open no PR, so
+# auto-approve has nothing to approve.
+#
+# Fixed here relative to those copies: opens the PR; resolves the base branch
+# (8 of the 43 use `master`); creates the label if missing, since
+# `gh pr create --label` fails outright without it; uses GH_BOT_TOKEN so the PR
+# triggers required checks; is idempotent; and writes an anchor commit message
+# that passes commitlint.
+#
+# The branch name shape is not an input — auto-merge-maintenance guards on
+# `^maintenance/[0-9]{4}-[0-9]{2}$`, so renaming it would silently stop
+# auto-merging.
+
+name: Monthly Maintenance Branch
+
+on:
+  workflow_call:
+    inputs:
+      base:
+        description: >-
+          Branch the PR targets. Defaults to the repository's own default
+          branch, which is not `main` everywhere.
+        required: false
+        default: ""
+        type: string
+      label:
+        description: >-
+          Label for the PR, created if the repository lacks it. Empty applies
+          none.
+        required: false
+        default: "maintenance"
+        type: string
+      draft:
+        description: "Open the PR as a draft; marking it ready merges the batch"
+        required: false
+        default: true
+        type: boolean
+      dry_run:
+        description: "Report what would be created and write nothing"
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      branch:
+        description: "The maintenance branch name for this month"
+        value: ${{ jobs.open-window.outputs.branch }}
+      pr:
+        description: "Number of the maintenance pull request, new or already open"
+        value: ${{ jobs.open-window.outputs.pr }}
+    secrets:
+      GH_BOT_TOKEN:
+        description: >-
+          PAT used to push the branch and open the PR. Not GITHUB_TOKEN — a PR
+          it authors triggers no required checks.
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# One window per month per repository: a dispatch racing the cron would
+# otherwise both pass the existence check before either had pushed.
+concurrency:
+  group: maintenance-window-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  open-window:
+    name: Open the maintenance window
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    outputs:
+      branch: ${{ steps.window.outputs.branch }}
+      pr: ${{ steps.window.outputs.pr }}
+
+    steps:
+      # SHA-pinned (v7.0.1): third party, and this job hands it a PAT with
+      # write access. Same reasoning as sync-docs.yml.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.GH_BOT_TOKEN }}
+
+      - name: Open the window
+        id: window
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+          INPUT_BASE: ${{ inputs.base }}
+          INPUT_LABEL: ${{ inputs.label }}
+          INPUT_DRAFT: ${{ inputs.draft }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          # UTC, matching the runner and the cron that fires this.
+          BRANCH="maintenance/$(date -u +'%Y-%m')"
+          TITLE="Maintenance/$(date -u +'%Y-%m')"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          # A stated base wins; otherwise the repository's own default.
+          BASE="${INPUT_BASE:-}"
+          if [ -z "$BASE" ]; then
+            BASE=$(gh api "repos/$GITHUB_REPOSITORY" --jq '.default_branch')
+          fi
+          echo "Base branch: $BASE"
+          echo "Maintenance branch: $BRANCH"
+
+          branch_exists=false
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            branch_exists=true
+          fi
+
+          existing_pr=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+
+          if [ "$DRY_RUN" = "true" ]; then
+            {
+              echo "### Maintenance window — dry run"
+              echo
+              echo "| | |"
+              echo "| --- | --- |"
+              echo "| Base | \`$BASE\` |"
+              echo "| Branch | \`$BRANCH\` |"
+              echo "| Branch exists | $branch_exists |"
+              echo "| Open PR | ${existing_pr:-none} |"
+              echo
+              echo "Nothing was written."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "pr=${existing_pr:-}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          if [ "$branch_exists" = "true" ]; then
+            echo "Branch $BRANCH already exists — leaving it alone."
+          else
+            git switch -c "$BRANCH"
+            # Anchor commit: GitHub rejects a PR with an empty diff, and the
+            # branch is identical to the base until Renovate stacks onto it.
+            # The scope keeps it passing commitlint.
+            git commit --allow-empty -m "chore(NO-TASK): Open the $(date -u +'%Y-%m') maintenance window"
+            git push origin "$BRANCH"
+          fi
+
+          if [ -n "$existing_pr" ]; then
+            echo "PR #$existing_pr for $BRANCH is already open — leaving it alone."
+            echo "pr=$existing_pr" >> "$GITHUB_OUTPUT"
+            PR_NUMBER="$existing_pr"
+          else
+            # `gh pr create --label` fails the whole call on a missing label.
+            # Create it; if that is refused, open the PR unlabelled.
+            LABEL_ARGS=()
+            if [ -n "${INPUT_LABEL:-}" ]; then
+              if gh label list --json name --jq '.[].name' | grep -qxF "$INPUT_LABEL"; then
+                LABEL_ARGS=(--label "$INPUT_LABEL")
+              elif gh label create "$INPUT_LABEL" --color FBCA04 \
+                     --description "Monthly dependency maintenance window"; then
+                LABEL_ARGS=(--label "$INPUT_LABEL")
+              else
+                echo "::warning::Could not create the '$INPUT_LABEL' label, so the pull request is opened without it."
+              fi
+            fi
+
+            DRAFT_ARGS=()
+            if [ "$INPUT_DRAFT" = "true" ]; then
+              DRAFT_ARGS=(--draft)
+            fi
+
+            BODY=$(cat <<EOF
+          Automated monthly maintenance window.
+
+          Renovate opens grouped dependency pull requests against \`$BRANCH\`.
+          Review the collected updates, confirm checks pass, then mark this pull
+          request **ready for review** to merge the batch into \`$BASE\`.
+
+          _Opened by [maintenance.yml][wf] in linchpin/actions._
+
+          [wf]: https://github.com/linchpin/actions/blob/v4/.github/workflows/maintenance.yml
+          EOF
+          )
+
+            gh pr create \
+              --base "$BASE" \
+              --head "$BRANCH" \
+              --title "$TITLE" \
+              --body "$BODY" \
+              ${DRAFT_ARGS[@]+"${DRAFT_ARGS[@]}"} \
+              ${LABEL_ARGS[@]+"${LABEL_ARGS[@]}"}
+
+            PR_NUMBER=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+            echo "pr=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            echo "### Maintenance window"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Base | \`$BASE\` |"
+            echo "| Branch | \`$BRANCH\` |"
+            echo "| Pull request | ${PR_NUMBER:+#$PR_NUMBER} |"
+          } >> "$GITHUB_STEP_SUMMARY"
