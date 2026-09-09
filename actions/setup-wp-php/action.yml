@@ -30,6 +30,14 @@ inputs:
     description: "JSON for the COMPOSER_AUTH env var (e.g. the PACKAGIST_COMPOSER_AUTH_JSON secret)"
     required: false
     default: ""
+  extensions:
+    description: "PHP extensions for shivammathur/setup-php (e.g. dom, libxml, mbstring)"
+    required: false
+    default: ""
+  ini-values:
+    description: "php.ini values for shivammathur/setup-php (e.g. zend.assertions=1)"
+    required: false
+    default: ""
   tools:
     description: "Tools for shivammathur/setup-php"
     required: false
@@ -46,6 +54,8 @@ runs:
       uses: shivammathur/setup-php@v2
       with:
         php-version: ${{ inputs.php-version }}
+        extensions: ${{ inputs.extensions }}
+        ini-values: ${{ inputs.ini-values }}
         coverage: none
         tools: ${{ inputs.tools }}
 
