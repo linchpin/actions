@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.10.1](https://github.com/linchpin/actions/compare/v4.10.0...v4.10.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **NO-TASK:** Fail lint when the tools it needs are absent ([#174](https://github.com/linchpin/actions/issues/174)) ([40c0f43](https://github.com/linchpin/actions/commit/40c0f43ecfd79276210332f52bed801cd13c8fcf))
+
 ## [4.10.0](https://github.com/linchpin/actions/compare/v4.9.1...v4.10.0) (2026-09-09)
 
 
