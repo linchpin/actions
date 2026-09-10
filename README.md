@@ -210,7 +210,7 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [build.yml](.github/workflows/build.yml)                   | Single-job project build producing a deploy-ready `release` artifact; optionally archives it on a GitHub release as a rollback asset |
 | [deploy.yml](.github/workflows/deploy.yml)                 | Deploys a fresh build (staging), builds + deploys + archives a release (production via `build_for_release`), or redeploys a prebuilt asset (rollback via `release_tag`) to Pressable, WP Engine, or Cloudways |
 | [deploy-continue.yml](.github/workflows/deploy-continue.yml) | Second half of the backup-and-continue flow — dispatched (via the caller) by Mantle once the Pressable backup completes |
-| [lint.yml](.github/workflows/lint.yml)                     | PR lint: PHP syntax (any version), phpcs on changed files via cs2pr, optional PHPStan. Fails when the tools are missing unless `require_tools: false` |
+| [lint.yml](.github/workflows/lint.yml)                     | PR lint: PHP syntax (`lint_paths`), phpcs on changed files via cs2pr, optional PHPStan. Fails when the tools are missing unless `require_tools: false` |
 | [php-checks.yml](.github/workflows/php-checks.yml)         | Plugin/package PHP: parse lint, PHPStan, PHPUnit on two runtimes, branch-scoped PHPCS |
 | [plugin-check.yml](.github/workflows/plugin-check.yml)     | Build the distributable and run wordpress/plugin-check-action against it |
 | [wp-version-checker.yml](.github/workflows/wp-version-checker.yml) | Open an issue when the plugin's `Tested up to` header falls behind WordPress |

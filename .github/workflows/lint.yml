@@ -28,6 +28,15 @@ on:
         required: false
         default: false
         type: boolean
+      lint_paths:
+        description: >-
+          Space-separated paths to syntax-lint. Defaults to the whole
+          repository. A wp-content-shaped repo wants its own theme or plugin
+          here — after Composer install the tree also holds third-party plugin
+          code, whose syntax is not ours to police.
+        required: false
+        default: "."
+        type: string
       require_tools:
         description: >-
           Fail when php-parallel-lint or phpcs is missing, rather than skipping
@@ -64,12 +73,25 @@ jobs:
       - name: PHP syntax lint
         env:
           REQUIRE_TOOLS: ${{ inputs.require_tools }}
+          LINT_PATHS: ${{ inputs.lint_paths }}
         run: |
           set -euo pipefail
           if composer run-script --list 2>/dev/null | grep -qE '^\s*lint:php([^a-z:]|$)'; then
             composer run-script lint:php
           elif [ -x vendor/bin/parallel-lint ]; then
-            vendor/bin/parallel-lint . --exclude vendor --exclude node_modules -e php
+            # Every vendor/ and node_modules/ at any depth, not just the top
+            # level. `--exclude vendor` is a path relative to cwd, so it misses
+            # plugins/*/vendor — which Composer install creates, and which is
+            # where third-party code lives. php-di ships a compiler template
+            # that is deliberately not valid standalone PHP, so a bundled plugin
+            # failing this job says nothing about the project.
+            read -r -a LINT_TARGETS <<< "${LINT_PATHS}"
+            EXCLUDE_ARGS=()
+            while IFS= read -r dir; do
+              [ -n "$dir" ] && EXCLUDE_ARGS+=(--exclude "$dir")
+            done < <(find "${LINT_TARGETS[@]}" -type d \( -name vendor -o -name node_modules \) -prune -print 2>/dev/null)
+            vendor/bin/parallel-lint "${LINT_TARGETS[@]}" \
+              ${EXCLUDE_ARGS[@]+"${EXCLUDE_ARGS[@]}"} -e php
           elif [ "${REQUIRE_TOOLS}" = "true" ]; then
             echo "::error::php-parallel-lint is not installed, so nothing checked syntax." \
               "Add php-parallel-lint/php-parallel-lint to require-dev, or set" \
