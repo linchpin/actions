@@ -28,6 +28,15 @@ on:
         required: false
         default: false
         type: boolean
+      require_tools:
+        description: >-
+          Fail when php-parallel-lint or phpcs is missing, rather than skipping
+          the check. A skipped gate reports green, which is worse than no gate
+          because it looks like one. Set false only while a project is being
+          migrated onto its own tooling.
+        required: false
+        default: true
+        type: boolean
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON:
         required: false
@@ -53,22 +62,37 @@ jobs:
           composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
 
       - name: PHP syntax lint
+        env:
+          REQUIRE_TOOLS: ${{ inputs.require_tools }}
         run: |
           set -euo pipefail
           if composer run-script --list 2>/dev/null | grep -qE '^\s*lint:php([^a-z:]|$)'; then
             composer run-script lint:php
           elif [ -x vendor/bin/parallel-lint ]; then
             vendor/bin/parallel-lint . --exclude vendor --exclude node_modules -e php
+          elif [ "${REQUIRE_TOOLS}" = "true" ]; then
+            echo "::error::php-parallel-lint is not installed, so nothing checked syntax." \
+              "Add php-parallel-lint/php-parallel-lint to require-dev, or set" \
+              "require_tools: false while migrating."
+            exit 1
           else
-            echo "::warning::php-parallel-lint is not installed in this project — syntax lint skipped. Add php-parallel-lint/php-parallel-lint to require-dev."
+            echo "::warning::php-parallel-lint is not installed in this project — syntax lint skipped."
           fi
 
       - name: PHPCS on changed files
         if: ${{ github.event_name == 'pull_request' }}
+        env:
+          REQUIRE_TOOLS: ${{ inputs.require_tools }}
         run: |
           set -euo pipefail
           if [ ! -x vendor/bin/phpcs ]; then
-            echo "::warning::phpcs is not installed in this project — coding standards check skipped. Add squizlabs/php_codesniffer to require-dev."
+            if [ "${REQUIRE_TOOLS}" = "true" ]; then
+              echo "::error::phpcs is not installed, so nothing checked coding standards." \
+                "Add linchpin/coding-standards to require-dev, or set" \
+                "require_tools: false while migrating."
+              exit 1
+            fi
+            echo "::warning::phpcs is not installed in this project — coding standards check skipped."
             exit 0
           fi
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
