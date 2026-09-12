@@ -24,7 +24,7 @@ on:
         default: "bash scripts/build.sh"
         type: string
       php_version:
-        description: "PHP version. Defaults to vars.PHP_VERSION, then 8.2"
+        description: "PHP for the runner AND the wp-env container. Defaults to vars.PHP_VERSION, then 8.2. Must be >= the plugin's Requires PHP header or it cannot activate"
         required: false
         default: ""
         type: string
@@ -81,12 +81,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    # Two PHP installations have to agree: the runner's, which builds the
+    # distributable, and the wp-env container's, which activates the plugin and
+    # runs the checks.
+    env:
+      PHP_VERSION: ${{ inputs.php_version || vars.PHP_VERSION || '8.2' }}
+
     steps:
       - uses: actions/checkout@v7
 
       - uses: linchpin/actions/actions/setup-wp-php@v4
         with:
-          php-version: ${{ inputs.php_version || vars.PHP_VERSION || '8.2' }}
+          php-version: ${{ env.PHP_VERSION }}
           extensions: ${{ inputs.php_extensions }}
           dev: "no"
           composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
@@ -131,6 +137,15 @@ jobs:
 
       - name: Run Plugin Check
         uses: wordpress/plugin-check-action@v1
+        # This action runs WordPress under wp-env, in Docker, on its own PHP —
+        # not the runner's. Below the plugin's `Requires PHP`, WordPress refuses
+        # to activate it and the action exits on "No plugins activated" having
+        # run nothing. The action writes its own .wp-env.json and takes no PHP
+        # input, so this variable, read by wp-env directly, is the lever. It
+        # selects the `wordpress:php<version>` and `wordpress:cli-php<version>`
+        # images, published for 8.0 through 8.5.
+        env:
+          WP_ENV_PHP_VERSION: ${{ env.PHP_VERSION }}
         with:
           build-dir: ${{ inputs.build_dir }}
           exclude-directories: ${{ inputs.exclude_directories }}
