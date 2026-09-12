@@ -399,6 +399,12 @@ jobs:
 errors on the wrong one — mantle carried codes in `exclude-checks` for a while,
 which silently excluded nothing.
 
+`php_version` sets the runner's PHP *and* the wp-env container's, because the
+container is what actually activates the plugin. Set it to at least the plugin's
+`Requires PHP` header: below that, WordPress refuses to activate and the action
+fails with `No plugins activated` having run no checks at all. It defaults to
+`vars.PHP_VERSION`, then `8.2`.
+
 Node is resolved to one value: `node_version`, else `.nvmrc`, else `lts/*`, and
 setup is skipped entirely without a `package-lock.json` since `cache: npm` fails
 outright without one.
