@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.10.2](https://github.com/linchpin/actions/compare/v4.10.1...v4.10.2) (2026-09-12)
+
+
+### Bug Fixes
+
+* **NO-TASK:** Run Plugin Check on the requested PHP, not wp-env's default ([#176](https://github.com/linchpin/actions/issues/176)) ([5b59f5b](https://github.com/linchpin/actions/commit/5b59f5b0a3bdc6a14e16a93eb807e967f10cb9ed))
+
 ## [4.10.1](https://github.com/linchpin/actions/compare/v4.10.0...v4.10.1) (2026-09-10)
 
 
