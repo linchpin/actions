@@ -81,9 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    # Two PHP installations have to agree: the runner's, which builds the
-    # distributable, and the wp-env container's, which activates the plugin and
-    # runs the checks.
+    # Shared by the runner and the wp-env container below.
     env:
       PHP_VERSION: ${{ inputs.php_version || vars.PHP_VERSION || '8.2' }}
 
@@ -137,13 +135,8 @@ jobs:
 
       - name: Run Plugin Check
         uses: wordpress/plugin-check-action@v1
-        # This action runs WordPress under wp-env, in Docker, on its own PHP —
-        # not the runner's. Below the plugin's `Requires PHP`, WordPress refuses
-        # to activate it and the action exits on "No plugins activated" having
-        # run nothing. The action writes its own .wp-env.json and takes no PHP
-        # input, so this variable, read by wp-env directly, is the lever. It
-        # selects the `wordpress:php<version>` and `wordpress:cli-php<version>`
-        # images, published for 8.0 through 8.5.
+        # The action runs WordPress under wp-env on its own PHP, not the
+        # runner's, and takes no PHP input. This is the only lever.
         env:
           WP_ENV_PHP_VERSION: ${{ env.PHP_VERSION }}
         with:
