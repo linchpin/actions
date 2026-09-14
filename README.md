@@ -235,6 +235,7 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [remote-plugin-install](actions/remote-plugin-install) | Reconcile third-party plugins/themes against composer.lock with per-package WP-CLI calls over SSH |
 | [update-readme](actions/update-readme)          | Regenerate the README plugin/theme table from composer.lock                        |
 | [check-overrides](actions/check-overrides)      | Probe each npm `overrides` pin and report the ones that are redundant or dangling  |
+| [strip-release-markers](actions/strip-release-markers) | Remove release-please marker lines from readme.txt and friends before they ship    |
 
 ## Example Shared Workflow Usage
 
