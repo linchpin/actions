@@ -1,0 +1,29 @@
+name: "Strip release-please Markers"
+description: >-
+  Remove release-please marker lines from files that ship, so they do not
+  reach WordPress.org or a release archive as literal text.
+
+  readme.txt is the one that matters: the WordPress.org readme parser and
+  Plugin Check both read the header block as contiguous lines and stop at the
+  first line that is not a header, so a marker between "Requires PHP" and
+  "Stable tag" hides the Stable tag, License and License URI below it. That
+  surfaces as the no_stable_tag and no_license errors on a plugin whose readme
+  declares both.
+
+inputs:
+  files:
+    description: "Whitespace or newline separated list of files to strip"
+    required: false
+    default: "readme.txt"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Strip release-please markers
+      shell: bash
+      env:
+        FILES: ${{ inputs.files }}
+      run: |
+        # Unquoted on purpose: FILES is a caller-supplied list to be split.
+        # shellcheck disable=SC2086
+        bash "${{ github.action_path }}/strip-release-markers.sh" $FILES
