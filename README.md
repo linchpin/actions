@@ -217,7 +217,7 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
 | [qa-run.yml](.github/workflows/qa-run.yml)                 | Trigger a QA platform run on deploy, poll it to a terminal state, and fail the job on a red test — the Ghost Inspector replacement |
 | [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
-| [maintenance.yml](.github/workflows/maintenance.yml)       | Opens the monthly window: creates `maintenance/YYYY-MM` and the draft PR that Renovate stacks its dependency PRs onto |
+| [maintenance.yml](.github/workflows/maintenance.yml)       | Opens the monthly window: creates `maintenance/YYYY-MM` and the draft PR that Renovate stacks its dependency PRs onto, and flags any older window still open |
 | [auto-merge-maintenance.yml](.github/workflows/auto-merge-maintenance.yml) | Cron-driven: auto-merges open Renovate PRs targeting a `maintenance/YYYY-MM` branch, excluding anything labeled `major`. Never touches main/master |
 | [check-overrides.yml](.github/workflows/check-overrides.yml) | Report npm `overrides` pins that no longer do anything, optionally tracking them in a single reusable issue     |
 | [ci.yml](.github/workflows/ci.yml)                         | This repo's own CI: actionlint + yamllint + zizmor                                                             |
@@ -488,6 +488,24 @@ jobs:
   triggers no required checks.
 - The branch name shape is **not** an input: `auto-merge-maintenance.yml` guards
   on `^maintenance/[0-9]{4}-[0-9]{2}$`.
+- The PR opens as `chore(NO-TASK): Merge the YYYY-MM maintenance window`, a
+  conventional commit, so PR-title and commitlint checks accept it. Retitle it
+  with the maintenance task's key before merging if the repo tracks one.
+- **An older window still open is flagged, never closed.** Its PR gets the
+  `overdue_label` (default `maintenance-overdue`, created if missing) and one
+  comment; an empty `overdue_label` skips this. Renovate raises each update
+  against every open window, so an overdue one collects duplicates, but it can
+  also hold work or security fixes the base branch lacks. Older window branches
+  with no PR are listed in the run summary. `dry_run` reports both.
+- **Merge the window with a merge commit or a rebase merge, never a squash.**
+  Each Renovate group lands on the window as its own conventional commit; a
+  squash collapses the month into one commit that release-please cannot read,
+  and a bad group can no longer be reverted alone. The `maintenance-window`
+  skill in [linchpin/skills](https://github.com/linchpin/skills) owns the full
+  procedure.
+- Pair it with the Renovate add-on preset
+  `github>linchpin/renovatebot-config:maintenance-window` to keep majors out of
+  the window: each then gets its own PR against the default branch.
 
 ## Renovate Bot Scanning Configurations
 
