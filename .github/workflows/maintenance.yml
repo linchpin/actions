@@ -18,6 +18,16 @@
 # The branch name shape is not an input — auto-merge-maintenance guards on
 # `^maintenance/[0-9]{4}-[0-9]{2}$`, so renaming it would silently stop
 # auto-merging.
+#
+# The PR title is a conventional commit (`chore(NO-TASK): Merge the YYYY-MM
+# maintenance window`). The old `Maintenance/YYYY-MM` failed every PR-title and
+# commitlint check that lints titles, so the window could not merge as opened.
+#
+# An older window still open when a new month's opens is flagged, never closed:
+# its PR gets the `overdue_label` and one comment. Renovate raises each update
+# against every open window, so an overdue one collects duplicates — but it can
+# also hold work or security fixes the base branch lacks, so closing it is a
+# human decision (the maintenance-window skill in linchpin/skills owns it).
 
 name: Monthly Maintenance Branch
 
@@ -43,6 +53,13 @@ on:
         required: false
         default: true
         type: boolean
+      overdue_label:
+        description: >-
+          Label added to an older window's PR that is still open when this
+          month's window opens. Created if missing. Empty skips flagging.
+        required: false
+        default: "maintenance-overdue"
+        type: string
       dry_run:
         description: "Report what would be created and write nothing"
         required: false
@@ -55,6 +72,9 @@ on:
       pr:
         description: "Number of the maintenance pull request, new or already open"
         value: ${{ jobs.open-window.outputs.pr }}
+      overdue:
+        description: "Space-separated numbers of older window PRs flagged as overdue"
+        value: ${{ jobs.open-window.outputs.overdue }}
     secrets:
       GH_BOT_TOKEN:
         description: >-
@@ -81,6 +101,7 @@ jobs:
     outputs:
       branch: ${{ steps.window.outputs.branch }}
       pr: ${{ steps.window.outputs.pr }}
+      overdue: ${{ steps.window.outputs.overdue }}
 
     steps:
       # SHA-pinned (v7.0.1): third party, and this job hands it a PAT with
@@ -100,13 +121,17 @@ jobs:
           INPUT_BASE: ${{ inputs.base }}
           INPUT_LABEL: ${{ inputs.label }}
           INPUT_DRAFT: ${{ inputs.draft }}
+          INPUT_OVERDUE_LABEL: ${{ inputs.overdue_label }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
 
           # UTC, matching the runner and the cron that fires this.
-          BRANCH="maintenance/$(date -u +'%Y-%m')"
-          TITLE="Maintenance/$(date -u +'%Y-%m')"
+          MONTH="$(date -u +'%Y-%m')"
+          BRANCH="maintenance/$MONTH"
+          # Conventional, so PR-title and commitlint checks accept it. The
+          # subject keeps to [A-Za-z0-9 ,-] for the Linchpin commitlint config.
+          TITLE="chore(NO-TASK): Merge the $MONTH maintenance window"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
           # A stated base wins; otherwise the repository's own default.
@@ -124,6 +149,31 @@ jobs:
 
           existing_pr=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
 
+          # Older windows still open. Fixed-width YYYY-MM names compare
+          # correctly as strings.
+          OVERDUE=()
+          while IFS=$'\t' read -r num head; do
+            [ -n "$num" ] || continue
+            if [[ "$head" =~ ^maintenance/[0-9]{4}-[0-9]{2}$ ]] && [[ "$head" < "$BRANCH" ]]; then
+              OVERDUE+=("$num")
+            fi
+          done < <(gh pr list --state open --base "$BASE" --limit 100 \
+                     --json number,headRefName \
+                     --jq '.[] | select(.headRefName | startswith("maintenance/")) | "\(.number)\t\(.headRefName)"')
+
+          # Older window branches with no open PR: nothing to label, but they
+          # still collect Renovate PRs, so they are listed in the summary.
+          open_heads=$(gh pr list --state open --base "$BASE" --limit 100 --json headRefName --jq '.[].headRefName')
+          BARE=()
+          while read -r _ ref; do
+            name=${ref#refs/heads/}
+            [[ "$name" =~ ^maintenance/[0-9]{4}-[0-9]{2}$ ]] || continue
+            [[ "$name" < "$BRANCH" ]] || continue
+            grep -qxF "$name" <<< "$open_heads" || BARE+=("$name")
+          done < <(git ls-remote --heads origin 'maintenance/*')
+
+          echo "overdue=${OVERDUE[*]:-}" >> "$GITHUB_OUTPUT"
+
           if [ "$DRY_RUN" = "true" ]; then
             {
               echo "### Maintenance window — dry run"
@@ -134,6 +184,9 @@ jobs:
               echo "| Branch | \`$BRANCH\` |"
               echo "| Branch exists | $branch_exists |"
               echo "| Open PR | ${existing_pr:-none} |"
+              echo "| Title | \`$TITLE\` |"
+              echo "| Overdue window PRs to flag | ${OVERDUE[*]:-none} |"
+              echo "| Older window branches without a PR | ${BARE[*]:-none} |"
               echo
               echo "Nothing was written."
             } >> "$GITHUB_STEP_SUMMARY"
@@ -204,6 +257,41 @@ jobs:
             echo "pr=$PR_NUMBER" >> "$GITHUB_OUTPUT"
           fi
 
+          # Flag, never close: an overdue window can hold work or security
+          # fixes the base branch lacks.
+          FLAGGED=()
+          if [ -n "${INPUT_OVERDUE_LABEL:-}" ] && [ ${#OVERDUE[@]} -gt 0 ]; then
+            if ! gh label list --json name --jq '.[].name' | grep -qxF "$INPUT_OVERDUE_LABEL"; then
+              gh label create "$INPUT_OVERDUE_LABEL" --color D93F0B \
+                --description "A maintenance window still open after the next one opened" \
+                || echo "::warning::Could not create the '$INPUT_OVERDUE_LABEL' label."
+            fi
+            MARKER='<!-- maintenance-overdue -->'
+            for num in "${OVERDUE[@]}"; do
+              gh pr edit "$num" --add-label "$INPUT_OVERDUE_LABEL" \
+                || echo "::warning::Could not label #$num as overdue."
+              if ! gh pr view "$num" --json comments --jq '.comments[].body' | grep -qF "$MARKER"; then
+                NOTE=$(cat <<EOF
+          $MARKER
+          **This maintenance window is overdue.**
+          \`$BRANCH\` opened on $(date -u +'%Y-%m-%d') while this one is still unmerged.
+
+          Renovate now raises each update against both windows.
+          Merge this one, or salvage what it holds that \`$BASE\` lacks and retire it.
+          Check it for security fixes first.
+
+          _Flagged by [maintenance.yml][wf] in linchpin/actions. Nothing was closed._
+
+          [wf]: https://github.com/linchpin/actions/blob/v4/.github/workflows/maintenance.yml
+          EOF
+          )
+                gh pr comment "$num" --body "$NOTE" \
+                  || echo "::warning::Could not comment on #$num."
+              fi
+              FLAGGED+=("#$num")
+            done
+          fi
+
           {
             echo "### Maintenance window"
             echo
@@ -212,4 +300,6 @@ jobs:
             echo "| Base | \`$BASE\` |"
             echo "| Branch | \`$BRANCH\` |"
             echo "| Pull request | ${PR_NUMBER:+#$PR_NUMBER} |"
+            echo "| Overdue windows flagged | ${FLAGGED[*]:-none} |"
+            echo "| Older window branches without a PR | ${BARE[*]:-none} |"
           } >> "$GITHUB_STEP_SUMMARY"
