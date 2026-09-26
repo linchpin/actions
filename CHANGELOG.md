@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.11.0](https://github.com/linchpin/actions/compare/v4.10.2...v4.11.0) (2026-09-26)
+
+
+### Features
+
+* **LINCHPIN-5689:** Flag overdue maintenance windows and open them with a conventional title ([#180](https://github.com/linchpin/actions/issues/180)) ([3ab8329](https://github.com/linchpin/actions/commit/3ab8329cff69591006f30ae4d11ea517b7de32fa))
+* **NO-TASK:** Add a strip-release-markers composite action ([#178](https://github.com/linchpin/actions/issues/178)) ([588014a](https://github.com/linchpin/actions/commit/588014a6f19ed62c6cdd4da110722dec2ea0427b))
+
 ## [4.10.2](https://github.com/linchpin/actions/compare/v4.10.1...v4.10.2) (2026-09-12)
 
 
