@@ -147,6 +147,9 @@ jobs:
           payload: "{\"post_id\":\"${{ fromJson( steps.send_to_mantle.outputs.data ).post_id }}\", \"version\":\"${{ steps.version.outputs.current }}\",\"committer\":\"${{ github.actor }}\",\"changelog\":\"${{ steps.changelog.outputs.escaped_markdown }}\"}"
           mediaType: '{"previews": ["flash", "ant-man"]}'
           required_contexts: '[]'
+          # Without this, GitHub merges the default branch into `branch` first when it is
+          # behind, and returns 202 with no deployment id (or 409 if a ruleset blocks it).
+          auto_merge: false
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
