@@ -47,6 +47,11 @@ on:
         required: false
         default: "dependencies"
         type: string
+      runner:
+        description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -54,7 +59,7 @@ permissions:
 jobs:
   check-overrides:
     name: npm overrides staleness
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     permissions:
       contents: read

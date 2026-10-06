@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      runner:
+        description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
+        required: false
+        default: ""
+        type: string
     secrets:
       GH_BOT_TOKEN:
         required: true
@@ -19,7 +24,7 @@ permissions:
 jobs:
   auto-merge:
     name: Auto merge eligible Renovate PRs
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
 
     steps:
       - name: Find and merge eligible Renovate PRs

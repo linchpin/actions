@@ -95,6 +95,16 @@ on:
         required: false
         default: true
         type: boolean
+      runner:
+        description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
+        required: false
+        default: ""
+        type: string
+      build_runner:
+        description: "Runner label for the build job only. Defaults to runner"
+        required: false
+        default: ""
+        type: string
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON:
         required: false
@@ -131,12 +141,13 @@ jobs:
       # When set, build.yml attaches the built release.zip to this release as a
       # deployable archive (rollback source). Empty for a plain staging build.
       release_tag: ${{ inputs.build_for_release }}
+      runner: ${{ inputs.build_runner || inputs.runner }}
 
   deploy:
     name: Deploy to ${{ inputs.environment }}
     needs: [build]
     if: ${{ always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     environment:
       name: ${{ inputs.environment }}

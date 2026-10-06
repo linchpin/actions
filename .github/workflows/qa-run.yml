@@ -64,6 +64,11 @@ on:
         required: false
         default: 20
         type: number
+      runner:
+        description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
+        required: false
+        default: ""
+        type: string
     secrets:
       QA_API_TOKEN:
         description: "Per-project bearer token minted by the QA platform. Fails closed if absent."
@@ -72,7 +77,7 @@ on:
 jobs:
   qa-run:
     name: QA run
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     # An outer backstop only. The script's own timer (timeout_minutes) is the
     # meaningful deadline — it fails with a message that names what timed out,
     # which a job kill at this ceiling cannot. Kept comfortably above the default
