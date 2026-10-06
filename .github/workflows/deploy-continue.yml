@@ -77,6 +77,11 @@ on:
         required: false
         default: true
         type: boolean
+      runner:
+        description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
+        required: false
+        default: ""
+        type: string
     secrets:
       PRESSABLE_API_CLIENT_ID:
         required: false
@@ -98,7 +103,7 @@ on:
 jobs:
   deploy:
     name: Continue deploy to ${{ inputs.environment }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     environment:
       name: ${{ inputs.environment }}

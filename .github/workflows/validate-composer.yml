@@ -30,6 +30,11 @@ on:
         required: false
         default: ""
         type: string
+      runner:
+        description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
+        required: false
+        default: ""
+        type: string
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON:
         description: "auth.json for packagist.linchpin.com (passed via COMPOSER_AUTH; needed to resolve private packages)"
@@ -38,7 +43,7 @@ on:
 jobs:
   validate:
     name: composer install (lock satisfies composer.json?)
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       contents: read

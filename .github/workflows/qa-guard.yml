@@ -52,6 +52,11 @@ on:
         required: false
         default: ""
         type: string
+      runner:
+        description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
+        required: false
+        default: ""
+        type: string
     secrets:
       QA_SCHEMA_TOKEN:
         description: "Token that can read linchpin/automated-testing. Without it the schema job cannot run and fails closed."
@@ -60,7 +65,7 @@ on:
 jobs:
   boundary:
     name: qa/ only (platform-authored PRs)
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     permissions:
       contents: read
@@ -114,7 +119,7 @@ jobs:
 
   schema:
     name: qa/ files are valid
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       contents: read

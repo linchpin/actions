@@ -68,6 +68,11 @@ on:
         required: false
         default: true
         type: boolean
+      runner:
+        description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
+        required: false
+        default: ""
+        type: string
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON:
         required: false
@@ -78,7 +83,7 @@ permissions:
 jobs:
   plugin-check:
     name: Plugin Check
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
 
     # Two PHP installations have to agree: the runner's, which builds the

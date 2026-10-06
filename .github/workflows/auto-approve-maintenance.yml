@@ -2,13 +2,19 @@ name: Auto Approve Maintenance PRs
 
 on:
   workflow_call:
+    inputs:
+      runner:
+        description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
+        required: false
+        default: ""
+        type: string
     secrets:
       GH_BOT_TOKEN:
         required: true
 
 jobs:
   auto-approve:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
 
     if: >-
       startsWith(github.head_ref, 'maintenance/') ||

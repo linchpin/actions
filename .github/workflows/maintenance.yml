@@ -65,6 +65,11 @@ on:
         required: false
         default: false
         type: boolean
+      runner:
+        description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
+        required: false
+        default: ""
+        type: string
     outputs:
       branch:
         description: "The maintenance branch name for this month"
@@ -95,7 +100,7 @@ concurrency:
 jobs:
   open-window:
     name: Open the maintenance window
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
 
     outputs:

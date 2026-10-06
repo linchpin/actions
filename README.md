@@ -89,6 +89,7 @@ To learn more [about variables](https://docs.github.com/en/actions/writing-workf
 | THEME_USES_COMPOSER   | false   | Do the theme(s) use composer to load dependencies                                        |
 | PLUGIN_USES_COMPOSER  | true    | Do the plugin(s) use composer to load dependencies                                       |
 | PROTECTED_PATHS       |         | Paths a deploy must never overwrite, relative to `wp-content` — see [below](#symlinked-and-host-managed-folders) |
+| RUNNER                | ubuntu-latest | Runner label for every shared workflow job, e.g. `blacksmith-2vcpu-ubuntu-2404` — see [below](#choosing-a-runner) |
 
 > v3's `ENVIRONMENT` and `DEPLOYMENT_PATH` variables are no longer read by
 > v4 workflows (deployment paths are composite-action inputs with per-host
@@ -222,6 +223,26 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [check-overrides.yml](.github/workflows/check-overrides.yml) | Report npm `overrides` pins that no longer do anything, optionally tracking them in a single reusable issue     |
 | [ci.yml](.github/workflows/ci.yml)                         | This repo's own CI: actionlint + yamllint + zizmor                                                             |
 | [qa-guard.yml](.github/workflows/qa-guard.yml)             | PR gate for `qa/` browser tests: validates them against the QA platform's schema, and fails a platform-authored PR that touches anything outside `qa/` |
+
+### Choosing a runner
+
+Every reusable workflow takes a `runner` input. Each job runs on the first of
+these that is set: the `runner` input, the `RUNNER` variable (repo, then org),
+then `ubuntu-latest`. Setting `RUNNER` on a repo moves all of its shared jobs;
+the input overrides it for one caller.
+
+`deploy.yml` also takes `build_runner`, forwarded to `build.yml`, so the build
+can be sized separately from the deploy job:
+
+```yaml
+jobs:
+  deploy:
+    uses: linchpin/actions/.github/workflows/deploy.yml@v4
+    secrets: inherit
+    with:
+      environment: staging
+      build_runner: blacksmith-4vcpu-ubuntu-2404
+```
 
 ### Composite Actions
 
