@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.12.0](https://github.com/linchpin/actions/compare/v4.11.0...v4.12.0) (2026-10-06)
+
+
+### Features
+
+* **LINCHPIN-5783:** Let callers choose the runner for shared workflows ([#182](https://github.com/linchpin/actions/issues/182)) ([0556cfc](https://github.com/linchpin/actions/commit/0556cfce4a58003fe84d35836bd86f29401c472f))
+
 ## [4.11.0](https://github.com/linchpin/actions/compare/v4.10.2...v4.11.0) (2026-09-26)
 
 
