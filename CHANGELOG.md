@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.13.0](https://github.com/linchpin/actions/compare/v4.12.0...v4.13.0) (2026-10-07)
+
+
+### Features
+
+* **NO-TASK:** Let Plugin Check check a prebuilt zip instead of building ([#184](https://github.com/linchpin/actions/issues/184)) ([4b82055](https://github.com/linchpin/actions/commit/4b8205505d77318b951321b1154d5d87ac040b48))
+
 ## [4.12.0](https://github.com/linchpin/actions/compare/v4.11.0...v4.12.0) (2026-10-06)
 
 
