@@ -431,6 +431,47 @@ Node is resolved to one value: `node_version`, else `.nvmrc`, else `lts/*`, and
 setup is skipped entirely without a `package-lock.json` since `cache: npm` fails
 outright without one.
 
+In a release, build the zip once and pass it in with `artifact` instead. Plugin
+Check then checks the exact file that ships, and skips the checkout, PHP, Node and
+build steps:
+
+```yaml
+jobs:
+  build:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      # …checkout, PHP, Node…
+      - run: bash scripts/build.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: plugin-zip
+          path: build/discovery.zip
+          compression-level: 0
+
+  plugin-check:
+    needs: build
+    uses: linchpin/actions/.github/workflows/plugin-check.yml@v4
+    with:
+      artifact: plugin-zip
+      build_dir: ./build/discovery   # last segment is the plugin slug
+      php_version: '8.4'             # still sets the wp-env container's PHP
+
+  publish:
+    needs: plugin-check
+    # …download the same artifact and ship it…
+```
+
+The artifact has to hold exactly one zip. The plugin can be wrapped in a
+directory named for the slug, or sit at the root of the zip, which are the two
+shapes WordPress installs. A wrapping directory that doesn't match
+`build_dir`'s last segment is an error. `php_version` still matters, because
+wp-env runs the plugin on that PHP. `build_command`, `php_extensions` and
+`node_version` go unused.
+
+On a Blacksmith runner, skipping PHP is most of the saving. Blacksmith
+registers as self-hosted, so `setup-php` installs PHP through apt there instead
+of downloading a prebuilt build, which takes about two minutes a job.
+
 ## QA Guard
 
 For client repositories with a `qa/` directory of browser tests managed by the
