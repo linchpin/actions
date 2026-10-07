@@ -4,6 +4,11 @@
 # Copied into mantle and block-alchemy with the same shape and different
 # settings; everything that differed is now an input.
 #
+# Or checks a zip the caller already built: pass `artifact` and this unzips it
+# into build_dir instead of building. A release then builds once and checks the
+# exact file it ships, and this job needs no checkout, PHP or Node on the runner
+# — wp-env brings its own PHP, and the action its own Node.
+#
 # No `concurrency` here: invoked via workflow_call, `github.workflow` resolves
 # to the caller's name, so a group defined here can deadlock against the
 # caller's own — the caller waits for this job, this job waits for the caller's
@@ -15,8 +20,18 @@ on:
   workflow_call:
     inputs:
       build_dir:
-        description: "Directory the build produces, e.g. ./build/mantle"
+        description: "Directory the build produces, e.g. ./build/mantle. Its last segment is the plugin slug"
         required: true
+        type: string
+      artifact:
+        description: >-
+          Name of an artifact uploaded earlier in the same run, holding one plugin zip.
+          Set, it is unzipped into build_dir and the checkout, PHP, Node and build steps
+          are skipped, so build_command, php_extensions and node_version go unused. The
+          zip may wrap the plugin in a directory named for the slug, or hold its files at
+          the root
+        required: false
+        default: ""
         type: string
       build_command:
         description: "Shell to build the distributable. Multi-line is fine"
@@ -88,14 +103,20 @@ jobs:
 
     # Two PHP installations have to agree: the runner's, which builds the
     # distributable, and the wp-env container's, which activates the plugin and
-    # runs the checks.
+    # runs the checks. Given an `artifact`, only the container's is used.
     env:
       PHP_VERSION: ${{ inputs.php_version || vars.PHP_VERSION || '8.2' }}
 
     steps:
+      # The four steps below build. Given an `artifact` they are skipped, and on
+      # a Blacksmith runner that is most of the saving: Blacksmith registers as
+      # self-hosted, so setup-php installs PHP through apt there instead of
+      # downloading a prebuilt one, at about two minutes a job.
       - uses: actions/checkout@v7
+        if: inputs.artifact == ''
 
       - uses: linchpin/actions/actions/setup-wp-php@v4
+        if: inputs.artifact == ''
         with:
           php-version: ${{ env.PHP_VERSION }}
           extensions: ${{ inputs.php_extensions }}
@@ -108,6 +129,7 @@ jobs:
       # ignore one, and `cache: npm` hard-fails on a repo with no lockfile.
       - name: Resolve Node
         id: node
+        if: inputs.artifact == ''
         env:
           INPUT_VERSION: ${{ inputs.node_version }}
         run: |
@@ -129,16 +151,80 @@ jobs:
       # The build usually compiles editor assets, so it needs node as well as
       # PHP — without it the script stops on "npm is not installed".
       - uses: actions/setup-node@v7
-        if: steps.node.outputs.present == 'true'
+        if: inputs.artifact == '' && steps.node.outputs.present == 'true'
         with:
           node-version: ${{ steps.node.outputs.version }}
           cache: npm
 
       # Run through the environment rather than interpolated into the script.
       - name: Build the distributable
+        if: inputs.artifact == ''
         env:
           BUILD_COMMAND: ${{ inputs.build_command }}
         run: bash -eo pipefail -c "$BUILD_COMMAND"
+
+      # Into the runner's temp directory rather than the workspace, so nothing
+      # but the unzipped plugin lands where build_dir points.
+      - name: Download the built plugin
+        if: inputs.artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact }}
+          path: ${{ runner.temp }}/plugin-artifact
+
+      # Both zip shapes WordPress itself installs: the plugin wrapped in one
+      # directory named for the slug (`wp plugin install` keeps that name), or
+      # its files at the root (WordPress then names the directory after the zip).
+      # The first goes beside build_dir, the second into it. A wrapping
+      # directory that is not the slug is an error rather than a guess: wp-env
+      # would mount the plugin under build_dir's name, and the check would run
+      # under a slug the plugin never installs as.
+      - name: Unzip the built plugin
+        if: inputs.artifact != ''
+        env:
+          ARTIFACT: ${{ inputs.artifact }}
+          ARTIFACT_DIR: ${{ runner.temp }}/plugin-artifact
+          BUILD_DIR: ${{ inputs.build_dir }}
+        run: |
+          set -euo pipefail
+
+          slug="$(basename "$BUILD_DIR")"
+          case "$slug" in
+            "" | . | .. | /)
+              echo "::error::build_dir '$BUILD_DIR' does not end in a plugin slug."
+              exit 1
+              ;;
+          esac
+
+          mapfile -t zips < <(find "$ARTIFACT_DIR" -maxdepth 1 -type f -name '*.zip')
+          if [ "${#zips[@]}" -ne 1 ]; then
+            echo "::error::Artifact '$ARTIFACT' holds ${#zips[@]} zip files at its root; Plugin Check needs exactly one." \
+              "Upload the zip itself, with upload-artifact's default archiving."
+            find "$ARTIFACT_DIR" -maxdepth 2
+            exit 1
+          fi
+          zip="${zips[0]}"
+
+          # Read once. Piped straight into `grep -q`, unzip can take a SIGPIPE
+          # when grep exits early, and pipefail turns that into a false "no".
+          listing="$(unzip -Z1 "$zip")"
+          mapfile -t tops < <(cut -d/ -f1 <<< "$listing" | sort -u)
+
+          rm -rf "$BUILD_DIR"
+          if [ "${#tops[@]}" -eq 1 ] && grep -q / <<< "$listing"; then
+            if [ "${tops[0]}" != "$slug" ]; then
+              echo "::error::$(basename "$zip") wraps the plugin in '${tops[0]}/', but build_dir ends in '$slug'." \
+                "The directory is the plugin slug, so the two have to match."
+              exit 1
+            fi
+            mkdir -p "$(dirname "$BUILD_DIR")"
+            unzip -q "$zip" -d "$(dirname "$BUILD_DIR")"
+          else
+            mkdir -p "$BUILD_DIR"
+            unzip -q "$zip" -d "$BUILD_DIR"
+          fi
+
+          echo "Checking $(find "$BUILD_DIR" -type f | wc -l | tr -d ' ') files from $(basename "$zip") in $BUILD_DIR"
 
       - name: Run Plugin Check
         uses: wordpress/plugin-check-action@v1
