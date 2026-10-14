@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.14.0](https://github.com/linchpin/actions/compare/v4.13.0...v4.14.0) (2026-10-14)
+
+
+### Features
+
+* **NO-TASK:** Let the shared build install private npm packages ([#186](https://github.com/linchpin/actions/issues/186)) ([fa60a9b](https://github.com/linchpin/actions/commit/fa60a9bb589c544373c5fbfb7f1d6c147a0f69f5))
+
 ## [4.13.0](https://github.com/linchpin/actions/compare/v4.12.0...v4.13.0) (2026-10-07)
 
 
