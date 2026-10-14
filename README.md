@@ -60,6 +60,7 @@ To learn more [about secrets](https://docs.github.com/en/actions/security-for-gi
 | SSH_PASS                     |         | The SSH pass for environments that cannot support SSH Keys (Cloudways Autonomous)       |
 | SSH_HOST                     |         | The SSH IP or Host Name                                                                 |
 | PACKAGIST_COMPOSER_AUTH_JSON |         | auth.json contents for packagist.linchpin.com (v4 passes this via the COMPOSER_AUTH env) |
+| NPM_READ_TOKEN               |         | Read-only npmjs.com token, so the build can install private `@linchpinagency` packages    |
 | PRESSABLE_API_CLIENT_ID      |         | Pressable API client (maintenance mode, backups)                                        |
 | PRESSABLE_API_CLIENT_SECRET  |         | Pressable API secret                                                                    |
 | MANTLE_API_BEARER            |         | Mantle API token used by the backup-and-continue deploy flow                            |

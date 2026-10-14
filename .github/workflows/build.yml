@@ -61,6 +61,9 @@ on:
       PACKAGIST_COMPOSER_AUTH_JSON:
         description: "auth.json contents for packagist.linchpin.com (passed via COMPOSER_AUTH, never written to disk)"
         required: false
+      NPM_READ_TOKEN:
+        description: "Read-only npmjs.com token, for themes and plugins that depend on private @linchpinagency packages"
+        required: false
     outputs:
       artifact:
         description: "Name of the uploaded release artifact"
@@ -128,6 +131,24 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: ${{ inputs.node_version || vars.NODE_VERSION }}
+
+      # Private packages (@linchpinagency/shape-grid, for one) need a token for
+      # every `npm ci` below. It goes in a job-scoped user config under
+      # RUNNER_TEMP rather than ~/.npmrc, so it never outlives the job on a
+      # reused runner. Without the secret nothing changes: public packages
+      # install exactly as before.
+      - name: Authenticate npm for private packages
+        env:
+          NPM_READ_TOKEN: ${{ secrets.NPM_READ_TOKEN }}
+        run: |
+          if [ -z "${NPM_READ_TOKEN}" ]; then
+            echo "No NPM_READ_TOKEN: installing public npm packages only."
+            exit 0
+          fi
+          npmrc="${RUNNER_TEMP}/npmrc-private-packages"
+          ( umask 077 && printf '//registry.npmjs.org/:_authToken=%s\n' "${NPM_READ_TOKEN}" > "${npmrc}" )
+          echo "NPM_CONFIG_USERCONFIG=${npmrc}" >> "${GITHUB_ENV}"
+          echo "npm authenticated for private packages."
 
       # A directory listed in THEMES/PLUGINS but missing on disk already fails
       # loudly below. The dangerous case is the mirror image: a theme or plugin
