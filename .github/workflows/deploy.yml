@@ -108,6 +108,9 @@ on:
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON:
         required: false
+      NPM_READ_TOKEN:
+        description: "Read-only npmjs.com token, forwarded to the build for private @linchpinagency packages"
+        required: false
       PRESSABLE_API_CLIENT_ID:
         required: false
       PRESSABLE_API_CLIENT_SECRET:
@@ -136,6 +139,7 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+      NPM_READ_TOKEN: ${{ secrets.NPM_READ_TOKEN }}
     with:
       build_commands: ${{ inputs.build_commands }}
       # When set, build.yml attaches the built release.zip to this release as a
