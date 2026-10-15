@@ -52,6 +52,14 @@ runs:
   steps:
     - name: Setup PHP
       uses: shivammathur/setup-php@v2
+      env:
+        # Blacksmith and Depot register as self-hosted runners, so setup-php
+        # installs any PHP the image lacks through apt (a minute or more for 8.5)
+        # instead of unpacking the prebuilt build GitHub's runners get.
+        # use_builds_cache (setup-php 2.40.0, experimental) opts those two in.
+        # It is gated on the runner name because on any other self-hosted runner
+        # it fails the step. On GitHub-hosted runners it changes nothing.
+        use_builds_cache: ${{ startsWith(runner.name, 'blacksmith-') || startsWith(runner.name, 'depot-') }}
       with:
         php-version: ${{ inputs.php-version }}
         extensions: ${{ inputs.extensions }}

@@ -146,6 +146,9 @@ jobs:
       - name: Install PHP ${{ inputs.php_extra_version }}
         if: ${{ !cancelled() && inputs.php_extra_version != '' && inputs.run_phpunit }}
         uses: shivammathur/setup-php@v2
+        env:
+          # Prebuilt PHP on Blacksmith and Depot; see actions/setup-wp-php.
+          use_builds_cache: ${{ startsWith(runner.name, 'blacksmith-') || startsWith(runner.name, 'depot-') }}
         with:
           php-version: ${{ inputs.php_extra_version }}
           extensions: ${{ inputs.php_extensions }}

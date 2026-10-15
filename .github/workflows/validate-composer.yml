@@ -53,6 +53,9 @@ jobs:
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
+        env:
+          # Prebuilt PHP on Blacksmith and Depot; see actions/setup-wp-php.
+          use_builds_cache: ${{ startsWith(runner.name, 'blacksmith-') || startsWith(runner.name, 'depot-') }}
         with:
           php-version: ${{ inputs.php_version || vars.PHP_VERSION || '8.5' }}
           coverage: none
