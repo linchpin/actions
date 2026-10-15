@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.14.1](https://github.com/linchpin/actions/compare/v4.14.0...v4.14.1) (2026-10-15)
+
+
+### Performance Improvements
+
+* **NO-TASK:** Install PHP from prebuilt builds on Blacksmith and Depot runners ([#188](https://github.com/linchpin/actions/issues/188)) ([539901c](https://github.com/linchpin/actions/commit/539901c18943abc9f380b0d12e09ab224c1b4646))
+
 ## [4.14.0](https://github.com/linchpin/actions/compare/v4.13.0...v4.14.0) (2026-10-14)
 
 
