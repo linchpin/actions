@@ -30,6 +30,14 @@
 # notifies Mantle, parks the GitHub deployment as `queued`, and Mantle later
 # dispatches the caller's continue workflow (deploy-continue.yml) to finish
 # the deploy from the already-built artifact.
+#
+# Deployment log: when the deploy finishes, on success or failure, the
+# report-deployment action records it in api.linchpin.com's deployment log with
+# the commits since the environment's last successful deploy, and on production
+# the release's notes. It needs DEPLOYMENTS_API_CLIENT_ID and
+# DEPLOYMENTS_API_CLIENT_SECRET (organization secrets, reaching callers through
+# `secrets: inherit`), and never fails the deploy. The GitHub Deployment's
+# payload carries release_tag, branch and correlation_id for it.
 
 name: Deploy WordPress Site
 
@@ -105,6 +113,11 @@ on:
         required: false
         default: ""
         type: string
+      correlation_id:
+        description: "Set by Sisyphus to find the deploy it dispatched; kept in the deployment payload and the deployment log"
+        required: false
+        default: ""
+        type: string
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON:
         required: false
@@ -124,6 +137,12 @@ on:
       SSH_PASS:
         required: false
       MANTLE_API_BEARER:
+        required: false
+      DEPLOYMENTS_API_CLIENT_ID:
+        description: "api.linchpin.com application client with deployments:write, for the deployment log"
+        required: false
+      DEPLOYMENTS_API_CLIENT_SECRET:
+        description: "That client's secret"
         required: false
       SATISPRESS_USER:
         description: "Private Packagist username, used only by the REMOTE_PLUGIN_INSTALL reconcile"
@@ -169,10 +188,16 @@ jobs:
         id: deployment
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.build_for_release || inputs.release_tag }}
+          BRANCH: ${{ github.ref_name }}
+          CORRELATION_ID: ${{ inputs.correlation_id }}
         run: |
-          # required_contexts must be an empty JSON array, so build the payload with jq
+          # required_contexts must be an empty JSON array, so build the payload with jq.
+          # The payload is what the deployment log reads the release and branch from.
           id=$(jq -n --arg ref "${{ github.sha }}" --arg env "${{ inputs.environment }}" \
-            '{ref: $ref, environment: $env, auto_merge: false, required_contexts: [], description: "linchpin/actions v4 deploy"}' \
+            --arg release_tag "$RELEASE_TAG" --arg branch "$BRANCH" --arg correlation_id "$CORRELATION_ID" \
+            '{ref: $ref, environment: $env, auto_merge: false, required_contexts: [], description: "linchpin/actions v4 deploy",
+              payload: {release_tag: $release_tag, branch: $branch, correlation_id: $correlation_id}}' \
             | gh api "repos/${{ github.repository }}/deployments" --method POST --input - --jq '.id')
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
@@ -422,3 +447,17 @@ jobs:
             --field environment="${{ inputs.environment }}" \
             --field environment_url="${{ vars.SITE_URL }}" \
             --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      # The deployment log on api.linchpin.com (LINCHPIN-5861). A deploy parked
+      # for a backup has not finished, so it is not reported here.
+      - name: Report to the deployment log
+        if: ${{ always() && steps.deployment.outputs.id != '' && !(vars.HOST == 'pressable' && inputs.do_backup) }}
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: linchpin/actions/actions/report-deployment@v4
+        with:
+          deployment-id: ${{ steps.deployment.outputs.id }}
+          status: ${{ job.status }}
+          environment-url: ${{ vars.SITE_URL }}
+          client-id: ${{ secrets.DEPLOYMENTS_API_CLIENT_ID }}
+          client-secret: ${{ secrets.DEPLOYMENTS_API_CLIENT_SECRET }}
