@@ -1,0 +1,54 @@
+name: "Report Deployment"
+description: >-
+  Record a finished deploy in the deployment log on api.linchpin.com: the
+  commits since the environment's last successful deploy, and on production
+  the release's notes. Everything else is read from the GitHub Deployment,
+  including the release_tag, branch and correlation_id deploy.yml puts in its
+  payload. Run it with continue-on-error; a refusal ends as a warning.
+
+inputs:
+  deployment-id:
+    description: "The GitHub Deployment to report"
+    required: true
+  status:
+    description: "The job's status: success, failure or cancelled"
+    required: true
+  environment-url:
+    description: "The deployed site's URL, which places the deploy on its site"
+    required: false
+    default: ""
+  client-id:
+    description: "An api.linchpin.com application client with deployments:write"
+    required: false
+    default: ""
+  client-secret:
+    description: "That client's secret"
+    required: false
+    default: ""
+  api-url:
+    description: "api.linchpin.com's API base"
+    required: false
+    default: "https://api.linchpin.com/api/v1"
+  github-token:
+    description: "Reads the deployment, its history, the comparison and the release"
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Report to the deployment log
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GH_REPO: ${{ github.repository }}
+        DEPLOYMENT_ID: ${{ inputs.deployment-id }}
+        STATUS: ${{ inputs.status }}
+        ENVIRONMENT_URL: ${{ inputs.environment-url }}
+        CLIENT_ID: ${{ inputs.client-id }}
+        CLIENT_SECRET: ${{ inputs.client-secret }}
+        API_URL: ${{ inputs.api-url }}
+        RUN_ID: ${{ github.run_id }}
+        ACTOR: ${{ github.triggering_actor || github.actor }}
+        LOG_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: bash "${{ github.action_path }}/report-deployment.sh"

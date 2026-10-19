@@ -64,6 +64,8 @@ To learn more [about secrets](https://docs.github.com/en/actions/security-for-gi
 | PRESSABLE_API_CLIENT_ID      |         | Pressable API client (maintenance mode, backups)                                        |
 | PRESSABLE_API_CLIENT_SECRET  |         | Pressable API secret                                                                    |
 | MANTLE_API_BEARER            |         | Mantle API token used by the backup-and-continue deploy flow                            |
+| DEPLOYMENTS_API_CLIENT_ID    |         | api.linchpin.com client with `deployments:write`; deploy.yml reports each deploy to the deployment log with it (organization secret) |
+| DEPLOYMENTS_API_CLIENT_SECRET |        | That client's secret                                                                    |
 | GH_BOT_TOKEN                 |         | Bot token used by update-readme.yml to open PRs                                         |
 | SATISPRESS_USER              |         | Private Packagist auth, used only by the `REMOTE_PLUGIN_INSTALL` reconcile               |
 | SATISPRESS_PASSWORD          |         | Private Packagist auth, used only by the `REMOTE_PLUGIN_INSTALL` reconcile               |
@@ -258,6 +260,7 @@ jobs:
 | [update-readme](actions/update-readme)          | Regenerate the README plugin/theme table from composer.lock                        |
 | [check-overrides](actions/check-overrides)      | Probe each npm `overrides` pin and report the ones that are redundant or dangling  |
 | [strip-release-markers](actions/strip-release-markers) | Remove release-please marker lines from readme.txt and friends before they ship    |
+| [report-deployment](actions/report-deployment) | Record a finished deploy, and the commits it shipped since the environment's last one, in api.linchpin.com's deployment log |
 
 ## Example Shared Workflow Usage
 
