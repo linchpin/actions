@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.15.0](https://github.com/linchpin/actions/compare/v4.14.0...v4.15.0) (2026-10-19)
+
+
+### Features
+
+* **LINCHPIN-5861:** Report every deploy and what it shipped to the deployment log ([#190](https://github.com/linchpin/actions/issues/190)) ([3f9c1e8](https://github.com/linchpin/actions/commit/3f9c1e8d8a8aa1ce026dfb197d662ccc0545935c))
+
+
+### Performance Improvements
+
+* **NO-TASK:** Install PHP from prebuilt builds on Blacksmith and Depot runners ([#188](https://github.com/linchpin/actions/issues/188)) ([539901c](https://github.com/linchpin/actions/commit/539901c18943abc9f380b0d12e09ab224c1b4646))
+
 ## [4.14.0](https://github.com/linchpin/actions/compare/v4.13.0...v4.14.0) (2026-10-14)
 
 
