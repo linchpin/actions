@@ -205,6 +205,52 @@ Requirements and caveats:
 - **Key auth only.** Cloudways Autonomous (`DEPLOYMENT_AUTH_TYPE=pass`) is not
   supported and the deploy fails loudly rather than skipping the reconcile.
 
+## Safety Net on development
+
+A dev site that production is copied onto every night (Sisyphus's rolling
+maintenance) holds real customers, API keys and an SMTP login. `safety_net: true`
+on a **development** deploy installs [our Safety Net release](https://github.com/linchpin/safety-net/releases)
+and has it scrub that copy before the deploy ships anything:
+
+```yaml
+jobs:
+  deploy:
+    uses: linchpin/actions/.github/workflows/deploy.yml@v4
+    secrets: inherit
+    with:
+      environment: development
+      safety_net: true
+```
+
+1. **It refuses anything but development.** The deploy fails, before anything is
+   recorded, for any other `environment` or with `do_backup`. Then the action asks
+   the server itself, and refuses unless `wp_get_environment_type()` is
+   `development`.
+2. **It installs Safety Net as an mu-plugin:** `mu-plugins/safety-net/`, from
+   `safety-net.zip` on the `safety_net_version` release (`1.12.0` by default), and
+   `mu-plugins/safety-net-loader.php`. An mu-plugin, because the nightly sync
+   replaces the active plugins list with production's. The loader loads Safety Net
+   only while the environment type is `development`, so the files do nothing on
+   any other site they are copied to.
+3. **It loads every site** (each subsite of a multisite) with WP-CLI, which is
+   what runs Safety Net's scrub, and fails the deploy unless every site reports
+   its options scrubbed, plugins deactivated, users and orders deleted,
+   transients deleted and emails blocked. The step summary lists each site.
+4. **Then the code deploys,** with both paths protected, since `mu-plugins/` is
+   synced with `--delete`.
+
+Between deploys the files stay put: a sync copies the database and uploads, not
+code, so the first request after the next sync runs the scrub again.
+
+- **Not `REMOTE_PLUGIN_INSTALL`.** Safety Net is never in a project's
+  `composer.lock` and never ships in a release; nothing else installs it.
+- **Never `--skip-plugins`.** Safety Net runs as WordPress loads, while WP-CLI's
+  `--skip-plugins` still hides the active plugins list, so a first run under it
+  deactivates nothing and records the step as done.
+- **Turning it off** stops the install and the protection, so the next deploy
+  that ships `mu-plugins/` removes it.
+- **Key auth only**, as for the remote plugin install.
+
 ## GitHub Reusable Workflows
 
 Linchpin WordPress projects use [Release Please](https://github.com/googleapis/release-please-action) with [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) to create releases.
@@ -257,6 +303,7 @@ jobs:
 | [deploy-wpengine](actions/deploy-wpengine)      | Upload + symlink-aware sync of a release to WP Engine over SSH, health check       |
 | [deploy-cloudways](actions/deploy-cloudways)    | Upload + symlink-aware sync of a release to Cloudways (key or password SSH auth), health check |
 | [remote-plugin-install](actions/remote-plugin-install) | Reconcile third-party plugins/themes against composer.lock with per-package WP-CLI calls over SSH |
+| [safety-net](actions/safety-net)                | Development only: install our Safety Net release as an mu-plugin and fail unless every site reports its data scrubbed — see [above](#safety-net-on-development) |
 | [update-readme](actions/update-readme)          | Regenerate the README plugin/theme table from composer.lock                        |
 | [check-overrides](actions/check-overrides)      | Probe each npm `overrides` pin and report the ones that are redundant or dangling  |
 | [strip-release-markers](actions/strip-release-markers) | Remove release-please marker lines from readme.txt and friends before they ship    |
