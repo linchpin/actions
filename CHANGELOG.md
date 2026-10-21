@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.16.0](https://github.com/linchpin/actions/compare/v4.15.0...v4.16.0) (2026-10-21)
+
+
+### Features
+
+* **LINCHPIN-5856:** Install Safety Net on development deploys and fail until every site is scrubbed ([#191](https://github.com/linchpin/actions/issues/191)) ([3992276](https://github.com/linchpin/actions/commit/39922760e260a8854ff6728d7fd121083298326d))
+
 ## [4.15.0](https://github.com/linchpin/actions/compare/v4.14.0...v4.15.0) (2026-10-19)
 
 
