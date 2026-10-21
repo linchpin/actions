@@ -1,0 +1,107 @@
+name: "Safety Net (development only)"
+description: >-
+  Install Linchpin's Safety Net release on a development server as an
+  mu-plugin, then load every site once so it scrubs the production data a sync
+  copied there, and fail unless every site reports it done.
+
+  Development only, three times over: this action refuses any environment but
+  `development`; before it writes anything it refuses a server whose own
+  wp_get_environment_type() is not `development`; and the loader it writes
+  loads Safety Net only while the type is `development`, so these files copied
+  to any other site do nothing.
+
+  It has nothing to do with remote-plugin-install: Safety Net is never in a
+  project's composer.lock, and is never shipped in a release.
+
+inputs:
+  environment:
+    description: "The environment being deployed. Anything but `development` is refused."
+    required: true
+  ssh-host:
+    description: "SSH host"
+    required: true
+  ssh-user:
+    description: "SSH user"
+    required: true
+  ssh-key:
+    description: "SSH private key. Password auth is not supported."
+    required: true
+  wp-path:
+    description: "Absolute (or ~-relative) path to the WordPress root on the server. Pressable: /srv/htdocs. WP Engine: ~/sites/<install>. Cloudways: ~/public_html."
+    required: true
+  version:
+    description: "The release of `repository` to install: its tag, which must match the Version header of the safety-net.php inside its safety-net.zip"
+    required: true
+  repository:
+    description: "Where the release is published"
+    required: false
+    default: "linchpin/safety-net"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Refuse anything but development
+      shell: bash
+      env:
+        ENVIRONMENT: ${{ inputs.environment }}
+      run: |
+        if [ "$ENVIRONMENT" != "development" ]; then
+          echo "::error::Safety Net is installed on development only, never on '$ENVIRONMENT'."
+          exit 1
+        fi
+
+    - name: Download safety-net.zip
+      shell: bash
+      env:
+        REPOSITORY: ${{ inputs.repository }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        zip="$RUNNER_TEMP/safety-net.zip"
+        url="https://github.com/$REPOSITORY/releases/download/$VERSION/safety-net.zip"
+        # The release workflow attaches the zip about 10 minutes after the
+        # release is created, once its tests pass; a missing asset fails fast.
+        if ! curl -fsSL --retry 4 --retry-delay 15 -o "$zip" "$url"; then
+          echo "::error::Could not download $url. Is $VERSION released on $REPOSITORY, with safety-net.zip attached?"
+          exit 1
+        fi
+        header=$(unzip -p "$zip" safety-net/safety-net.php 2>/dev/null | grep -m1 -E '^[ *]*Version:' | sed -E 's/^[ *]*Version:[[:space:]]*//; s/[[:space:]]*$//')
+        if [ "$header" != "${VERSION#v}" ]; then
+          echo "::error::safety-net.zip on $VERSION holds safety-net.php version '${header:-none}', not ${VERSION#v}."
+          exit 1
+        fi
+        echo "Safety Net $header from $url"
+
+    - name: Configure SSH connection
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_USER: ${{ inputs.ssh-user }}
+        SSH_KEY: ${{ inputs.ssh-key }}
+      run: |
+        SSH_PATH="$HOME/.ssh"
+        mkdir -p "$SSH_PATH" "$SSH_PATH/ctl"
+        ssh-keyscan -t rsa "$SSH_HOST" >> "$SSH_PATH/known_hosts" 2>/dev/null
+        echo "$SSH_KEY" > "$SSH_PATH/safety_net"
+        chmod 700 "$SSH_PATH"
+        chmod 644 "$SSH_PATH/known_hosts"
+        chmod 600 "$SSH_PATH/safety_net"
+        # Its own alias, so it never collides with a host deploy action's Host
+        # block in the same job; ControlPath %C still shares one connection.
+        cat >> "$SSH_PATH/config" <<END
+          Host safetynet
+          HostName $SSH_HOST
+          User $SSH_USER
+          IdentityFile $SSH_PATH/safety_net
+          StrictHostKeyChecking no
+          ControlMaster auto
+          ControlPath $SSH_PATH/ctl/%C
+          ControlPersist 60
+        END
+
+    - name: Install, scrub and check every site
+      shell: bash
+      env:
+        SSH_ALIAS: safetynet
+        WP_PATH: ${{ inputs.wp-path }}
+        ZIP: ${{ runner.temp }}/safety-net.zip
+      run: bash "${{ github.action_path }}/safety-net.sh"

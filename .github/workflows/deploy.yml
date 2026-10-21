@@ -38,6 +38,11 @@
 # DEPLOYMENTS_API_CLIENT_SECRET (organization secrets, reaching callers through
 # `secrets: inherit`), and never fails the deploy. The GitHub Deployment's
 # payload carries release_tag, branch and correlation_id for it.
+#
+# Safety Net: `safety_net: true` on a development deploy installs
+# linchpin/safety-net as an mu-plugin and, before the code ships, fails the
+# deploy unless every site reports the production data a sync copied there
+# scrubbed. Any other environment is refused.
 
 name: Deploy WordPress Site
 
@@ -118,6 +123,21 @@ on:
         required: false
         default: ""
         type: string
+      safety_net:
+        description: >-
+          Development only: before the code deploys, install Linchpin's Safety Net
+          release as an mu-plugin, load every site so it scrubs the production data
+          a sync copied there, and fail unless every site reports it done. Refused
+          for any other environment, with do_backup, and on a server whose
+          WP_ENVIRONMENT_TYPE is not development.
+        required: false
+        default: false
+        type: boolean
+      safety_net_version:
+        description: "The linchpin/safety-net release that safety_net installs"
+        required: false
+        default: "1.12.0"
+        type: string
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON:
         required: false
@@ -182,6 +202,16 @@ jobs:
       contents: read
       deployments: write
     steps:
+      # Before anything is recorded or deployed: Safety Net never goes anywhere
+      # but development, and a deploy parked for a backup would never reach it.
+      - name: Refuse Safety Net outside development
+        if: ${{ inputs.safety_net && (inputs.environment != 'development' || inputs.do_backup) }}
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          echo "::error::safety_net is for development only, and not with do_backup. This deploy is to '$ENVIRONMENT'."
+          exit 1
+
       # v3's Preflight job (deployment bookkeeping on its own VM, billed a
       # full minute for ~11s of API calls) is now these two steps.
       - name: Create GitHub deployment
@@ -301,6 +331,72 @@ jobs:
             --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "::notice::Deployment ${{ steps.deployment.outputs.id }} queued — Mantle will dispatch the continue workflow when the backup completes"
 
+      # Safety Net (inputs.safety_net, development only). It goes in before the
+      # code, so the data a production sync copied onto dev is scrubbed, on
+      # every site, before this deploy ships anything; a site that does not
+      # finish fails the deploy. Then the code deploy leaves its two paths
+      # alone, since mu-plugins/ is synced with --delete. Nothing to do with
+      # REMOTE_PLUGIN_INSTALL.
+      - name: Safety Net unsupported for this auth type
+        if: ${{ inputs.safety_net && vars.HOST == 'cloudways' && vars.DEPLOYMENT_AUTH_TYPE == 'pass' }}
+        run: |
+          echo "::error::safety_net needs SSH key auth, and DEPLOYMENT_AUTH_TYPE is pass."
+          exit 1
+
+      - name: Safety Net (Pressable)
+        if: ${{ inputs.safety_net && vars.HOST == 'pressable' }}
+        uses: linchpin/actions/actions/safety-net@v4
+        with:
+          environment: ${{ inputs.environment }}
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          wp-path: /srv/htdocs
+          version: ${{ inputs.safety_net_version }}
+
+      - name: Safety Net (WP Engine)
+        if: ${{ inputs.safety_net && vars.HOST == 'wpengine' }}
+        uses: linchpin/actions/actions/safety-net@v4
+        with:
+          environment: ${{ inputs.environment }}
+          ssh-host: ${{ vars.INSTALL_NAME }}.ssh.wpengine.net
+          ssh-user: ${{ vars.INSTALL_NAME }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          wp-path: ~/sites/${{ vars.INSTALL_NAME }}
+          version: ${{ inputs.safety_net_version }}
+
+      - name: Safety Net (Cloudways)
+        if: ${{ inputs.safety_net && vars.HOST == 'cloudways' && vars.DEPLOYMENT_AUTH_TYPE != 'pass' }}
+        uses: linchpin/actions/actions/safety-net@v4
+        with:
+          environment: ${{ inputs.environment }}
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          wp-path: ~/public_html
+          version: ${{ inputs.safety_net_version }}
+
+      - name: Resolve protected paths
+        id: protected
+        env:
+          PROTECTED_PATHS: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          SAFETY_NET: ${{ inputs.safety_net }}
+        run: |
+          paths="$PROTECTED_PATHS"
+          if [ "$SAFETY_NET" = "true" ]; then
+            # Same forms the deploy actions accept: a JSON array stays one.
+            if printf '%s' "$paths" | jq -e 'type == "array"' >/dev/null 2>&1; then
+              paths=$(printf '%s' "$paths" | jq -c '. + ["mu-plugins/safety-net", "mu-plugins/safety-net-loader.php"]')
+            else
+              paths=$(printf '%s\n%s\n%s' "$paths" mu-plugins/safety-net mu-plugins/safety-net-loader.php)
+            fi
+          fi
+          {
+            echo "paths<<PROTECTED_PATHS_EOF"
+            if [ -n "$paths" ]; then printf '%s\n' "$paths"; fi
+            echo "PROTECTED_PATHS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Deploy to Pressable
         if: ${{ vars.HOST == 'pressable' && !inputs.do_backup }}
         uses: linchpin/actions/actions/deploy-pressable@v4
@@ -316,7 +412,7 @@ jobs:
           maintenance-mode: ${{ inputs.maintenance_mode }}
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
-          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          protected-paths: ${{ steps.protected.outputs.paths }}
           preserve-symlinks: ${{ inputs.preserve_symlinks }}
 
       - name: Deploy to WP Engine
@@ -329,7 +425,7 @@ jobs:
           release-archive: ${{ github.workspace }}/release.zip
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
-          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          protected-paths: ${{ steps.protected.outputs.paths }}
           preserve-symlinks: ${{ inputs.preserve_symlinks }}
 
       - name: Deploy to Cloudways
@@ -345,7 +441,7 @@ jobs:
           release-archive: ${{ github.workspace }}/release.zip
           post-deploy-command: ${{ inputs.post_deploy_command }}
           health-check: ${{ inputs.health_check }}
-          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          protected-paths: ${{ steps.protected.outputs.paths }}
           preserve-symlinks: ${{ inputs.preserve_symlinks }}
 
       - name: Unsupported host
