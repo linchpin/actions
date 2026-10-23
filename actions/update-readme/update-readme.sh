@@ -22,12 +22,13 @@ awk -v date="$current_date" '
 if [[ ! -f "$COMPOSER_LOCK_FILE" ]]; then
   echo "Note: $COMPOSER_LOCK_FILE not found."
 else
-  # Extract relevant packages and build the markdown table
+  # Every plugin and theme in the lock, whatever its vendor, sorted by the name
+  # the table shows. Filtering on wpackagist and linchpin names dropped every
+  # wp-plugin/* and wp-theme/* package once sites moved to wp-packages.org.
   table_output=$(jq -r '
-      .packages[] |
-      select((.name | contains("wpackagist") or contains("linchpin")) and
-            (.type == "wordpress-plugin" or .type == "wordpress-theme")) |
-      "| \(.name | split("/")[1]) | \(.version) |"
+      [.packages[] | select(.type == "wordpress-plugin" or .type == "wordpress-theme")]
+      | sort_by(.name | split("/")[1] | ascii_downcase)[]
+      | "| \(.name | split("/")[1]) | \(.version) |"
   ' "$COMPOSER_LOCK_FILE")
 fi
 
