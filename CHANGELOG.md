@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.17.0](https://github.com/linchpin/actions/compare/v4.16.0...v4.17.0) (2026-10-23)
+
+
+### Features
+
+* **NO-TASK:** Commit the README onto the release branch instead of opening a PR ([#193](https://github.com/linchpin/actions/issues/193)) ([d3ba30f](https://github.com/linchpin/actions/commit/d3ba30f514b8f39184bab71571a7e93679d943f0))
+
 ## [4.16.0](https://github.com/linchpin/actions/compare/v4.15.0...v4.16.0) (2026-10-21)
 
 
