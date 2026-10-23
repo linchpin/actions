@@ -1,36 +1,41 @@
 # Update README.md + composer.lock (v4)
 #
-# Previous (v3): ran on every push to main regardless of whether composer.lock
-# changed, and wget'd update-readme.sh from the v3 branch at run time.
+# Regenerates the README's release date and plugin/theme table on the release
+# PR's branch, re-syncs composer.lock there, and commits both straight onto that
+# branch. So they merge with the release PR and reach the default branch with the
+# release itself.
 #
-# Next (v4): the script is bundled in the update-readme composite action.
-# Callers should gate this workflow on composer.lock actually changing, e.g.:
-#   if: contains(toJSON(github.event.commits.*.modified), 'composer.lock')
+# Call it every time release-please writes its PR, from the action's
+# `prs_created` output:
 #
-# v4.4: also re-syncs composer.lock before regenerating the README. release-please
-# bumps the `version` field in composer.json on every release PR without touching
-# the lock, so `composer validate` fails on the release branch (and every branch
-# cut from it) until someone re-locks by hand. Running `composer update --lock`
-# here keeps the release PR's lock valid; the README table is then generated from
-# the fresh lock. The sync is best-effort: if resolution fails (e.g. private
-# repositories needing auth this workflow doesn't have), the lock is left
-# untouched and only the README updates, exactly as before.
+#   jobs:
+#     release-please:
+#       outputs:
+#         prs_created: ${{ steps.release.outputs.prs_created }}
+#       ...
+#     update-readme:
+#       needs: [release-please]
+#       if: ${{ needs.release-please.outputs.prs_created == 'true' }}
+#       uses: linchpin/actions/.github/workflows/update-readme.yml@v4
+#       secrets: inherit
 #
-# v4.5: merges the PR it opens. Until now this workflow created the README PR and
-# stopped, and nothing downstream merged it — so the refresh sat open indefinitely
-# while release-please merged its release PR into main without it. The visible
-# symptom is a README whose version is current but whose "Latest Release" date and
-# plugin table are stale by however long the PR has been sitting: release-please
-# writes the version straight into README.md via its `extra-files` config, so that
-# one field lands on main regardless, while the date and plugin list — both
-# produced here — never do. On linchpin.com the README PR had been open for ~3
-# weeks and the date was a full release behind.
+# release-please rebuilds its branch from the default branch whenever the release
+# notes change, which drops anything committed on top of it, and `prs_created` is
+# true exactly then. Gated on composer.lock changing instead, the README is dropped
+# by the next rewrite; gated on `release_created`, it lands on a branch that has
+# already merged. linchpin.com did both, and its README date stood still for 24
+# releases.
 #
-# Merging here rather than in a separate `pull_request_target` workflow avoids a
-# race (the PR number is known directly from create-pull-request's output, so
-# there is nothing to poll for or re-discover) and means consumers do not each
-# need to carry their own auto-merge workflow. Set `automerge: false` to restore
-# the old open-and-stop behavior.
+# History:
+#   v3    ran on every push to main and wget'd update-readme.sh from the v3 branch.
+#   v4    bundles the script in the update-readme composite action.
+#   v4.4  re-syncs composer.lock: release-please bumps `version` in composer.json,
+#         which Composer's content-hash covers, so `composer validate` fails on the
+#         release branch until something re-locks it.
+#   v4.5  merged the README PR it opened, which had sat open for weeks.
+#   Now   commits onto the release branch with no PR at all. The PR had no
+#         reviewer and no required check; it existed only to be merged, and every
+#         workflow listening for PRs listed a run of its own for it.
 
 name: Update README.md
 
@@ -38,24 +43,10 @@ on:
   workflow_call:
     inputs:
       base:
-        description: "Where the branch is based from. Typically release please"
+        description: "The release PR's branch, which the README is committed onto"
         required: false
         default: "release-please--branches--main"
         type: string
-      branch:
-        description: "What branch do we create when updating the readme"
-        required: false
-        default: "release-please--branches--main--readme"
-        type: string
-      automerge:
-        description: >-
-          Squash-merge the README PR into `base` once it is mergeable. Defaults to
-          true — an unmerged README refresh is never the desired end state, since
-          the whole point is for it to ride along with the release PR. Set false
-          to open the PR and leave it for a human.
-        required: false
-        default: true
-        type: boolean
       runner:
         description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
         required: false
@@ -63,12 +54,15 @@ on:
         type: string
     secrets:
       GH_BOT_TOKEN:
-        description: "Token used to open the README update PR"
+        description: "Token the README commit is pushed with"
         required: true
+      PACKAGIST_COMPOSER_AUTH_JSON:
+        description: "auth.json contents for packagist.linchpin.com, which the composer.lock sync resolves against"
+        required: false
 
+# The push uses GH_BOT_TOKEN, so GITHUB_TOKEN only reads.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   update-readme:
@@ -76,20 +70,26 @@ jobs:
     runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
-      # Checkout just the files the steps read/write
+      # Checked out with the bot's token, which the push below reuses. A push made
+      # with GITHUB_TOKEN starts no workflow, so the release PR's new head would
+      # have no check runs, and a required check would wait on it forever.
       - name: Checkout code
         uses: actions/checkout@v6
         with:
           ref: ${{ inputs.base }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
           sparse-checkout: |
             README.md
             composer.json
             composer.lock
           sparse-checkout-cone-mode: false
 
-      # Best-effort: a failed resolution (network, private repos needing auth)
-      # must not break the README update, so restore the lock and continue.
+      # Best-effort: a failed resolution (network, a private repository with no
+      # credentials) must not break the README update, so restore the lock and
+      # continue. Without COMPOSER_AUTH, packagist.linchpin.com answers 401.
       - name: Sync composer.lock with composer.json
+        env:
+          COMPOSER_AUTH: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
         run: |
           if [ ! -f composer.json ] || [ ! -f composer.lock ]; then
             echo "No composer.json/composer.lock — skipping lock sync"
@@ -105,70 +105,20 @@ jobs:
       - name: Update README.md from composer.lock
         uses: linchpin/actions/actions/update-readme@v4
 
-      - name: Commit changes to README.md and composer.lock
-        id: commit_changes
+      # Not a conventional commit, on purpose: a release PR merged with a merge
+      # commit would otherwise list it in the next release's notes. No force: if
+      # release-please rewrote the branch since the checkout, the push fails, and
+      # the run that rewrote it regenerates the README.
+      - name: Commit onto the release branch
+        env:
+          BASE: ${{ inputs.base }}
         run: |
           git config --local user.email "linchpin-bot@github.com"
           git config --local user.name "Linchpin Bot"
           git add README.md composer.lock
           if git diff --cached --quiet; then
-            echo "No changes to commit"
-            echo "skip_pr=true" >> "$GITHUB_OUTPUT"
-          else
-            git commit -m "Update README.md plugin list and sync composer.lock"
-            echo "skip_pr=false" >> "$GITHUB_OUTPUT"
+            echo "README.md and composer.lock are already current."
+            exit 0
           fi
-
-      - name: Create or Update Pull Request
-        id: cpr
-        if: ${{ steps.commit_changes.outputs.skip_pr == 'false' }}
-        uses: peter-evans/create-pull-request@v8
-        with:
-          commit-message: "[automated] Update Plugin List / composer.lock"
-          title: "[Maintenance] Update README.md plugin list & sync composer.lock"
-          body: "Automated update of the README plugin/theme table and composer.lock re-sync (release-please bumps composer.json's version field without regenerating the lock, which breaks `composer validate` until re-locked)."
-          base: ${{ inputs.base }}
-          branch: ${{ inputs.branch }}
-          labels: |
-            wordpress
-            automated pr
-            maintenance
-          token: ${{ secrets.GH_BOT_TOKEN }}
-
-      # Without this the PR just accumulates. See the v4.5 note at the top.
-      #
-      # GitHub computes mergeability asynchronously, so a freshly-opened PR reports
-      # UNKNOWN for a moment — poll until it settles rather than failing on the
-      # first read. A DIRTY (conflicted) PR is left open on purpose: that means the
-      # base moved in a way this workflow should not silently resolve.
-      - name: Squash-merge the README PR
-        if: ${{ inputs.automerge && steps.commit_changes.outputs.skip_pr == 'false' && steps.cpr.outputs.pull-request-number != '' }}
-        env:
-          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
-          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -uo pipefail
-          for i in $(seq 1 10); do
-            state="$(gh pr view "$PR_NUMBER" --json mergeable,state \
-              --jq '.mergeable + "/" + .state')"
-            echo "Attempt $i: $state"
-            case "$state" in
-              MERGEABLE/OPEN)
-                gh pr merge "$PR_NUMBER" --squash
-                echo "Merged README PR #$PR_NUMBER into ${{ inputs.base }}."
-                exit 0
-                ;;
-              */MERGED|*/CLOSED)
-                echo "PR #$PR_NUMBER is already ${state#*/}; nothing to do."
-                exit 0
-                ;;
-              CONFLICTING/*)
-                echo "::warning::README PR #$PR_NUMBER is conflicted; leaving it open for a human."
-                exit 0
-                ;;
-            esac
-            sleep 6
-          done
-          echo "::error::README PR #$PR_NUMBER never became MERGEABLE after 10 attempts."
-          exit 1
+          git commit -m "Update README.md plugin list and sync composer.lock"
+          git push origin "HEAD:refs/heads/$BASE"

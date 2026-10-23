@@ -66,7 +66,7 @@ To learn more [about secrets](https://docs.github.com/en/actions/security-for-gi
 | MANTLE_API_BEARER            |         | Mantle API token used by the backup-and-continue deploy flow                            |
 | DEPLOYMENTS_API_CLIENT_ID    |         | api.linchpin.com client with `deployments:write`; deploy.yml reports each deploy to the deployment log with it (organization secret) |
 | DEPLOYMENTS_API_CLIENT_SECRET |        | That client's secret                                                                    |
-| GH_BOT_TOKEN                 |         | Bot token used by update-readme.yml to open PRs                                         |
+| GH_BOT_TOKEN                 |         | Bot token update-readme.yml pushes the README commit onto the release branch with       |
 | SATISPRESS_USER              |         | Private Packagist auth, used only by the `REMOTE_PLUGIN_INSTALL` reconcile               |
 | SATISPRESS_PASSWORD          |         | Private Packagist auth, used only by the `REMOTE_PLUGIN_INSTALL` reconcile               |
 | QA_SCHEMA_TOKEN              |         | Reads linchpin/automated-testing so qa-guard.yml can validate against the one QA schema  |

@@ -24,7 +24,7 @@ minutes).
 | `deploy-wpengine.yml` | `actions/deploy-wpengine` composite action | SSH config inlined (drops the `actions-wpengine-ssh@main` moving ref); endpoint.sh folded into the entrypoint |
 | `deploy-cloudways.yml` | `actions/deploy-cloudways` composite action | Key and password auth in one code path; maintenance.php ships with the action |
 | `phplint.yml` + `phpcs.yml` + `phpcbf.yml` | `lint.yml` (1 job) | One cached Composer install; phpcs annotates changed files via cs2pr; phpcbf is a local pre-commit concern now |
-| `update-readme.yml` | `update-readme.yml` + `actions/update-readme` composite | Script bundled; callers should gate on composer.lock changes |
+| `update-readme.yml` | `update-readme.yml` + `actions/update-readme` composite | Script bundled; commits onto the release branch, no PR. Gate on release-please's `prs_created` (see the workflow's header) |
 | `ymllint.yml` | `ci.yml` | Adds actionlint + zizmor, runs on PRs |
 | n/a | `actions/setup-wp-php` composite | shivammathur/setup-php + cached Composer + `COMPOSER_AUTH` env (no auth.json on disk) |
 | n/a | `actions/build-release` composite | Bundled cleanup.sh + default.distignore |
