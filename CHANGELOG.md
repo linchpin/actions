@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.19.0](https://github.com/linchpin/actions/compare/v4.18.0...v4.19.0) (2026-10-25)
+
+
+### Features
+
+* **LINCHPIN-5903:** Hand conflicts the resolver cannot settle to Sisyphus, and apply its answers ([#197](https://github.com/linchpin/actions/issues/197)) ([1989109](https://github.com/linchpin/actions/commit/198910914af20fcd068c37b771614fc2d0ca618c))
+
 ## [4.18.0](https://github.com/linchpin/actions/compare/v4.17.0...v4.18.0) (2026-10-25)
 
 
