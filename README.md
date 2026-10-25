@@ -601,6 +601,24 @@ It gives up, pushes nothing and says why (`resolved` is `false`, `reason` and
 npm's own lockfile conflict handling is not used: it re-resolves freely, and on
 linchpin.com's #1890 it moved 74 untouched packages, one of them a major.
 
+### Handing a conflict to Sisyphus
+
+Any other conflicted file can go to Sisyphus, which asks ai.linchpin.com for an
+answer (LINCHPIN-5903). Sisyphus does the asking, so no runner waits on a model.
+The two hand over on branches named for the exact pair of commits, so an answer
+for an older pair never applies:
+
+| Branch | Written by | Holds |
+| --- | --- | --- |
+| `sisyphus/conflicts/<this side's commit>-<the other's>` | this action, with `publish-conflicts: true`, when it gives up | each conflicted file with diff3 markers, so every hunk carries its base, and `.sisyphus/conflicts.json` |
+| `sisyphus/resolutions/<the same pair>` | Sisyphus | its answer for each file, and `.sisyphus/resolutions.json` saying which model resolved what |
+
+When the resolutions branch exists for the pair being merged, each conflicted
+file takes its answer instead of giving up. An answer that still has conflict
+markers, or fails `php -l` or a JSON parse, is refused. The merge commit names
+every file resolved this way for review, the `model-resolved` output lists them,
+and a merge that succeeds deletes both branches.
+
 npm and Composer run with scripts and plugins off, since the job holds a token
 that can push. `resolve-merge.sh` runs locally too: `MERGE_FROM=origin/main
 DRY_RUN=true bash actions/resolve-merge/resolve-merge.sh` resolves and commits
