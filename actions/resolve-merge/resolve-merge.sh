@@ -35,8 +35,22 @@
 #       <name>:<version>`), then check nothing else moved. A package both sides
 #       moved, or a dev branch, gives up.
 #
-# Any other conflicted file gives up and is listed as unresolved, for the LLM
-# fallback (LINCHPIN-5903) or a person. Giving up pushes nothing.
+# Any other conflicted file is left to Sisyphus or a person (LINCHPIN-5903).
+# The two are handed over on branches named for the exact pair of commits, so
+# an answer for an older pair never applies:
+#
+#   sisyphus/conflicts/<this side's commit>-<the other side's commit>
+#       With PUBLISH_CONFLICTS=true, giving up pushes the conflicted files here,
+#       with diff3 markers (each hunk carries its base) and
+#       .sisyphus/conflicts.json naming the two commits and the files.
+#   sisyphus/resolutions/<the same pair>
+#       Sisyphus writes its answer for each file here, with
+#       .sisyphus/resolutions.json saying which model resolved what. When it
+#       exists for this pair, each conflicted file takes its answer, which must
+#       carry no conflict markers and pass `php -l` or a JSON parse, and the
+#       merge commit names every file resolved this way for review.
+#
+# A merge that succeeds deletes both branches. Giving up pushes nothing else.
 #
 # npm and Composer run with scripts and plugins off: the job holds a write
 # token, and nothing from either branch should execute in it.
@@ -50,10 +64,11 @@
 # to inspect (git reset --hard ORIG_HEAD drops it).
 #
 # Env: MERGE_FROM (the ref to bring in, required), MERGE_BRANCH (where to push,
-# default the checked-out branch), DRY_RUN, COMPOSER_AUTH, NPM_TOKEN (read
-# token for private npm packages), GITHUB_STEP_SUMMARY and GITHUB_OUTPUT.
-# Outputs: resolved (true or false), sha, reason, unresolved (space-separated).
-# Exits 1 when it gives up.
+# default the checked-out branch), DRY_RUN, PUBLISH_CONFLICTS, COMPOSER_AUTH,
+# NPM_TOKEN (read token for private npm packages), GITHUB_STEP_SUMMARY and
+# GITHUB_OUTPUT. Outputs: resolved (true or false), sha, reason, unresolved
+# (space-separated), conflicts_branch (when it published one). Exits 1 when it
+# gives up.
 
 set -euo pipefail
 
@@ -61,6 +76,7 @@ set -euo pipefail
 BRANCH=${MERGE_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}
 FROM=${MERGE_FROM#origin/}
 DRY_RUN=${DRY_RUN:-false}
+PUBLISH_CONFLICTS=${PUBLISH_CONFLICTS:-false}
 SUMMARY=${GITHUB_STEP_SUMMARY:-/dev/null}
 OUTPUT=${GITHUB_OUTPUT:-/dev/null}
 
@@ -117,9 +133,54 @@ fi
 
 git rev-parse -q --verify "$MERGE_FROM^{commit}" >/dev/null || git fetch -q origin "$FROM"
 BASE=$(git merge-base HEAD "$MERGE_FROM") || give_up "\`$BRANCH\` and \`$FROM\` share no history."
+INTO_SHA=$(git rev-parse HEAD)
+FROM_SHA=$(git rev-parse "$MERGE_FROM^{commit}")
+PAIR="${INTO_SHA:0:12}-${FROM_SHA:0:12}"
+CONFLICTS_BRANCH="sisyphus/conflicts/$PAIR"
+RESOLUTIONS_BRANCH="sisyphus/resolutions/$PAIR"
+
+# Push the conflicted files, markers and all, for Sisyphus to answer. A
+# separate index builds the commit, so the merge in progress is left alone.
+publish_conflicts() {
+	local index file mode blob tree commit manifest
+
+	if [ "$PUBLISH_CONFLICTS" != "true" ]; then
+		return 0
+	fi
+
+	if [ "$DRY_RUN" = "true" ]; then
+		note "Dry run, would publish ${#others[@]} conflicted file(s) to \`$CONFLICTS_BRANCH\`."
+		return 0
+	fi
+
+	index=$(mktemp)
+	GIT_INDEX_FILE=$index git read-tree "$INTO_SHA"
+
+	for file in "${others[@]}"; do
+		mode=$(git ls-files -s -- "$file" | awk '$3 == 2 { print $1; exit }')
+		blob=$(git hash-object -w -- "$file")
+		GIT_INDEX_FILE=$index git update-index --add --cacheinfo "${mode:-100644},$blob,$file"
+	done
+
+	manifest=$(jq -n --arg into "$INTO_SHA" --arg from "$FROM_SHA" --arg branch "$BRANCH" --arg source "$FROM" \
+		'{into: $into, from: $from, branch: $branch, source: $source, files: $ARGS.positional}' --args "${others[@]}")
+	blob=$(git hash-object -w --stdin <<<"$manifest")
+	GIT_INDEX_FILE=$index git update-index --add --cacheinfo "100644,$blob,.sisyphus/conflicts.json"
+
+	tree=$(GIT_INDEX_FILE=$index git write-tree)
+	commit=$(git commit-tree "$tree" -p "$INTO_SHA" -m "Conflicts bringing $FROM into $BRANCH, for Sisyphus to resolve")
+	rm -f "$index"
+
+	if git push -q -f origin "$commit:refs/heads/$CONFLICTS_BRANCH"; then
+		output conflicts_branch "$CONFLICTS_BRANCH"
+		note "Published the conflicts to \`$CONFLICTS_BRANCH\` for Sisyphus."
+	else
+		note "Could not publish the conflicts to \`$CONFLICTS_BRANCH\`."
+	fi
+}
 
 conflicted=()
-if ! git merge --no-ff --no-commit "$MERGE_FROM" >/dev/null 2>&1; then
+if ! git -c merge.conflictStyle=diff3 merge --no-ff --no-commit "$MERGE_FROM" >/dev/null 2>&1; then
 	git rev-parse -q --verify MERGE_HEAD >/dev/null || give_up "git could not start the merge."
 	while IFS= read -r file; do
 		conflicted+=("$file")
@@ -140,11 +201,48 @@ for file in ${conflicted[@]+"${conflicted[@]}"}; do
 	esac
 done
 
-if [ "${#others[@]}" -gt 0 ]; then
-	give_up "more than manifests and lockfiles conflict: ${others[*]}" "${others[*]}"
-fi
-
 done_lines=()
+answered=""
+
+# 0. Anything else takes Sisyphus's answer for this pair of commits, or waits
+#    for one.
+if [ "${#others[@]}" -gt 0 ]; then
+	if ! git fetch -q origin "+refs/heads/$RESOLUTIONS_BRANCH:refs/sisyphus/resolutions" 2>/dev/null; then
+		publish_conflicts
+		give_up "more than manifests and lockfiles conflict: ${others[*]}" "${others[*]}"
+	fi
+
+	answers=$(git show refs/sisyphus/resolutions:.sisyphus/resolutions.json 2>/dev/null) ||
+		give_up "\`$RESOLUTIONS_BRANCH\` has no .sisyphus/resolutions.json." "${others[*]}"
+	if [ "$(jq -r '"\(.into) \(.from)"' <<<"$answers")" != "$INTO_SHA $FROM_SHA" ]; then
+		give_up "\`$RESOLUTIONS_BRANCH\` answers another pair of commits." "${others[*]}"
+	fi
+
+	for file in "${others[@]}"; do
+		git show "refs/sisyphus/resolutions:$file" >"$file" 2>/dev/null ||
+			give_up "\`$RESOLUTIONS_BRANCH\` has no answer for $file." "$file"
+
+		# ======= alone is ordinary text (a Markdown underline); the other three are not.
+		if grep -qE '^(<<<<<<<|\|\|\|\|\|\|\||>>>>>>>)( |$)' "$file"; then
+			give_up "the answer for $file still has conflict markers." "$file"
+		fi
+
+		case "$file" in
+		*.php)
+			php -l "$file" >/dev/null 2>&1 ||
+				give_up "the answer for $file is not valid PHP: $(php -l "$file" 2>&1 | grep -m 1 -iE 'error' || true)" "$file"
+			;;
+		*.json)
+			jq empty "$file" 2>/dev/null || give_up "the answer for $file is not valid JSON." "$file"
+			;;
+		esac
+
+		git add -- "$file"
+		by=$(jq -r --arg file "$file" '.files[$file].by // "a model"' <<<"$answers")
+		done_lines+=("$file: resolved by Sisyphus with $by. Review it.")
+		answered="$answered $file"
+	done
+fi
 
 # 1. Manifests, so the lockfiles below resolve against the merged one.
 for file in ${manifests[@]+"${manifests[@]}"}; do
@@ -355,7 +453,13 @@ if [ "$DRY_RUN" = "true" ]; then
 else
 	git push -q origin "HEAD:refs/heads/$BRANCH" || give_up "the push to \`$BRANCH\` was refused; it may have moved."
 	note "Merged \`$FROM\` into \`$BRANCH\` (${sha:0:7})."
+
+	# The handover is spent; gone already is fine.
+	for handover in "$CONFLICTS_BRANCH" "$RESOLUTIONS_BRANCH"; do
+		git push -q origin --delete "$handover" >/dev/null 2>&1 || true
+	done
 fi
 
 output resolved true
 output sha "$sha"
+output model_resolved "${answered# }"

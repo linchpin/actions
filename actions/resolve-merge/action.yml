@@ -5,8 +5,11 @@ description: >-
   composer.json, package-lock.json and composer.lock deterministically, then
   commit and push the merge. Each value comes from the side that changed it;
   anything it cannot resolve that way, or any other conflicted file, is left
-  alone and reported (resolved=false), and nothing is pushed. resolve-merge.sh
-  has the rules.
+  alone and reported (resolved=false), and nothing is pushed. Any other
+  conflicted file can be handed to Sisyphus: publish-conflicts pushes it to
+  sisyphus/conflicts/<pair>, and Sisyphus's answers on
+  sisyphus/resolutions/<pair> are applied and checked on the next run.
+  resolve-merge.sh has the rules.
 
   Run it in a checkout of the branch with full history, and credentials that
   can push to it.
@@ -26,6 +29,13 @@ inputs:
     default: "."
   dry-run:
     description: "Resolve and commit in the checkout, but push nothing (true/false)"
+    required: false
+    default: "false"
+  publish-conflicts:
+    description: >-
+      When a file other than a manifest or lockfile conflicts, push the
+      conflicted files to sisyphus/conflicts/<pair> for Sisyphus to answer
+      (true/false)
     required: false
     default: "false"
   composer-auth:
@@ -66,6 +76,12 @@ outputs:
   unresolved:
     description: "Space-separated files it could not resolve, for a fallback or a person"
     value: ${{ steps.resolve.outputs.unresolved }}
+  conflicts-branch:
+    description: "The branch it published the conflicts to, when it did"
+    value: ${{ steps.resolve.outputs.conflicts_branch }}
+  model-resolved:
+    description: "Space-separated files it took Sisyphus's answer for, to review"
+    value: ${{ steps.resolve.outputs.model_resolved }}
 
 runs:
   using: "composite"
@@ -103,6 +119,7 @@ runs:
         MERGE_FROM: ${{ inputs.from || format('origin/{0}', github.event.repository.default_branch) }}
         MERGE_BRANCH: ${{ inputs.branch }}
         DRY_RUN: ${{ inputs.dry-run }}
+        PUBLISH_CONFLICTS: ${{ inputs.publish-conflicts }}
         COMPOSER_AUTH: ${{ inputs.composer-auth }}
         NPM_TOKEN: ${{ inputs.npm-token }}
         GIT_AUTHOR_NAME: ${{ inputs.git-user-name }}
