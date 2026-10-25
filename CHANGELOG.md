@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.18.0](https://github.com/linchpin/actions/compare/v4.17.0...v4.18.0) (2026-10-25)
+
+
+### Features
+
+* **LINCHPIN-5902:** Resolve manifest and lockfile merge conflicts with a shared action ([#195](https://github.com/linchpin/actions/issues/195)) ([197fe4a](https://github.com/linchpin/actions/commit/197fe4aa67900365a6ecea5b55f17648e000d706))
+
 ## [4.17.0](https://github.com/linchpin/actions/compare/v4.16.0...v4.17.0) (2026-10-23)
 
 
