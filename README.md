@@ -308,6 +308,7 @@ jobs:
 | [check-overrides](actions/check-overrides)      | Probe each npm `overrides` pin and report the ones that are redundant or dangling  |
 | [strip-release-markers](actions/strip-release-markers) | Remove release-please marker lines from readme.txt and friends before they ship    |
 | [report-deployment](actions/report-deployment) | Record a finished deploy, and the commits it shipped since the environment's last one, in api.linchpin.com's deployment log |
+| [resolve-merge](actions/resolve-merge)          | Bring one branch into another when GitHub refuses, resolving manifest and lockfile conflicts deterministically — see [below](#resolving-merges) |
 
 ## Example Shared Workflow Usage
 
@@ -556,6 +557,54 @@ Two independent jobs:
 Set `schema_ref` to pin the schema version if you want the gate to be
 reproducible rather than tracking `main`. `qa_path` must match the project's
 `qa_path` in the platform, and defaults to `qa`.
+
+## Resolving merges
+
+GitHub's merge API refuses whenever both sides changed neighbouring lines. On a
+rolling `maintenance` branch that is nearly always manifests and lockfiles:
+Renovate bumps different packages on each side, and the entries sit next to each
+other. `resolve-merge` does what a person would, in a checkout of the branch:
+
+```yaml
+- uses: useblacksmith/checkout@v1
+  with:
+    ref: maintenance
+    fetch-depth: 0
+    filter: blob:none
+    token: ${{ secrets.GH_BOT_TOKEN }}
+
+- id: resolve
+  uses: linchpin/actions/actions/resolve-merge@v4
+  with:
+    from: origin/main
+    composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+    npm-token: ${{ secrets.NPM_READ_TOKEN }}
+
+- if: steps.resolve.outputs.resolved != 'true'
+  run: echo "Left for a person: ${{ steps.resolve.outputs.reason }}"
+```
+
+| Conflicted file | Resolved by |
+| --- | --- |
+| `package.json`, `composer.json` | A three-way merge by key, each value from the side that changed it. When both raised the same dependency, or the release `version`, the higher one wins |
+| `package-lock.json` | A three-way merge by package entry, then `npm install --package-lock-only` repairs it against the merged `package.json` and `npm ls` checks the tree |
+| `composer.lock` | Keeping this side's lock and re-applying each package the other side moved, at the version it locked |
+
+It gives up, pushes nothing and says why (`resolved` is `false`, `reason` and
+`unresolved` say what is left) when:
+
+- any other file conflicts;
+- both sides changed some other key to different values;
+- npm moves a package already in the tree that neither side moved;
+- both sides moved the same Composer package.
+
+npm's own lockfile conflict handling is not used: it re-resolves freely, and on
+linchpin.com's #1890 it moved 74 untouched packages, one of them a major.
+
+npm and Composer run with scripts and plugins off, since the job holds a token
+that can push. `resolve-merge.sh` runs locally too: `MERGE_FROM=origin/main
+DRY_RUN=true bash actions/resolve-merge/resolve-merge.sh` resolves and commits
+in your checkout and pushes nothing.
 
 ## The monthly maintenance window
 
