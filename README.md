@@ -309,6 +309,7 @@ jobs:
 | [strip-release-markers](actions/strip-release-markers) | Remove release-please marker lines from readme.txt and friends before they ship    |
 | [report-deployment](actions/report-deployment) | Record a finished deploy, and the commits it shipped since the environment's last one, in api.linchpin.com's deployment log |
 | [resolve-merge](actions/resolve-merge)          | Bring one branch into another when GitHub refuses, resolving manifest and lockfile conflicts deterministically — see [below](#resolving-merges) |
+| [complete-release-notes](actions/complete-release-notes) | Add to the open release-please PR every commit it ships that its notes miss, such as a merged snapshot's older maintenance updates — see [below](#completing-release-notes) |
 
 ## Example Shared Workflow Usage
 
@@ -623,6 +624,41 @@ npm and Composer run with scripts and plugins off, since the job holds a token
 that can push. `resolve-merge.sh` runs locally too: `MERGE_FROM=origin/main
 DRY_RUN=true bash actions/resolve-merge/resolve-merge.sh` resolves and commits
 in your checkout and pushes nothing.
+
+## Completing release notes
+
+release-please lists a release's commits by walking the branch newest first, by
+commit date, and stops at the previous release's commit. A branch merged in
+with a merge commit brings commits older than that release, and the walk never
+reaches them. A rolling `maintenance` snapshot is exactly that: linchpin.com's
+0.81.7 release PR listed none of the twenty Renovate updates its snapshot
+carried, only the commits dated after 0.81.6.
+
+`complete-release-notes` lists every commit in `<previous tag>..main` that is
+not a merge, and adds each one the release PR's notes miss under the section
+release-please would have used, sorted the way it sorts. release-please builds
+the GitHub release from the merged PR's body, so the release, the deployment
+log's notes and summary, and Mantle's changelog all carry them. Run it after
+release-please whenever it wrote its PR:
+
+```yaml
+complete-notes:
+  needs: [release-please]
+  if: ${{ needs.release-please.outputs.prs_created == 'true' }}
+  runs-on: blacksmith-2vcpu-ubuntu-2404
+  steps:
+    - uses: useblacksmith/checkout@v1
+      with:
+        fetch-depth: 0
+    - uses: linchpin/actions/actions/complete-release-notes@v4
+```
+
+It changes nothing when the notes are already complete, and only the notes: a
+missed `feat` or breaking commit is reported in the step summary, since the
+version release-please chose may then be too low. Only a single-package
+manifest is handled. `DRY_RUN=true GITHUB_REPOSITORY=owner/repo node
+actions/complete-release-notes/complete-release-notes.mjs`, from a checkout of
+`main`, prints the completed body and edits nothing.
 
 ## The monthly maintenance window
 

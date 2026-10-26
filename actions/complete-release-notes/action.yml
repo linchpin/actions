@@ -1,0 +1,89 @@
+name: "Complete Release Notes"
+description: >-
+  Add to the open release-please PR every commit it ships that its notes leave
+  out. release-please walks the target's history newest first by date and
+  stops at the previous release, so commits older than that release, brought
+  in by a merge commit (a rolling maintenance snapshot), are never listed. This
+  lists every commit in <previous tag>..<target> that is not a merge, and adds
+  each one the notes miss under its release-please section. The GitHub release
+  is built from the merged PR's body, so it carries them too.
+  complete-release-notes.mjs has the rules.
+
+  Run it after release-please, whenever release-please wrote its PR
+  (prs_created), with a token that can edit pull requests.
+
+inputs:
+  token:
+    description: "A token that can read the repository and edit its pull requests"
+    required: false
+    default: ${{ github.token }}
+  target-branch:
+    description: "The branch release-please releases from"
+    required: false
+    default: "main"
+  pull-request:
+    description: "The release PR's number. Found by release-please's branch for the target when empty."
+    required: false
+    default: ""
+  config-file:
+    description: "release-please's config"
+    required: false
+    default: "release-please-config.json"
+  manifest-file:
+    description: "release-please's manifest"
+    required: false
+    default: ".release-please-manifest.json"
+  working-directory:
+    description: "The checkout of the target branch"
+    required: false
+    default: "."
+  dry-run:
+    description: "Print the completed body and change nothing (true/false)"
+    required: false
+    default: "false"
+  node-version:
+    description: "Node version the script runs on"
+    required: false
+    default: "24"
+
+outputs:
+  added:
+    description: "How many entries were added"
+    value: ${{ steps.complete.outputs.added }}
+  pull-request:
+    description: "The release PR's number, when one is open"
+    value: ${{ steps.complete.outputs.pull-request }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    # The range is git's, so it needs the whole history and the release tags,
+    # whatever depth the caller checked out.
+    - name: Fetch the target's history and tags
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        TARGET_BRANCH: ${{ inputs.target-branch }}
+      run: |
+        if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+          git fetch --quiet --unshallow --tags origin
+        fi
+        git fetch --quiet --tags origin "+refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+
+    - name: Complete the release notes
+      id: complete
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TARGET_BRANCH: ${{ inputs.target-branch }}
+        PULL_REQUEST: ${{ inputs.pull-request }}
+        CONFIG_FILE: ${{ inputs.config-file }}
+        MANIFEST_FILE: ${{ inputs.manifest-file }}
+        DRY_RUN: ${{ inputs.dry-run }}
+      run: node "${{ github.action_path }}/complete-release-notes.mjs"
