@@ -1,0 +1,73 @@
+name: "Snapshot"
+description: >-
+  The only way a maintenance branch reaches production or staging. freeze cuts
+  snapshot/YYYY-MM-DD at one commit of the maintenance branch and opens its PR
+  into the target, closing the older open snapshot PR into the same target; a
+  person merges it as a merge commit. tidy tags merged snapshots, deletes the
+  branches of closed ones, and closes snapshot PRs left open too long.
+  snapshot.sh has the rules, and runs locally with DRY_RUN=true.
+
+  Needs no checkout: it works through the GitHub API with a token whose PRs run
+  CI (a PAT such as GH_BOT_TOKEN, not GITHUB_TOKEN). It never merges anything.
+
+inputs:
+  token:
+    description: "Token for the GitHub API"
+    required: true
+  mode:
+    description: "freeze or tidy"
+    required: true
+  repository:
+    description: "owner/name. Defaults to the repository the workflow runs in"
+    required: false
+    default: ${{ github.repository }}
+  target:
+    description: "freeze: the branch the snapshot PR goes into. Defaults to the production branch"
+    required: false
+    default: ""
+  sha:
+    description: "freeze: the commit of the maintenance branch to freeze. Defaults to its head"
+    required: false
+    default: ""
+  branch:
+    description: "The maintenance branch"
+    required: false
+    default: "maintenance"
+  production-branch:
+    description: "The branch production releases from. Defaults to the default branch"
+    required: false
+    default: ""
+  max-age-days:
+    description: "tidy: close a snapshot PR left open longer than this"
+    required: false
+    default: "7"
+  dry-run:
+    description: "Log every write instead of making it (true/false)"
+    required: false
+    default: "false"
+
+outputs:
+  branch:
+    description: "freeze: the snapshot branch it cut"
+    value: ${{ steps.snapshot.outputs.branch }}
+  pr:
+    description: "freeze: the number of the PR it opened"
+    value: ${{ steps.snapshot.outputs.pr }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run snapshot ${{ inputs.mode }}
+      id: snapshot
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        GH_REPO: ${{ inputs.repository }}
+        MODE: ${{ inputs.mode }}
+        SNAPSHOT_TARGET: ${{ inputs.target }}
+        SNAPSHOT_SHA: ${{ inputs.sha }}
+        SNAPSHOT_MAX_AGE_DAYS: ${{ inputs.max-age-days }}
+        MAINTENANCE_BRANCH: ${{ inputs.branch }}
+        PRODUCTION_BRANCH: ${{ inputs.production-branch }}
+        DRY_RUN: ${{ inputs.dry-run }}
+      run: bash "$GITHUB_ACTION_PATH/snapshot.sh" "$MODE"
