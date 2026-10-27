@@ -7,7 +7,7 @@
 # Never on push: dev changes only when a run, or a person, means it to, so a
 # deploy cannot land in the middle of the nightly sync.
 #
-# The development GitHub environment holds dev's HOST, SITE_ID, SITE_URL and
+# The @DEV_ENVIRONMENT@ GitHub environment holds dev's SITE_ID, SITE_URL and
 # SSH_USER, and allows `maintenance` only, so dispatching any other ref is
 # refused before anything builds.
 #
@@ -47,6 +47,6 @@ jobs:
     uses: linchpin/actions/.github/workflows/deploy.yml@v4
     secrets: inherit
     with:
-      environment: development
+      environment: '@DEV_ENVIRONMENT@'
       correlation_id: ${{ inputs.correlation_id }}
       safety_net: true
