@@ -689,6 +689,27 @@ jobs:
 - Every script runs locally with `DRY_RUN=true`, for example
   `GH_REPO=linchpin/ctoec DRY_RUN=true actions/rolling-maintenance/rolling-maintenance.sh`.
 
+### Converting a site repository
+
+`bin/convert-repo` moves one site repository onto rolling maintenance, from a
+checkout of this repository with `gh` logged in as a repository admin. Without
+`--apply` it only reports; run it again at any time, and it makes only the
+changes still missing:
+
+```bash
+bin/convert-repo linchpin/ctoec --dev-site-id 1804699 --promotion-target staging
+bin/convert-repo linchpin/ctoec --dev-site-id 1804699 --promotion-target staging --close-windows --apply
+```
+
+It closes monthly windows that hold only Renovate's commits (`--close-windows`;
+one with a person's commits is left for a person), creates `maintenance`, opens
+one PR with the three callers, the Renovate `rolling-maintenance` preset and the
+window's workflows removed, sets up dev's GitHub environment (the one already
+deploying to dev's site id, else `development`) to deploy `maintenance` only,
+and adds the "Green checks into maintenance" ruleset from production's required
+checks. A line starting `!` needs a person, and the exit status is then 2.
+`--out <dir>` writes the files the PR would change, to read them first.
+
 ## The monthly maintenance window
 
 Three workflows make up the maintenance model, and they only work together:
