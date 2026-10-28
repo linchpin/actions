@@ -1,13 +1,9 @@
 # Snapshots (linchpin/actions v4)
 #
-# The only way `maintenance` reaches @PROMOTION_TARGET@. Freezing cuts snapshot/YYYY-MM-DD
-# at one tested commit of `maintenance` and opens its PR; a person merges it as a
-# merge commit. Sisyphus on packagist.linchpin.com freezes after a passing
-# night and dispatches this file by name, so keep its name. The daily schedule
-# tags merged snapshots and closes stale ones. linchpin/actions snapshots.yml
-# has the detail.
-#
-# Written by linchpin/actions bin/convert-repo.
+# Freezes a tested commit of `maintenance` as snapshot/YYYY-MM-DD and opens its
+# PR into @PROMOTION_TARGET@ for a person to merge. Sisyphus dispatches this file by name
+# after a passing night, so keep its name; the daily run tidies merged and stale
+# snapshots. Written by linchpin/actions bin/convert-repo.
 
 name: Snapshots
 
@@ -42,8 +38,7 @@ on:
 permissions:
   contents: read
 
-# Each run reads the state afresh, so a queued run replacing another loses
-# nothing; a freeze and the daily tidy queue apart.
+# A freeze and the daily tidy queue apart.
 concurrency:
   group: snapshots-${{ github.event_name }}
   cancel-in-progress: false

@@ -1,21 +1,16 @@
 # Snapshots (v4)
 #
-# The only way a site's rolling `maintenance` branch reaches production or
-# staging (rolling-maintenance.yml keeps the branch current). Freezing cuts
-# snapshot/YYYY-MM-DD at one commit of the branch and opens its PR into the
-# target; a person approves it and merges it as a merge commit, and production
-# moves only when the release-please release is published. Sisyphus on
-# packagist.linchpin.com freezes after a passing night, with that night's commit
-# and a correlation_id to find the run; a person can freeze by hand. Tidying tags
-# merged snapshots, deletes closed ones' branches, and closes snapshot PRs left
-# open too long. actions/snapshot has the rules.
+# How the `maintenance` branch reaches production or staging. freeze cuts
+# snapshot/YYYY-MM-DD at one tested commit and opens a PR into the target, which
+# a person merges as a merge commit; production still moves only when the
+# release is published. Sisyphus freezes after a passing night. tidy tags merged
+# snapshots and closes stale ones.
 #
-# The caller owns the triggers and the run name (templates/rolling-maintenance):
-# it freezes on workflow_dispatch and tidies on a schedule, and `mode` follows
-# the event unless the caller sets it.
+# The caller owns the triggers and run name (templates/rolling-maintenance).
+# `mode` defaults to tidy on a schedule and freeze otherwise.
 #
-# GH_BOT_TOKEN is linchpin-bot, a PAT, so the PR it opens runs CI. Nothing here
-# ever merges.
+# GH_BOT_TOKEN (linchpin-bot) is a PAT, so the PRs it opens run CI. Nothing here
+# merges.
 
 name: Snapshots
 
@@ -85,8 +80,7 @@ jobs:
       branch: ${{ steps.snapshot.outputs.branch }}
       pr: ${{ steps.snapshot.outputs.pr }}
     steps:
-      # No checkout: the script ships with the action, so no repository code
-      # runs with this token.
+      # No checkout, so no repository code runs with this token.
       - name: Freeze or tidy
         id: snapshot
         uses: linchpin/actions/actions/snapshot@v4

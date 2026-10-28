@@ -1,26 +1,18 @@
 # Deploy to Dev (linchpin/actions v4)
 #
-# Deploys the rolling `maintenance` branch to dev, the environment the nightly
-# run copies production onto and tests. Sisyphus on packagist.linchpin.com
-# starts it after it syncs dev and brings production into `maintenance`, and
-# dispatches this file by name, so keep its name; a person can start it by hand.
-# Never on push: dev changes only when a run, or a person, means it to, so a
-# deploy cannot land in the middle of the nightly sync.
+# Deploys `maintenance` to dev, where Sisyphus tests each night's copy of
+# production. Sisyphus dispatches this file by name, so keep its name. Never on
+# push, so no deploy lands mid-sync.
 #
-# The @DEV_ENVIRONMENT@ GitHub environment holds dev's SITE_ID, SITE_URL and
-# SSH_USER, and allows `maintenance` only, so dispatching any other ref is
-# refused before anything builds.
-#
-# Dev holds a copy of production's data, so every deploy installs Safety Net
-# there first and fails unless every site reports that data scrubbed.
-#
-# Written by linchpin/actions bin/convert-repo.
+# The @DEV_ENVIRONMENT@ environment holds dev's SITE_ID, SITE_URL and SSH_USER and deploys
+# `maintenance` only. Dev has production's data, so Safety Net goes on first and
+# the deploy fails unless that data is scrubbed. Written by linchpin/actions
+# bin/convert-repo.
 
 name: Deploy to Dev
 
-# A dispatch returns no run id, so Sisyphus finds its run by the correlation_id
-# it put in the name. The deploy hands it on to the deployment log on
-# api.linchpin.com, where Sisyphus reads what the deploy shipped.
+# Sisyphus finds its dispatch by the correlation_id in the name, which the
+# deployment log also records.
 run-name: Deploy ${{ github.ref_name }} to dev ${{ inputs.correlation_id }}
 
 on:
@@ -35,8 +27,8 @@ concurrency:
   group: deploy-dev
   cancel-in-progress: false
 
-# contents: write is required because the shared build job declares it
-# (release-asset upload); a called workflow cannot exceed the caller's grant.
+# The shared build job declares contents: write, and a called workflow cannot
+# exceed its caller's grant.
 permissions:
   contents: write
   deployments: write

@@ -631,14 +631,12 @@ in your checkout and pushes nothing.
 
 ## Rolling maintenance
 
-One permanent `maintenance` branch, never closed and never dated, replaces the
-monthly `maintenance/YYYY-MM` window. Renovate raises non-majors against it; the
-rolling job brings production in and merges what is green; Sisyphus on
-packagist.linchpin.com copies production's data to dev each night, deploys
-`maintenance` there and tests it; and a passing night becomes a snapshot PR that
-a person merges. Nothing reaches production without that merge and a published
-release. linchpin.com ran it first, from its own `tools/` scripts, which these
-replace.
+One permanent `maintenance` branch, never closed and never dated. Renovate
+raises non-majors against it; the rolling job brings production in and merges
+what is green; Sisyphus on packagist.linchpin.com copies production's data to dev
+each night, deploys `maintenance` there and tests it; and a passing night becomes
+a snapshot PR that a person merges. Nothing reaches production without that
+merge and a published release.
 
 A site repo needs three thin callers, which Sisyphus dispatches by file name.
 [templates/rolling-maintenance](templates/rolling-maintenance) has them:

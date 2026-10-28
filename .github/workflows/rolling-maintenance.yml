@@ -1,37 +1,24 @@
 # Rolling Maintenance (v4)
 #
-# One permanent `maintenance` branch, never closed and never dated, in place of
-# the monthly maintenance/YYYY-MM windows (maintenance.yml). The site's Renovate
-# rules route non-majors, lock-file maintenance and the Linchpin packages
-# Linchpin Governing does not watch to it. This workflow brings the production
-# branch into it first and then merges green Renovate PRs into it, a major only
-# once a person approves it (actions/rolling-maintenance). It never promotes: the
-# branch reaches production only through a snapshot PR that a person merges
-# (snapshots.yml), and production moves only when the release-please release is
-# published.
+# Keeps a site's permanent `maintenance` branch current. Each run brings the
+# production branch in, then merges green Renovate PRs into it: automerge-safe
+# ones at once, any other once a person approves it. Nothing here promotes;
+# snapshots.yml does, through a PR a person merges.
 #
-# When GitHub refuses to bring the production branch in, nearly always because
-# both sides changed neighbouring lines of a manifest or lockfile, resolve-merge
-# resolves it the way the playbook tells a person to, and the script runs again;
-# only if that gives up does a maintenance-conflict issue open. It is tried on
-# every run while the conflict lasts. Those steps run only on a refused merge, so
-# every other run is a few API calls and no checkout at all.
+# A merge GitHub refuses (both sides changed the same lines, usually a lockfile)
+# goes to resolve-merge, then to Sisyphus for any file it cannot settle, and
+# opens a maintenance-conflict issue only when both give up.
 #
-# The same job merges Linchpin Governing's release bumps into the production
-# branch (actions/governing-merge) and tidies snapshots merged into it
-# (actions/snapshot tidy): they share its triggers and its token, and a step
-# costs nothing where a second job would bill its own minute on every push.
+# The same job merges green Linchpin Governing bumps into production and tags
+# snapshots merged there, since they share its triggers and token.
 #
-# The caller owns the triggers and the run name, because Sisyphus on
-# packagist.linchpin.com dispatches the site's own maintenance.yml and finds the
-# run by the correlation_id in its name. templates/rolling-maintenance has the
-# caller, which gives Sisyphus's dispatches a concurrency group of their own:
-# GitHub keeps one pending run per group, so a push or a finished CI run could
-# otherwise replace the dispatch Sisyphus is waiting for.
+# The caller owns the triggers, run name and concurrency: Sisyphus dispatches the
+# site's own maintenance.yml and finds the run by its correlation_id. See
+# templates/rolling-maintenance.
 #
-# GH_BOT_TOKEN is linchpin-bot. A PAT, not GITHUB_TOKEN, so what it pushes and
-# opens triggers other workflows, and exempt from the production branch's
-# ruleset, which governing-merge relies on.
+# GH_BOT_TOKEN (linchpin-bot) is a PAT, so its pushes and PRs start other
+# workflows, and it is exempt from production's ruleset, which governing-merge
+# relies on.
 
 name: Rolling Maintenance
 
@@ -49,9 +36,7 @@ on:
         default: ""
         type: string
       skip_checks:
-        description: >-
-          Checks the production branch requires that never run on a PR into the
-          maintenance branch, one per line (linchpin.com: npm audit)
+        description: "Checks production requires that never run on PRs into the maintenance branch, one per line"
         required: false
         default: ""
         type: string
@@ -105,14 +90,11 @@ permissions:
 
 jobs:
   roll:
-    # The scripts never wait for this job's own check run, which GitHub names
-    # "<caller's job> / Rolling maintenance"; renaming it means passing
-    # self-check to each action below.
+    # The actions ignore this job's own check run ("<caller's job> / Rolling
+    # maintenance"); renaming it means passing self-check to each of them.
     name: Rolling maintenance
-    # Only CI runs on a PR into the branch, or from a governing/ branch, start
-    # the job, and a skipped job bills nothing. A review starts it only when it
-    # approves one of those. A CI run anywhere else, or a Renovate major into
-    # the production branch, skips it.
+    # CI results and approvals count only for PRs into the branch or Governing
+    # bumps; anything else skips the job, which bills nothing.
     if: >-
       (github.event_name != 'workflow_run' && github.event_name != 'pull_request_review') || (
         github.event_name == 'workflow_run' &&
@@ -127,8 +109,7 @@ jobs:
     runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
-      # No checkout: the scripts ship with the actions, so no code from the
-      # repository, nor from a PR workflow_run fires for, runs with this token.
+      # No checkout, so no repository or PR code runs with this token.
       - name: Bring production in, merge what is green
         id: roll
         uses: linchpin/actions/actions/rolling-maintenance@v4
@@ -140,9 +121,8 @@ jobs:
           resolver: ${{ inputs.resolve_conflicts }}
           dry-run: ${{ inputs.dry_run }}
 
-      # The rest runs only when GitHub refused to bring production in. Blobless,
-      # so the full history the merge needs costs no file contents it does not
-      # read. linchpin-bot's token, because the resolved merge is pushed.
+      # Only after a refused merge. Full history, blobless, with the bot's token
+      # because the resolved merge is pushed.
       - name: Check out the maintenance branch to resolve the merge
         if: steps.roll.outputs.conflict == 'true'
         uses: actions/checkout@v6
@@ -153,10 +133,8 @@ jobs:
           filter: blob:none
           token: ${{ secrets.GH_BOT_TOKEN }}
 
-      # Giving up is an answer, not a failure: the next step opens the issue. A
-      # conflict in a file other than a manifest or lockfile is published to
-      # sisyphus/conflicts/<pair> for Sisyphus to answer, and its answers are
-      # checked and applied on the run it dispatches next.
+      # Giving up is not a failure: the next step opens the issue. Files it
+      # cannot settle go to Sisyphus, whose answers apply on a later run.
       - name: Resolve the merge
         if: steps.roll.outputs.conflict == 'true'
         uses: linchpin/actions/actions/resolve-merge@v4
@@ -179,8 +157,7 @@ jobs:
           resolver: tried
           dry-run: ${{ inputs.dry_run }}
 
-      # Independent of the maintenance branch: a red step above must not hold up
-      # a release that is ready for production.
+      # Runs even when a step above failed, so a release is never held up.
       - name: Merge green Governing bumps into production
         if: ${{ !cancelled() && inputs.governing_merge }}
         uses: linchpin/actions/actions/governing-merge@v4
@@ -190,9 +167,8 @@ jobs:
           commit-prefix: ${{ inputs.governing_commit_prefix }}
           dry-run: ${{ inputs.dry_run }}
 
-      # A snapshot merged into production arrives here as a push: tag it and
-      # delete its branch now. Snapshots into staging, closed ones and stale ones
-      # wait for snapshots.yml's daily run.
+      # A snapshot merged into production arrives as a push; tag it now.
+      # snapshots.yml tidies the rest daily.
       - name: Tidy snapshots
         if: ${{ !cancelled() && inputs.tidy_snapshots && github.event_name == 'push' }}
         uses: linchpin/actions/actions/snapshot@v4
