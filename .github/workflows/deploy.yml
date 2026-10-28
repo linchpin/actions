@@ -195,9 +195,11 @@ jobs:
     if: ${{ always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
+    # The steps below create and update this run's deployment themselves.
     environment:
       name: ${{ inputs.environment }}
       url: ${{ vars.SITE_URL }}
+      deployment: false
     concurrency:
       group: deploy-${{ github.repository }}-${{ inputs.environment }}
       cancel-in-progress: false

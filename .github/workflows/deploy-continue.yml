@@ -98,9 +98,11 @@ jobs:
     name: Continue deploy to ${{ inputs.environment }}
     runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
+    # The steps below update the original run's deployment.
     environment:
       name: ${{ inputs.environment }}
       url: ${{ vars.SITE_URL }}
+      deployment: false
     concurrency:
       group: deploy-${{ github.repository }}-${{ inputs.environment }}
       cancel-in-progress: false
