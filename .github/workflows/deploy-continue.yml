@@ -1,11 +1,9 @@
 # Continue Deploy (v4)
 #
-# Second half of the backup-and-continue flow. When deploy.yml runs with
-# `do_backup: true` (Pressable), it triggers an on-demand backup, registers
-# the deployment with Mantle, and parks the GitHub deployment as `queued`.
-# Once the backup completes, Mantle dispatches the caller repo's continue
-# workflow (workflow_dispatch with deployment_id + workflow_run_id), which
-# calls this reusable workflow to finish the deploy.
+# Finishes a `do_backup` deploy from deploy.yml once api.linchpin.com has
+# backed the site up. api dispatches the caller's continue workflow with
+# deployment_id and workflow_run_id as string inputs, so the caller must
+# declare both.
 #
 # Previous (v3): deploy-pressable-continue.yml. The plumbing had gaps that
 # kept the flow aspirational: the caller's dispatch workflow declared no
@@ -17,11 +15,6 @@
 # download-artifact's run-id + github-token (requires actions: read), or —
 # when the original deploy used a release asset — re-download by release_tag.
 # Status updates target the deployment_id created by the original run.
-#
-# Mantle integration contract (unchanged from v3 in spirit):
-#   POST https://mantle.linchpin.com/api/v1/deployments/start receives
-#   deployment_id + workflow_run_id; Mantle dispatches the caller's continue
-#   workflow with those values as inputs when the backup completes.
 
 name: Continue Deploy
 
