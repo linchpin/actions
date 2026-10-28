@@ -1,28 +1,23 @@
 # Rolling Maintenance (linchpin/actions v4)
 #
-# Keeps the permanent `maintenance` branch current: brings @PRODUCTION_BRANCH@ in, then
-# merges green Renovate PRs into it. It never promotes; snapshots.yml does, and
-# only through a PR a person merges. linchpin/actions rolling-maintenance.yml
-# has the detail. Sisyphus on packagist.linchpin.com dispatches this file by
-# name before each nightly deploy to dev, so keep its name.
-#
-# Written by linchpin/actions bin/convert-repo.
+# Keeps `maintenance` current: brings @PRODUCTION_BRANCH@ in and merges green Renovate PRs
+# into it. Sisyphus dispatches this file by name before each nightly deploy to
+# dev, so keep its name. Written by linchpin/actions bin/convert-repo.
 
 name: Rolling Maintenance
 
-# A dispatch returns no run id, so Sisyphus finds its run by the correlation_id
-# it put in the name. A name that is only whitespace keeps GitHub's own.
+# Sisyphus finds its dispatch by the correlation_id in the name; a blank name
+# keeps GitHub's own.
 run-name: >-
   ${{ inputs.correlation_id
   && format('Rolling Maintenance {0}', inputs.correlation_id)
   || ' ' }}
 
 on:
-  # A change on production: bring it into the branch.
+  # Production changed: bring it in.
   push:
     branches: ['@PRODUCTION_BRANCH@']
-  # CI finishing on a PR into the branch, or on a Governing bump: merge what is
-  # green. The shared job skips every other CI run, at no cost.
+  # CI finishing on a PR into the branch or a Governing bump: merge what is green.
   workflow_run:
     workflows: ['@CI_WORKFLOW@']
     types: [completed]
@@ -30,7 +25,7 @@ on:
   # An approving review: an approved major can merge.
   pull_request_review:
     types: [submitted]
-  # Safety net for a missed event.
+  # In case an event was missed.
   schedule:
     - cron: '23 12 * * *'
   workflow_dispatch:
@@ -47,9 +42,8 @@ on:
 permissions:
   contents: read
 
-# Dispatches queue apart from event runs. GitHub keeps one pending run per
-# group, so in a single group a push or a finished CI run could replace the
-# dispatch Sisyphus is waiting for, and the night would fail as cancelled.
+# Dispatches get their own queue: GitHub keeps one pending run per group, so an
+# event run could otherwise replace the dispatch Sisyphus is waiting for.
 concurrency:
   group: rolling-maintenance-${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'events' }}
   cancel-in-progress: false
