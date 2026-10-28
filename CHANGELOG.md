@@ -1,5 +1,15 @@
 # Changelog
 
+## [4.20.1](https://github.com/linchpin/actions/compare/v4.20.0...v4.20.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **NO-TASK:** Report a backed-up deploy to the deployment log when it finishes ([7e9c677](https://github.com/linchpin/actions/commit/7e9c6777f113543811b3affe4890cac0f38e80e1))
+* **NO-TASK:** Report a backed-up deploy to the deployment log when it finishes ([af3648c](https://github.com/linchpin/actions/commit/af3648c3a8f0690c7f0de1cddecde6ca5ad4a572))
+* **NO-TASK:** Stop the deploy jobs creating a second GitHub deployment ([7bb852d](https://github.com/linchpin/actions/commit/7bb852da0b74b97c0bbbac3f71b67188074c126d))
+* **NO-TASK:** Stop the deploy jobs creating a second GitHub deployment ([65b7ab3](https://github.com/linchpin/actions/commit/65b7ab3d3de6b4063f6cd540b08cc11964216216))
+
 ## [4.20.0](https://github.com/linchpin/actions/compare/v4.19.0...v4.20.0) (2026-10-28)
 
 
