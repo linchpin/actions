@@ -1,0 +1,53 @@
+# Snapshots (linchpin/actions v4)
+#
+# Freezes a tested commit of `maintenance` as snapshot/YYYY-MM-DD and opens its
+# PR into @PROMOTION_TARGET@ for a person to merge. Sisyphus dispatches this file by name
+# after a passing night, so keep its name; the daily run tidies merged and stale
+# snapshots. Written by linchpin/actions bin/convert-repo.
+
+name: Snapshots
+
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch'
+  && format('Freeze a snapshot into {0} {1}', inputs.target, inputs.correlation_id)
+  || 'Tidy snapshots' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Branch the snapshot PR goes into"
+        type: choice
+        options: ['@SNAPSHOT_TARGETS@']
+        default: '@PROMOTION_TARGET@'
+      sha:
+        description: "Commit of maintenance to freeze (the head of maintenance when empty)"
+        type: string
+        required: false
+      dry_run:
+        description: "Log what would be frozen or closed without writing anything"
+        type: boolean
+        default: false
+      correlation_id:
+        description: "Set by Sisyphus to find this run; leave it empty"
+        type: string
+        required: false
+  schedule:
+    - cron: '41 12 * * *'
+
+permissions:
+  contents: read
+
+# A freeze and the daily tidy queue apart.
+concurrency:
+  group: snapshots-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    uses: linchpin/actions/.github/workflows/snapshots.yml@v4
+    secrets: inherit
+    with:
+      target: ${{ inputs.target }}
+      sha: ${{ inputs.sha }}
+      dry_run: ${{ inputs.dry_run || false }}

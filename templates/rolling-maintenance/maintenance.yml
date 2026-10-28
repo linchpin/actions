@@ -1,0 +1,56 @@
+# Rolling Maintenance (linchpin/actions v4)
+#
+# Keeps `maintenance` current: brings @PRODUCTION_BRANCH@ in and merges green Renovate PRs
+# into it. Sisyphus dispatches this file by name before each nightly deploy to
+# dev, so keep its name. Written by linchpin/actions bin/convert-repo.
+
+name: Rolling Maintenance
+
+# Sisyphus finds its dispatch by the correlation_id in the name; a blank name
+# keeps GitHub's own.
+run-name: >-
+  ${{ inputs.correlation_id
+  && format('Rolling Maintenance {0}', inputs.correlation_id)
+  || ' ' }}
+
+on:
+  # Production changed: bring it in.
+  push:
+    branches: ['@PRODUCTION_BRANCH@']
+  # CI finishing on a PR into the branch or a Governing bump: merge what is green.
+  workflow_run:
+    workflows: ['@CI_WORKFLOW@']
+    types: [completed]
+    branches: ['renovate/**', 'governing/**']
+  # An approving review: an approved major can merge.
+  pull_request_review:
+    types: [submitted]
+  # In case an event was missed.
+  schedule:
+    - cron: '23 12 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Log what would be merged without writing anything"
+        type: boolean
+        default: false
+      correlation_id:
+        description: "Set by Sisyphus to find this run; leave it empty"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+# Dispatches get their own queue: GitHub keeps one pending run per group, so an
+# event run could otherwise replace the dispatch Sisyphus is waiting for.
+concurrency:
+  group: rolling-maintenance-${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'events' }}
+  cancel-in-progress: false
+
+jobs:
+  roll:
+    uses: linchpin/actions/.github/workflows/rolling-maintenance.yml@v4
+    secrets: inherit
+    with:
+      dry_run: ${{ inputs.dry_run || false }}

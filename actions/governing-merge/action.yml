@@ -1,0 +1,51 @@
+name: "Governing Merge"
+description: >-
+  Merge Linchpin Governing's release bumps (governing/bump-* PRs from
+  linchpin-packagist[bot]) into the production branch once they are level with
+  it and green, when each moves exactly one package main already requires and is
+  not a major, unless a person approved it. Behind, it updates the branch;
+  conflicted, it asks Governing to regenerate the lock. governing-merge.sh has
+  the rules, and runs locally with DRY_RUN=true.
+
+  The token's user must be exempt from the production branch's ruleset
+  (linchpin-bot is), which is why the script checks the ruleset's conditions
+  itself first.
+
+inputs:
+  token:
+    description: "Token for the GitHub API"
+    required: true
+  repository:
+    description: "owner/name. Defaults to the repository the workflow runs in"
+    required: false
+    default: ${{ github.repository }}
+  production-branch:
+    description: "The branch Governing's PRs go into. Defaults to the default branch"
+    required: false
+    default: ""
+  commit-prefix:
+    description: "The squash commit's type and scope, worded like the repository's Renovate updates so release-please files it with them"
+    required: false
+    default: "build(composer):"
+  self-check:
+    description: "The calling job's name, whose own check run is never waited for"
+    required: false
+    default: "Rolling maintenance"
+  dry-run:
+    description: "Log every write instead of making it (true/false)"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Merge green Governing bumps
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        GH_REPO: ${{ inputs.repository }}
+        PRODUCTION_BRANCH: ${{ inputs.production-branch }}
+        COMMIT_PREFIX: ${{ inputs.commit-prefix }}
+        SELF_CHECK: ${{ inputs.self-check }}
+        DRY_RUN: ${{ inputs.dry-run }}
+      run: bash "$GITHUB_ACTION_PATH/governing-merge.sh"

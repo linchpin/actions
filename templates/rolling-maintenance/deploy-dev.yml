@@ -1,0 +1,44 @@
+# Deploy to Dev (linchpin/actions v4)
+#
+# Deploys `maintenance` to dev, where Sisyphus tests each night's copy of
+# production. Sisyphus dispatches this file by name, so keep its name. Never on
+# push, so no deploy lands mid-sync.
+#
+# The @DEV_ENVIRONMENT@ environment holds dev's SITE_ID, SITE_URL and SSH_USER and deploys
+# `maintenance` only. Dev has production's data, so Safety Net goes on first and
+# the deploy fails unless that data is scrubbed. Written by linchpin/actions
+# bin/convert-repo.
+
+name: Deploy to Dev
+
+# Sisyphus finds its dispatch by the correlation_id in the name, which the
+# deployment log also records.
+run-name: Deploy ${{ github.ref_name }} to dev ${{ inputs.correlation_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      correlation_id:
+        description: "Set by Sisyphus to find this run; leave it empty"
+        type: string
+        required: false
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+# The shared build job declares contents: write, and a called workflow cannot
+# exceed its caller's grant.
+permissions:
+  contents: write
+  deployments: write
+
+jobs:
+  deploy:
+    name: Deploy to Dev
+    uses: linchpin/actions/.github/workflows/deploy.yml@v4
+    secrets: inherit
+    with:
+      environment: '@DEV_ENVIRONMENT@'
+      correlation_id: ${{ inputs.correlation_id }}
+      safety_net: true

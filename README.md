@@ -267,6 +267,8 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
 | [qa-run.yml](.github/workflows/qa-run.yml)                 | Trigger a QA platform run on deploy, poll it to a terminal state, and fail the job on a red test — the Ghost Inspector replacement |
 | [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
+| [rolling-maintenance.yml](.github/workflows/rolling-maintenance.yml) | Keeps a permanent `maintenance` branch current: brings production in, merges green Renovate PRs into it, merges green Linchpin Governing bumps into production — see [Rolling maintenance](#rolling-maintenance) |
+| [snapshots.yml](.github/workflows/snapshots.yml)           | Freezes a tested commit of `maintenance` as `snapshot/YYYY-MM-DD` and opens its PR into production or staging; tidies merged and stale snapshots |
 | [maintenance.yml](.github/workflows/maintenance.yml)       | Opens the monthly window: creates `maintenance/YYYY-MM` and the draft PR that Renovate stacks its dependency PRs onto, and flags any older window still open |
 | [auto-merge-maintenance.yml](.github/workflows/auto-merge-maintenance.yml) | Cron-driven: auto-merges open Renovate PRs targeting a `maintenance/YYYY-MM` branch, excluding anything labeled `major`. Never touches main/master |
 | [check-overrides.yml](.github/workflows/check-overrides.yml) | Report npm `overrides` pins that no longer do anything, optionally tracking them in a single reusable issue     |
@@ -308,6 +310,9 @@ jobs:
 | [check-overrides](actions/check-overrides)      | Probe each npm `overrides` pin and report the ones that are redundant or dangling  |
 | [strip-release-markers](actions/strip-release-markers) | Remove release-please marker lines from readme.txt and friends before they ship    |
 | [report-deployment](actions/report-deployment) | Record a finished deploy, and the commits it shipped since the environment's last one, in api.linchpin.com's deployment log |
+| [rolling-maintenance](actions/rolling-maintenance) | Bring production into the `maintenance` branch, then merge its green Renovate PRs, through the API alone |
+| [snapshot](actions/snapshot)                    | Freeze a snapshot of `maintenance` and open its PR, or tidy snapshots, through the API alone |
+| [governing-merge](actions/governing-merge)      | Merge Linchpin Governing's green, single-package release bumps into production |
 | [resolve-merge](actions/resolve-merge)          | Bring one branch into another when GitHub refuses, resolving manifest and lockfile conflicts deterministically — see [below](#resolving-merges) |
 
 ## Example Shared Workflow Usage
@@ -623,6 +628,64 @@ npm and Composer run with scripts and plugins off, since the job holds a token
 that can push. `resolve-merge.sh` runs locally too: `MERGE_FROM=origin/main
 DRY_RUN=true bash actions/resolve-merge/resolve-merge.sh` resolves and commits
 in your checkout and pushes nothing.
+
+## Rolling maintenance
+
+One permanent `maintenance` branch, never closed and never dated. Renovate
+raises non-majors against it; the rolling job brings production in and merges
+what is green; Sisyphus on packagist.linchpin.com copies production's data to dev
+each night, deploys `maintenance` there and tests it; and a passing night becomes
+a snapshot PR that a person merges. Nothing reaches production without that
+merge and a published release.
+
+A site repo needs three thin callers, which Sisyphus dispatches by file name.
+[templates/rolling-maintenance](templates/rolling-maintenance) has them:
+
+| Caller | Calls | Sisyphus dispatches it to |
+| --- | --- | --- |
+| `maintenance.yml` | `rolling-maintenance.yml` | bring production in and merge updates before each nightly deploy |
+| `deploy-dev.yml` | `deploy.yml` with `environment: development` and `safety_net: true` | deploy `maintenance` to dev |
+| `snapshots.yml` | `snapshots.yml` | freeze the night's commit into the promotion target |
+
+The callers keep the triggers and the run name, because a dispatch returns no
+run id: Sisyphus finds its run by the `correlation_id` it puts in the name.
+They also give a dispatch its own concurrency group. GitHub keeps one pending
+run per group, so in a single group a push or a finished CI run can replace the
+dispatch Sisyphus is waiting for, and the night fails as cancelled.
+
+```yaml
+jobs:
+  roll:
+    uses: linchpin/actions/.github/workflows/rolling-maintenance.yml@v4
+    secrets: inherit
+    with:
+      dry_run: ${{ inputs.dry_run || false }}
+      # Only where they differ from the defaults:
+      # branch: maintenance
+      # production_branch: ''          # the default branch
+      # skip_checks: npm audit         # required on production, never run into maintenance
+      # governing_commit_prefix: 'build(composer):'
+```
+
+- **The branch is `maintenance`.** Git cannot hold it beside `maintenance/YYYY-MM`
+  branches, so close the monthly window, and delete the old `maintenance.yml`
+  caller of the monthly workflow, first; the job refuses to create the branch
+  while one exists.
+- **Required checks come from production's ruleset**, read at run time. A check
+  that only runs on PRs into production (linchpin.com's `npm audit`) goes in
+  `skip_checks`, or no update into `maintenance` ever turns green.
+- **A conflict goes to resolve-merge, then Sisyphus, then a person.** Manifests
+  and lockfiles are resolved deterministically; any other conflicted file is
+  published for Sisyphus to answer; only when both give up does one
+  `maintenance-conflict` issue open. Sisyphus reads that label.
+- **No checkout, no repository code.** The scripts ship with the actions, so
+  nothing from the site repository, nor from a PR `workflow_run` fires for, runs
+  with `GH_BOT_TOKEN`. A checkout happens only to resolve a refused merge.
+- **Snapshot targets are any branch** other than `maintenance`: production, or a
+  staging branch that promotes to it. The caller's `target` choice lists the
+  ones the site uses.
+- Every script runs locally with `DRY_RUN=true`, for example
+  `GH_REPO=linchpin/ctoec DRY_RUN=true actions/rolling-maintenance/rolling-maintenance.sh`.
 
 ## The monthly maintenance window
 

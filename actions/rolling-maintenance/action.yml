@@ -1,0 +1,71 @@
+name: "Rolling Maintenance"
+description: >-
+  Keep a site's permanent maintenance branch current: bring the production
+  branch into it (a fast-forward, or a merge GitHub makes), then squash-merge
+  each Renovate PR into it once its checks are green, an automerge-safe one at
+  once and any other once a person approves it. A refused merge is handed to
+  resolve-merge (resolver true, output conflict), and once that has given up
+  (resolver tried) one maintenance-conflict issue is opened for a person.
+  rolling-maintenance.sh has the rules, and runs locally with DRY_RUN=true.
+
+  Needs no checkout: it works through the GitHub API with a token that can push
+  to the branch, merge PRs and open issues, one whose writes start other
+  workflows (a PAT such as GH_BOT_TOKEN, not GITHUB_TOKEN).
+
+inputs:
+  token:
+    description: "Token for the GitHub API"
+    required: true
+  repository:
+    description: "owner/name. Defaults to the repository the workflow runs in"
+    required: false
+    default: ${{ github.repository }}
+  branch:
+    description: "The maintenance branch"
+    required: false
+    default: "maintenance"
+  production-branch:
+    description: "The branch brought into it, whose ruleset names the required checks. Defaults to the default branch"
+    required: false
+    default: ""
+  skip-checks:
+    description: "Checks the production branch requires that never run on a PR into the maintenance branch, one per line"
+    required: false
+    default: ""
+  self-check:
+    description: "The calling job's name, whose own check run is never waited for"
+    required: false
+    default: "Rolling maintenance"
+  resolver:
+    description: >-
+      true hands a refused merge to resolve-merge through the conflict output;
+      tried says resolve-merge already gave up, so the issue opens; false opens
+      the issue at once
+    required: false
+    default: "false"
+  dry-run:
+    description: "Log every write instead of making it (true/false)"
+    required: false
+    default: "false"
+
+outputs:
+  conflict:
+    description: "true when GitHub refused to bring the production branch in and resolver was true"
+    value: ${{ steps.roll.outputs.conflict == 'true' }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Bring the production branch in, merge what is green
+      id: roll
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        GH_REPO: ${{ inputs.repository }}
+        MAINTENANCE_BRANCH: ${{ inputs.branch }}
+        PRODUCTION_BRANCH: ${{ inputs.production-branch }}
+        BRANCH_SKIPS_CHECKS: ${{ inputs.skip-checks }}
+        SELF_CHECK: ${{ inputs.self-check }}
+        LOCK_RESOLVER: ${{ inputs.resolver }}
+        DRY_RUN: ${{ inputs.dry-run }}
+      run: bash "$GITHUB_ACTION_PATH/rolling-maintenance.sh"

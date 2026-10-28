@@ -1,0 +1,95 @@
+# Snapshots (v4)
+#
+# How the `maintenance` branch reaches production or staging. freeze cuts
+# snapshot/YYYY-MM-DD at one tested commit and opens a PR into the target, which
+# a person merges as a merge commit; production still moves only when the
+# release is published. Sisyphus freezes after a passing night. tidy tags merged
+# snapshots and closes stale ones.
+#
+# The caller owns the triggers and run name (templates/rolling-maintenance).
+# `mode` defaults to tidy on a schedule and freeze otherwise.
+#
+# GH_BOT_TOKEN (linchpin-bot) is a PAT, so the PRs it opens run CI. Nothing here
+# merges.
+
+name: Snapshots
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "freeze or tidy. Defaults to tidy on a schedule and freeze otherwise"
+        required: false
+        default: ""
+        type: string
+      target:
+        description: "freeze: the branch the snapshot PR goes into. Defaults to the production branch"
+        required: false
+        default: ""
+        type: string
+      sha:
+        description: "freeze: the commit of the maintenance branch to freeze. Defaults to its head"
+        required: false
+        default: ""
+        type: string
+      branch:
+        description: "The maintenance branch"
+        required: false
+        default: "maintenance"
+        type: string
+      production_branch:
+        description: "The branch production releases from. Defaults to the repository's default branch"
+        required: false
+        default: ""
+        type: string
+      max_age_days:
+        description: "tidy: close a snapshot PR left open longer than this"
+        required: false
+        default: 7
+        type: number
+      dry_run:
+        description: "Log what would be frozen or closed without writing anything"
+        required: false
+        default: false
+        type: boolean
+      runner:
+        description: "Runner label for this workflow's jobs. Defaults to vars.RUNNER, then ubuntu-latest"
+        required: false
+        default: ""
+        type: string
+    secrets:
+      GH_BOT_TOKEN:
+        required: true
+    outputs:
+      branch:
+        description: "freeze: the snapshot branch it cut"
+        value: ${{ jobs.snapshot.outputs.branch }}
+      pr:
+        description: "freeze: the number of the PR it opened"
+        value: ${{ jobs.snapshot.outputs.pr }}
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    name: ${{ (inputs.mode || (github.event_name == 'schedule' && 'tidy' || 'freeze')) == 'tidy' && 'Tidy snapshots' || 'Freeze a snapshot' }}
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      branch: ${{ steps.snapshot.outputs.branch }}
+      pr: ${{ steps.snapshot.outputs.pr }}
+    steps:
+      # No checkout, so no repository code runs with this token.
+      - name: Freeze or tidy
+        id: snapshot
+        uses: linchpin/actions/actions/snapshot@v4
+        with:
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          mode: ${{ inputs.mode || (github.event_name == 'schedule' && 'tidy' || 'freeze') }}
+          target: ${{ inputs.target }}
+          sha: ${{ inputs.sha }}
+          branch: ${{ inputs.branch }}
+          production-branch: ${{ inputs.production_branch }}
+          max-age-days: ${{ inputs.max_age_days }}
+          dry-run: ${{ inputs.dry_run }}
