@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.20.0](https://github.com/linchpin/actions/compare/v4.19.0...v4.20.0) (2026-10-28)
+
+
+### Features
+
+* **LINCHPIN-5940:** Share rolling maintenance, snapshots and Governing merges as reusable workflows ([#200](https://github.com/linchpin/actions/issues/200)) ([5542ef1](https://github.com/linchpin/actions/commit/5542ef11b9279868838269c2fb0331d025bbeb0d))
+* **LINCHPIN-5941:** Convert a site repository to rolling maintenance in one command ([#201](https://github.com/linchpin/actions/issues/201)) ([8753ce8](https://github.com/linchpin/actions/commit/8753ce80e31abc24b3ab8b52334520a8223a0c52))
+
+
+### Bug Fixes
+
+* **NO-TASK:** Have api.linchpin.com take the backup a do_backup deploy waits on, and continue it ([#205](https://github.com/linchpin/actions/issues/205)) ([c1524d4](https://github.com/linchpin/actions/commit/c1524d46762bec01f9dd3972284ad1a37c802e72))
+* **NO-TASK:** Pass warnings-only lint runs, and keep the README's blank lines in update-readme ([#204](https://github.com/linchpin/actions/issues/204)) ([a4f6a12](https://github.com/linchpin/actions/commit/a4f6a12b1e0303dca4db714949525481d0b603f6))
+
 ## [4.19.0](https://github.com/linchpin/actions/compare/v4.18.0...v4.19.0) (2026-10-25)
 
 
