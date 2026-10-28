@@ -40,18 +40,40 @@ if [[ -n "$table_output" ]]; then
   # Write the table_output to a temporary file
   echo "$table_output" > "$TEMP_FILE"
 
-  # Replace the content between the comments in the Markdown file
+  # Replace the lines between the comments in the Markdown file, line by line.
+  # This read the README in paragraph mode (RS = "") and wrote it back with
+  # ORS = "\n", which deleted every blank line in the file on every release:
+  # linchpin.com's README had none left in 146 lines. Everything outside the
+  # markers is now printed exactly as read. A start marker with no end marker
+  # after it leaves the file as it was rather than dropping the rest of it.
   awk -v temp_file="$TEMP_FILE" '
-    BEGIN { RS = ""; ORS = "\n" }
-    {
-      if ($0 ~ /<!-- x-linchpin-plugin-list-start -->/) {
-        while ((getline line < temp_file) > 0) {
-          sub(/<!-- x-linchpin-plugin-list-start -->.*<!-- x-linchpin-plugin-list-end -->/, "<!-- x-linchpin-plugin-list-start -->\n" line "\n<!-- x-linchpin-plugin-list-end -->")
-        }
-        close(temp_file)
+    BEGIN {
+      while ((getline line < temp_file) > 0) table = table (table == "" ? "" : "\n") line
+      close(temp_file)
+    }
+    replacing {
+      held = held $0 "\n"
+      if ($0 ~ /<!-- x-linchpin-plugin-list-end -->/) {
+        print table
+        print
+        replacing = 0
+        held = ""
+      }
+      next
+    }
+    /<!-- x-linchpin-plugin-list-start -->/ {
+      if ($0 ~ /<!-- x-linchpin-plugin-list-end -->/) {
+        sub(/<!-- x-linchpin-plugin-list-start -->.*<!-- x-linchpin-plugin-list-end -->/, "<!-- x-linchpin-plugin-list-start -->\n" table "\n<!-- x-linchpin-plugin-list-end -->")
+        print
+        next
       }
       print
+      replacing = 1
+      held = ""
+      next
     }
+    { print }
+    END { if (replacing) printf "%s", held }
   ' "$README_FILE" > temp && mv temp "$README_FILE"
 fi
 
