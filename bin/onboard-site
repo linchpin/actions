@@ -1,0 +1,364 @@
+#!/usr/bin/env bash
+#
+# Put one client site on Sisyphus's nightly rolling maintenance.
+#
+#   bin/onboard-site                      # pick the client and its site from lists
+#   bin/onboard-site <hostname> [options] # carry on with a site already picked
+#   ... --apply                           # make the changes; without it nothing is written
+#
+# It walks the steps in order, and stops at the first one that needs a person,
+# saying what to do. Run it again afterwards: what was already picked is read back
+# from the site's enrollment, and every step already done is skipped.
+#
+#   1. Pick the client, then its production site, from what api.linchpin.com
+#      knows (packagist.linchpin.com's environments and Sisyphus's choices).
+#   2. Pick dev, and staging when snapshots promote through one, from the
+#      client's Pressable staging sites. Dev must be a Pressable staging site,
+#      never a sandbox, and no other site's dev.
+#   3. Confirm the repository, its branches and where snapshots go.
+#   4. Convert the repository (bin/convert-repo, beside this script).
+#   5. Enroll the site in Sisyphus, paused, at the next free run time.
+#   6. Once the conversion PR is merged: the first Deploy to Dev, so Safety Net
+#      is on dev before any night runs.
+#   7. Once that deploy passes: enable the site and start one Run now to watch.
+#      A site already enabled is left running as it is, with no extra run.
+#
+# Options:
+#   --dev <pressable id>      dev, instead of picking it
+#   --staging <pressable id>  staging, or none, instead of picking it
+#   --repo <owner/name>       the repository, instead of confirming the suggestion
+#   --promote <main|staging>  where snapshot PRs go: production's branch, or staging's
+#   --run-time <HH:MM>        when it runs, in America/New_York (the next free slot)
+#   --close-windows           passed to bin/convert-repo
+#   --task <KEY>              ClickUp key, passed to bin/convert-repo
+#   --apply                   make the changes
+#
+# Needs gh (a repository admin, with the workflow scope), jq and curl, and a
+# WordPress application password for packagist.linchpin.com: create one under
+# Users › Profile › Application Passwords, then
+#
+#   export SISYPHUS_AUTH='your-username:xxxx xxxx xxxx xxxx xxxx xxxx'
+#
+# SISYPHUS_URL points it at another install (https://packagist.linchpin.com).
+# Exit status: 0 when the site is onboarded or the plan needs nothing from a
+# person, 2 when a step needs a person (each such line starts with !), 1 on an
+# error. Runs on macOS's own bash 3.2.
+
+set -euo pipefail
+
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+SISYPHUS_URL=${SISYPHUS_URL:-https://packagist.linchpin.com}
+TIMEZONE=America/New_York
+# Run times are staggered, a site to a slot, so the nightly syncs and backups
+# never queue behind one another on the host.
+SLOTS="01:00 01:20 01:40 02:00 02:20 02:40 03:00 03:20 03:40 04:00 04:20 04:40"
+BRANCH=maintenance
+
+SITE=""
+DEV=""
+STAGING=""
+REPO=""
+PROMOTE=""
+RUN_TIME=""
+APPLY=false
+CONVERT_ARGS=()
+
+usage() {
+	sed -n '3,/^$/p' "$0" | sed -E 's/^# ?//'
+	exit "${1:-0}"
+}
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--dev) DEV=$2; shift ;;
+	--staging) STAGING=$2; shift ;;
+	--repo) REPO=$2; shift ;;
+	--promote) PROMOTE=$2; shift ;;
+	--run-time) RUN_TIME=$2; shift ;;
+	--close-windows) CONVERT_ARGS+=(--close-windows) ;;
+	--task) CONVERT_ARGS+=(--task "$2"); shift ;;
+	--apply) APPLY=true ;;
+	-h | --help) usage ;;
+	-*) echo "Unknown option $1" >&2; usage 1 ;;
+	*) SITE=$1 ;;
+	esac
+	shift
+done
+for tool in gh jq curl; do
+	command -v "$tool" >/dev/null || { echo "onboard-site needs $tool." >&2; exit 1; }
+done
+if [ -z "${SISYPHUS_AUTH:-}" ]; then
+	echo "Set SISYPHUS_AUTH to 'username:application password' for $SISYPHUS_URL (see --help)." >&2
+	exit 1
+fi
+
+step() { printf '\n%s\n' "$*"; }
+ok() { printf '  ✓ %s\n' "$*"; }
+warn() { printf '  ~ %s\n' "$*"; }
+need() {
+	printf '  ! %s\n' "$*"
+	exit 2
+}
+
+# One call to packagist.linchpin.com's REST API; the body on success.
+wp() {
+	local method=$1 route=$2 out status data=()
+	[ -n "${3:-}" ] && data=(--data "$3")
+	out=$(curl -sS -X "$method" -u "$SISYPHUS_AUTH" -H 'Content-Type: application/json' \
+		${data[@]+"${data[@]}"} -w '\n%{http_code}' "$SISYPHUS_URL/wp-json/$route")
+	status=${out##*$'\n'}
+	out=${out%$'\n'*}
+	if [ "${status:0:1}" != "2" ]; then
+		echo "$method $route answered $status: $(jq -r '.message // .' <<<"$out" 2>/dev/null || echo "$out")" >&2
+		exit 1
+	fi
+	printf '%s' "$out"
+}
+
+# Ask which of the lines on stdin; prints the chosen one. One line is chosen
+# without asking. The menu goes to stderr, so only the answer is captured.
+pick() {
+	local prompt=$1 lines=() line choice
+	while IFS= read -r line; do
+		[ -n "$line" ] && lines+=("$line")
+	done
+	if [ ${#lines[@]} -eq 1 ]; then
+		printf '  %s: %s\n' "$prompt" "${lines[0]}" >&2
+		printf '%s\n' "${lines[0]}"
+		return 0
+	fi
+	if [ ! -t 2 ] || ! : </dev/tty 2>/dev/null; then
+		echo "  $prompt: there is more than one, and no terminal to ask in; name it with an option." >&2
+		exit 1
+	fi
+	printf '  %s:\n' "$prompt" >&2
+	PS3="  Number: "
+	select choice in "${lines[@]}"; do
+		if [ -n "$choice" ]; then
+			printf '%s\n' "$choice"
+			return 0
+		fi
+	done </dev/tty
+}
+
+# Ask with a default; an empty answer keeps it.
+ask() {
+	local prompt=$1 default=$2 answer=""
+	if [ -t 2 ] && : </dev/tty 2>/dev/null; then
+		printf '  %s [%s]: ' "$prompt" "$default" >&2
+		read -r answer </dev/tty || true
+	fi
+	printf '%s\n' "${answer:-$default}"
+}
+
+mode="Plan (nothing is written; add --apply)"
+[ "$APPLY" = "true" ] && mode="Applying"
+printf '%s, against %s\n' "$mode" "$SISYPHUS_URL"
+
+environments=$(wp GET linchpin-governing/v1/environments | jq -c '.environments')
+choices=$(wp GET sisyphus/v1/admin/choices)
+enrolled=$(wp GET sisyphus/v1/admin/sites | jq -c '.sites')
+
+# 1 -------------------------------------------------------------------------
+step "1. The client and its production site"
+# Production sites Sisyphus can enroll, each with its client from the
+# environment holding it.
+productions=$(jq -c --argjson environments "$environments" '[.sites[] as $site
+	| ($environments | map(select(.role == "production" and ((.site_ids // []) | index($site.site_id | tostring)))) | first) as $env
+	| $site + {client: ($env.client_name // "(no client)"), environment_id: ($env.environment_id // ""),
+		github_repo: ($env.github_repo // ""), deploy_environment: ($env.deploy_environment // "")}]' <<<"$choices")
+if [ -z "$SITE" ]; then
+	clients=$(jq -r '[.[].client] | unique[]' <<<"$productions")
+	[ -n "$clients" ] || need "Sisyphus lists no site that can be enrolled."
+	client=$(pick "Client" <<<"$clients")
+	SITE=$(jq -r --arg client "$client" '.[] | select(.client == $client)
+		| "\(.hostname)\(if .enrolled then " (enrolled)" else "" end)"' <<<"$productions" | pick "Production site" | cut -d' ' -f1)
+fi
+production=$(jq -c --arg site "$SITE" '[.[] | select(.hostname == $site)][0] // empty' <<<"$productions")
+[ -n "$production" ] || need "$SITE is not a production site Sisyphus can enroll: it needs a Pressable id in api.linchpin.com, on Linchpin's account, that is not a staging site."
+client=$(jq -r .client <<<"$production")
+enrollment=$(jq -c --arg site "$SITE" '[.[] | select(.hostname == $site)][0] // {}' <<<"$enrolled")
+ok "$SITE, $client, Pressable $(jq -r .pressable_id <<<"$production")$([ "$enrollment" != "{}" ] && echo ", already enrolled")."
+if [ "$(jq -r '.mapped // false' <<<"$enrollment")" = "true" ]; then
+	warn "It has a saved environment map, which decides dev, staging and the branches; change those in Sisyphus's map."
+fi
+
+# 2 -------------------------------------------------------------------------
+step "2. Dev and staging"
+# Each Pressable staging site that can be a target, with the environment api
+# knows it as, if any.
+targets=$(jq -c --argjson environments "$environments" '[.environments[] as $target
+	| ($environments | map(select(.provider == "pressable" and .provider_ref == $target.pressable_id)) | first) as $env
+	| $target + {role: ($env.role // ""), client: ($env.client_name // ""), deploy_environment: ($env.deploy_environment // ""),
+		deploy_branch: ($env.deploy_branch // ""), production_environment_id: ($env.production_environment_id // "")}]' <<<"$choices")
+# The client's own first, the role asked for leading, then the ones api has no
+# environment for yet. api's role is shown where it differs.
+candidates() {
+	jq -r --arg role "$1" --arg client "$client" --arg site "$SITE" '
+		def used: [.used_by[] | select(.hostname != $site) | "\(.hostname) \(.role)"] | join(", ");
+		([.[] | select(.client == $client)] | sort_by(.role != $role)) + [.[] | select(.client == "")]
+		| .[]
+		| "\(.pressable_id) \(.url)"
+		+ (if .client == "" then " (not in api.linchpin.com yet)" elif .role != $role then " (\(.role) in api.linchpin.com)" else "" end)
+		+ (if used != "" then " (used by \(used))" else "" end)' <<<"$targets"
+}
+count=$(jq --arg client "$client" --arg production "$(jq -r .environment_id <<<"$production")" \
+	'[.[] | select(.role == "development" and .production_environment_id == $production)] | length' <<<"$environments")
+if [ "$count" -gt 1 ]; then
+	warn "api.linchpin.com has $count development environments for $SITE; the nightly test needs exactly one."
+fi
+DEV=${DEV:-$(jq -r '.dev_ref // empty' <<<"$enrollment")}
+if [ -z "$DEV" ]; then
+	options=$(candidates development)
+	[ -n "$options" ] ||
+		need "$client has no Pressable staging site to be dev. Clone production on Pressable as a staging site (never a sandbox), set WP_ENVIRONMENT_TYPE to development, then run this again."
+	DEV=$(pick "Dev" <<<"$options" | cut -d' ' -f1)
+fi
+dev=$(jq -c --arg ref "$DEV" '[.[] | select(.pressable_id == $ref)][0] // empty' <<<"$targets")
+[ -n "$dev" ] || need "Pressable $DEV is not a staging site Sisyphus can use as dev (a sandbox, or not on Linchpin's account)."
+if others=$(jq -r --arg site "$SITE" '[.used_by[] | select(.hostname != $site) | .hostname] | join(", ")' <<<"$dev") && [ -n "$others" ]; then
+	need "Pressable $DEV is already $others's; two sites sharing a dev overwrite each other every night."
+fi
+DEV_URL=$(jq -r '.url | if startswith("http") then . else "https://" + . end' <<<"$dev")
+ok "Dev is $DEV_URL (Pressable $DEV)."
+
+STAGING=${STAGING:-$(jq -r '.staging_ref // empty' <<<"$enrollment")}
+if [ -z "$STAGING" ]; then
+	STAGING=$( (echo "none"; candidates staging | grep -v "^$DEV ") | pick "Staging, if snapshots promote through one" | cut -d' ' -f1)
+fi
+[ "$STAGING" = "none" ] && STAGING=""
+staging=""
+if [ -n "$STAGING" ]; then
+	staging=$(jq -c --arg ref "$STAGING" '[.[] | select(.pressable_id == $ref)][0] // empty' <<<"$targets")
+	[ -n "$staging" ] || need "Pressable $STAGING is not a staging site Sisyphus can use."
+	ok "Staging is $(jq -r '.url | if startswith("http") then . else "https://" + . end' <<<"$staging") (Pressable $STAGING)."
+else
+	ok "No staging: snapshots go straight to production's branch."
+fi
+
+# 3 -------------------------------------------------------------------------
+step "3. The repository and its branches"
+suggested=$(jq -r '.repository // empty' <<<"$enrollment")
+suggested=${suggested:-$(jq -r '.repository // empty' <<<"$production")}
+suggested=${suggested:-$(jq -r '.github_repo // empty' <<<"$production")}
+REPO=${REPO:-$(ask "Repository" "${suggested:-linchpin/}")}
+PROD_BRANCH=$(gh api "repos/$REPO" --jq .default_branch) || need "Cannot read $REPO with gh."
+STAGING_BRANCH=""
+if [ -n "$staging" ]; then
+	STAGING_BRANCH=$(jq -r '.deploy_branch // empty' <<<"$staging")
+	STAGING_BRANCH=${STAGING_BRANCH:-$(jq -r '.staging_branch // empty' <<<"$enrollment")}
+	STAGING_BRANCH=${STAGING_BRANCH:-staging}
+	gh api "repos/$REPO/git/ref/heads/$STAGING_BRANCH" >/dev/null 2>&1 ||
+		need "$REPO has no \`$STAGING_BRANCH\` branch for staging."
+fi
+if [ -z "$PROMOTE" ]; then
+	PROMOTE=$(jq -r '.promotion_target // empty' <<<"$enrollment")
+	if [ -z "$PROMOTE" ] || { [ "$PROMOTE" = "staging" ] && [ -z "$STAGING_BRANCH" ]; }; then
+		PROMOTE=main
+		[ -n "$STAGING_BRANCH" ] && PROMOTE=$( (echo "staging ($STAGING_BRANCH)"; echo "main ($PROD_BRANCH)") | pick "Snapshot PRs go into" | cut -d' ' -f1)
+	fi
+fi
+INTO=$PROD_BRANCH
+[ "$PROMOTE" = "staging" ] && INTO=$STAGING_BRANCH
+ok "$REPO: production \`$PROD_BRANCH\`${STAGING_BRANCH:+, staging \`$STAGING_BRANCH\`}, rolling \`$BRANCH\`; snapshots into \`$INTO\`."
+
+taken=$(jq -r --arg site "$SITE" '[.[] | select(.hostname != $site) | .run_time] | join(" ")' <<<"$enrolled")
+RUN_TIME=${RUN_TIME:-$(jq -r '.run_time // empty' <<<"$enrollment")}
+if [ -z "$RUN_TIME" ]; then
+	for slot in $SLOTS; do
+		case " $taken " in *" $slot "*) ;; *) RUN_TIME=$slot; break ;; esac
+	done
+	RUN_TIME=${RUN_TIME:-03:00}
+fi
+ok "Runs at $RUN_TIME $TIMEZONE (taken: ${taken:-none})."
+
+# 4 -------------------------------------------------------------------------
+step "4. The repository (bin/convert-repo)"
+convert=("$HERE/convert-repo" "$REPO" --dev-site-id "$DEV" --dev-url "$DEV_URL" --promotion-target "$INTO")
+[ -n "$STAGING_BRANCH" ] && convert+=(--staging-branch "$STAGING_BRANCH")
+dev_environment=$(jq -r '.deploy_environment // empty' <<<"$dev")
+[ -n "$dev_environment" ] && convert+=(--dev-environment "$dev_environment")
+convert+=(${CONVERT_ARGS[@]+"${CONVERT_ARGS[@]}"})
+[ "$APPLY" = "true" ] && convert+=(--apply)
+set +e
+"${convert[@]}" | sed 's/^/  /'
+converted=${PIPESTATUS[0]}
+set -e
+[ "$converted" = "1" ] && exit 1
+
+# 5 -------------------------------------------------------------------------
+step "5. Sisyphus's enrollment"
+fields=$(jq -n --arg dev "$DEV" --arg staging "$STAGING" --arg repo "$REPO" --arg branch "$BRANCH" \
+	--arg production "$PROD_BRANCH" --arg staging_branch "$STAGING_BRANCH" --arg run_time "$RUN_TIME" \
+	--arg timezone "$TIMEZONE" --arg promote "$PROMOTE" '{
+		dev_ref: $dev, staging_ref: $staging, repository: $repo, maintenance_branch: $branch,
+		production_branch: $production, staging_branch: $staging_branch, run_time: $run_time,
+		timezone: $timezone, promotion_target: $promote}')
+if [ "$(jq -r '.mapped // false' <<<"$enrollment")" = "true" ]; then
+	# The map decides these; only what it does not is sent.
+	fields=$(jq -c '{repository, run_time, timezone}' <<<"$fields")
+fi
+if [ "$enrollment" = "{}" ]; then
+	# Paused until the first Deploy to Dev has passed: preflight refuses a dev
+	# without Safety Net.
+	fields=$(jq -c '. + {enabled: false}' <<<"$fields")
+	verb="Enroll it, paused"
+else
+	verb="Update its enrollment"
+fi
+changes=$(jq -r --argjson now "$enrollment" 'to_entries | map(select(($now[.key] // null) != .value)
+	| "\(.key) \($now[.key] // "unset") → \(.value)") | join("; ")' <<<"$fields")
+if [ -z "$changes" ]; then
+	ok "Enrolled as picked."
+elif [ "$APPLY" = "true" ]; then
+	result=$(wp POST "sisyphus/v1/admin/sites/$SITE" "$fields")
+	ok "$verb: $changes."
+	jq -r '.notes[]? | "  ~ " + .' <<<"$result"
+	enrollment=$(jq -c '.site' <<<"$result")
+else
+	printf '  → %s: %s.\n' "$verb" "$changes"
+fi
+
+if [ "$converted" != "0" ]; then
+	printf '\nThe repository needs a person first (! above). Run this again once that is done.\n'
+	exit 2
+fi
+if [ "$APPLY" != "true" ]; then
+	printf '\nNothing needs a person yet. Run it again with --apply; steps 6 and 7 follow once the conversion PR is merged.\n'
+	exit 0
+fi
+
+# 6 -------------------------------------------------------------------------
+step "6. The first Deploy to Dev"
+if ! gh api "repos/$REPO/contents/.github/workflows/deploy-dev.yml?ref=$PROD_BRANCH" >/dev/null 2>&1; then
+	pr=$(gh api "repos/$REPO/pulls?state=open&base=$PROD_BRANCH&per_page=100" \
+		--jq '[.[] | select(.title | test("Move to rolling maintenance"))][0].html_url // empty')
+	need "Merge the conversion PR${pr:+ ($pr)} into \`$PROD_BRANCH\`, then run this again."
+fi
+last=$(gh run list -R "$REPO" --workflow deploy-dev.yml --branch "$BRANCH" --limit 5 \
+	--json status,conclusion,url --jq '[.[] | select(.conclusion == "success" or .status != "completed")][0] // empty')
+if [ -z "$last" ]; then
+	gh workflow run deploy-dev.yml -R "$REPO" --ref "$BRANCH" >/dev/null
+	need "Started Deploy to Dev from \`$BRANCH\`, which installs Safety Net on dev. Watch it with: gh run watch -R $REPO \$(gh run list -R $REPO --workflow deploy-dev.yml --limit 1 --json databaseId --jq '.[0].databaseId'). Run this again once it passes."
+elif [ "$(jq -r .status <<<"$last")" != "completed" ]; then
+	need "Deploy to Dev is still running ($(jq -r .url <<<"$last")). Run this again once it passes."
+fi
+ok "Deploy to Dev passed: $(jq -r .url <<<"$last")."
+
+# 7 -------------------------------------------------------------------------
+step "7. Enable it, and one Run now"
+page="$SISYPHUS_URL/wp-admin/admin.php?page=sisyphus&tab=overview&site=$SITE"
+if [ "$(jq -r '.enabled // false' <<<"$enrollment")" = "true" ]; then
+	ok "Already enabled, at $RUN_TIME $TIMEZONE: $page"
+	printf '\nOnboarded.\n'
+	exit 0
+fi
+wp POST "sisyphus/v1/admin/sites/$SITE" '{"enabled": true}' >/dev/null
+ok "Enabled: it runs every night at $RUN_TIME $TIMEZONE. Pause it in Sisyphus if the run below fails."
+run=$(curl -sS -X POST -u "$SISYPHUS_AUTH" -w '\n%{http_code}' "$SISYPHUS_URL/wp-json/sisyphus/v1/admin/sites/$SITE/runs")
+case "${run##*$'\n'}" in
+201) ok "Started run $(jq -r '.run.id' <<<"${run%$'\n'*}"). Watch it in Sisyphus: $page" ;;
+409) ok "A run is already going: $page" ;;
+*) echo "Run now answered ${run##*$'\n'}: ${run%$'\n'*}" >&2; exit 1 ;;
+esac
+printf '\nOnboarded. Left for a person: map a Ghost Inspector suite to dev in Sisyphus, so the nightly test runs something.\n'
