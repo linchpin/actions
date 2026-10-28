@@ -25,11 +25,13 @@
 # Rollback: dispatch this workflow with the previous `release_tag`.
 #
 # Hosts: HOST=pressable|wpengine|cloudways (same composite-action pattern for
-# each). The backup-and-continue flow is preserved from v3: with
-# `do_backup: true` on Pressable, the deploy triggers an on-demand backup,
-# notifies Mantle, parks the GitHub deployment as `queued`, and Mantle later
-# dispatches the caller's continue workflow (deploy-continue.yml) to finish
-# the deploy from the already-built artifact.
+# each). Backup first, then deploy: with `do_backup: true` on Pressable, the
+# deploy builds, parks the GitHub deployment as `queued`, and asks
+# api.linchpin.com to back the site up (POST /deployments/start). api takes
+# the files and database backup with the same workflow plugin updates wait on,
+# and when it completes dispatches the caller's continue workflow
+# (`continue_workflow`, -> deploy-continue.yml) to finish the deploy from this
+# run's artifact. A backup that fails fails the deployment, and nothing ships.
 #
 # Deployment log: when the deploy finishes, on success or failure, the
 # report-deployment action records it in api.linchpin.com's deployment log with
@@ -65,7 +67,7 @@ on:
         default: ""
         type: string
       do_backup:
-        description: "Pressable: trigger an on-demand backup, notify Mantle, and pause as 'queued' until the continue workflow is dispatched (v3-compatible)"
+        description: "Pressable: pause as 'queued', have api.linchpin.com back the site up, and deploy only once it completes, through the caller's continue workflow"
         required: false
         default: false
         type: boolean
@@ -137,6 +139,11 @@ on:
         description: "The linchpin/safety-net release that safety_net installs"
         required: false
         default: "1.12.0"
+        type: string
+      continue_workflow:
+        description: "With do_backup: the caller's workflow file api.linchpin.com dispatches, on vars.BRANCH, once the backup completes"
+        required: false
+        default: "deploy-production-continue.yml"
         type: string
     secrets:
       PACKAGIST_COMPOSER_AUTH_JSON:
@@ -281,55 +288,65 @@ jobs:
           echo "::error::release.zip never appeared on $TAG after ~2 min. Has this release been deployed yet? (a deploy with build_for_release attaches release.zip)"
           exit 1
 
-      # Backup-and-continue flow (Pressable, v3-compatible): trigger the
-      # backup, register the deployment with Mantle, park the deployment as
-      # `queued`, and end this run. Mantle dispatches the caller's continue
-      # workflow (-> deploy-continue.yml) once the backup completes; that run
-      # picks up the `release` artifact from THIS run via workflow_run_id.
-      - name: Queue deployment pending backup (Mantle continues it)
+      # Backup-then-deploy (Pressable): park the deployment as `queued`, ask
+      # api.linchpin.com to back the site up, and end this run. api takes the
+      # files and database backup with the workflow plugin updates wait on
+      # (MANTLE-198), freeing a slot when Pressable's three are full, and when
+      # it completes dispatches the caller's continue workflow
+      # (-> deploy-continue.yml), which picks up the `release` artifact from
+      # THIS run via workflow_run_id. A failed backup fails the deployment.
+      #
+      # This used to start the backup itself, unchecked, and tell
+      # mantle.linchpin.com, which never dispatched anything, so every deploy
+      # with do_backup stayed queued. A refusal from api now fails the run
+      # instead of parking it where nothing will come for it.
+      - name: Queue deployment pending backup (api.linchpin.com continues it)
         if: ${{ vars.HOST == 'pressable' && inputs.do_backup }}
         env:
           GH_TOKEN: ${{ github.token }}
-          CLIENT_ID: ${{ secrets.PRESSABLE_API_CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.PRESSABLE_API_CLIENT_SECRET }}
           MANTLE_API_BEARER: ${{ secrets.MANTLE_API_BEARER }}
+          SITE_ID: ${{ vars.SITE_ID }}
+          SITE_URL: ${{ vars.SITE_URL }}
+          BRANCH: ${{ vars.BRANCH }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          CONTINUE_WORKFLOW: ${{ inputs.continue_workflow }}
+          DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
         run: |
-          response=$(curl -s --location --request POST 'https://my.pressable.com/auth/token' \
-            --form 'grant_type="client_credentials"' \
-            --form "client_id=\"$CLIENT_ID\"" \
-            --form "client_secret=\"$CLIENT_SECRET\"")
-          access_token=$(echo "$response" | jq -r '.access_token')
-          if [ -z "$access_token" ] || [ "$access_token" = "null" ]; then
-            echo "::error::Failed to authenticate with the Pressable API"
+          if [ -z "$MANTLE_API_BEARER" ]; then
+            echo "::error::do_backup needs the MANTLE_API_BEARER secret to ask api.linchpin.com for the backup."
             exit 1
           fi
-          echo "::add-mask::$access_token"
 
-          curl -s --location --request POST 'https://my.pressable.com/v1/sites/${{ vars.SITE_ID }}/ondemand-backups' \
-            --header "Authorization: Bearer $access_token" \
-            --header 'Content-Type: application/json'
-          echo "::notice::Pressable on-demand backup triggered for site ${{ vars.SITE_ID }}"
-
-          curl -s --location --request POST 'https://mantle.linchpin.com/api/v1/deployments/start' \
-            --header 'Content-Type: application/json' \
-            --header "Authorization: Bearer $MANTLE_API_BEARER" \
-            --data-raw '{
-              "pressable_site_id": "${{ vars.SITE_ID }}",
-              "site_url": "${{ vars.SITE_URL }}",
-              "environment": "${{ inputs.environment }}",
-              "branch": "${{ vars.BRANCH }}",
-              "deployment_id": ${{ steps.deployment.outputs.id }},
-              "workflow_run_id": ${{ github.run_id }},
-              "repository": "${{ github.repository }}"
-            }'
-
-          gh api "repos/${{ github.repository }}/deployments/${{ steps.deployment.outputs.id }}/statuses" \
+          gh api "repos/$GITHUB_REPOSITORY/deployments/$DEPLOYMENT_ID/statuses" \
             --method POST \
             --field state=queued \
-            --field environment="${{ inputs.environment }}" \
-            --field environment_url="${{ vars.SITE_URL }}" \
-            --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "::notice::Deployment ${{ steps.deployment.outputs.id }} queued — Mantle will dispatch the continue workflow when the backup completes"
+            --field environment="$ENVIRONMENT" \
+            --field environment_url="$SITE_URL" \
+            --field log_url="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
+
+          body=$(jq -n \
+            --arg pressable_site_id "$SITE_ID" \
+            --arg site_url "$SITE_URL" \
+            --arg environment "$ENVIRONMENT" \
+            --arg branch "${BRANCH:-main}" \
+            --argjson deployment_id "$DEPLOYMENT_ID" \
+            --argjson workflow_run_id "$GITHUB_RUN_ID" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg continue_workflow "$CONTINUE_WORKFLOW" \
+            '$ARGS.named')
+
+          if ! answer=$(curl -sS --fail-with-body --request POST 'https://api.linchpin.com/api/v1/deployments/start' \
+            --header 'Content-Type: application/json' \
+            --header "Authorization: Bearer $MANTLE_API_BEARER" \
+            --data "$body"); then
+            echo "::error::api.linchpin.com would not take the backup, so nothing was deployed: $answer"
+            gh api "repos/$GITHUB_REPOSITORY/deployments/$DEPLOYMENT_ID/statuses" \
+              --method POST --field state=failure \
+              --field description="The backup could not be started. Not deployed." >/dev/null || true
+            exit 1
+          fi
+
+          echo "::notice::Deployment $DEPLOYMENT_ID queued. $(jq -r '.message' <<<"$answer") (backup $(jq -r '.backup_id' <<<"$answer"))."
 
       # Safety Net (inputs.safety_net, development only). It goes in before the
       # code, so the data a production sync copied onto dev is scrubbed, on

@@ -1,11 +1,12 @@
 # Continue Deploy (v4)
 #
-# Second half of the backup-and-continue flow. When deploy.yml runs with
-# `do_backup: true` (Pressable), it triggers an on-demand backup, registers
-# the deployment with Mantle, and parks the GitHub deployment as `queued`.
-# Once the backup completes, Mantle dispatches the caller repo's continue
-# workflow (workflow_dispatch with deployment_id + workflow_run_id), which
-# calls this reusable workflow to finish the deploy.
+# Second half of the backup-then-deploy flow. When deploy.yml runs with
+# `do_backup: true` (Pressable), it parks the GitHub deployment as `queued`
+# and asks api.linchpin.com to back the site up. Once the backup completes,
+# api dispatches the caller repo's continue workflow (workflow_dispatch with
+# deployment_id + workflow_run_id) as linchpin-bot, which calls this reusable
+# workflow to finish the deploy. A failed backup fails the deployment and
+# dispatches nothing.
 #
 # Previous (v3): deploy-pressable-continue.yml. The plumbing had gaps that
 # kept the flow aspirational: the caller's dispatch workflow declared no
@@ -18,10 +19,12 @@
 # when the original deploy used a release asset — re-download by release_tag.
 # Status updates target the deployment_id created by the original run.
 #
-# Mantle integration contract (unchanged from v3 in spirit):
-#   POST https://mantle.linchpin.com/api/v1/deployments/start receives
-#   deployment_id + workflow_run_id; Mantle dispatches the caller's continue
-#   workflow with those values as inputs when the backup completes.
+# api.linchpin.com contract:
+#   POST https://api.linchpin.com/api/v1/deployments/start receives
+#   pressable_site_id, deployment_id, workflow_run_id, repository, branch and
+#   continue_workflow. When the backup completes, api dispatches
+#   continue_workflow on branch with deployment_id and workflow_run_id as
+#   string inputs, so the caller's workflow must declare both.
 
 name: Continue Deploy
 
