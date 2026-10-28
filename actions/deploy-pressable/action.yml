@@ -67,7 +67,7 @@ inputs:
     required: false
     default: ""
   health-check:
-    description: "Curl the site after deploy and fail on connection errors or HTTP 5xx (true/false)"
+    description: "After deploy, run `wp mantle health` on the server and curl the site; fail on a failing check, a connection error or HTTP 5xx (true/false)"
     required: false
     default: "true"
 
@@ -217,6 +217,25 @@ runs:
       shell: bash
       run: |
         ssh pressable "cd /srv/htdocs && ${{ inputs.post-deploy-command }}"
+
+    # Loads WordPress on the server, so it sees past Cloudflare Access and the
+    # CDN. Sites whose Mantle predates `wp mantle health` only get the load.
+    - name: WordPress health check
+      if: ${{ inputs.health-check == 'true' }}
+      shell: bash
+      run: |
+        if ssh pressable "cd /srv/htdocs && wp cli has-command 'mantle health'" >/dev/null 2>&1; then
+          if ! ssh pressable "cd /srv/htdocs && wp mantle health"; then
+            echo "::error::wp mantle health failed on the server"
+            exit 1
+          fi
+          echo "::notice::wp mantle health passed"
+        elif ssh pressable "cd /srv/htdocs && wp eval 'echo \"WordPress loaded\";'"; then
+          echo "::warning::wp mantle health isn't available on this site (update Mantle); only checked that WordPress loads"
+        else
+          echo "::error::WordPress failed to load on the server"
+          exit 1
+        fi
 
     - name: Health check
       if: ${{ inputs.health-check == 'true' }}
