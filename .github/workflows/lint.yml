@@ -144,8 +144,14 @@ jobs:
           # Errors still fail, which is the intended gate. Warnings are advisory by
           # definition — a standard that wanted them to block would raise them to
           # errors.
+          #
+          # cs2pr needs `--graceful-warnings` for the same reason: it exits 1 on
+          # any annotation it writes, warnings included, so without it the flag
+          # above did nothing and a warnings-only run still failed the job: a
+          # client site's first PR failed on four PSR1.Files.SideEffects warnings
+          # and no errors.
           vendor/bin/phpcs -q --runtime-set ignore_warnings_on_exit 1 \
-            --report=checkstyle "${files[@]}" | cs2pr
+            --report=checkstyle "${files[@]}" | cs2pr --graceful-warnings
 
       - name: PHPStan
         if: ${{ inputs.run_phpstan }}
