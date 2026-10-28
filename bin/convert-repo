@@ -1,0 +1,526 @@
+#!/usr/bin/env bash
+#
+# Convert one site repository to rolling maintenance.
+#
+#   bin/convert-repo <owner/name> [options]          # the plan: changes nothing
+#   bin/convert-repo <owner/name> [options] --apply  # make the changes
+#
+# It looks at the repository first, then does the parts that need no judgment
+# and says which ones do. Run it again at any time: it makes only the changes
+# still missing, so a run after a person's fix carries on where the last stopped.
+#
+#   1. Monthly windows. Git cannot hold `maintenance` beside maintenance/YYYY-MM,
+#      so each window has to go. One holding only Renovate's commits is closed
+#      with --close-windows (Renovate raises the same updates again against
+#      `maintenance`); one holding a person's commits is left for a person to
+#      merge into production.
+#   2. The `maintenance` branch, from the production branch.
+#   3. One PR into production with the three callers Sisyphus dispatches by name
+#      (maintenance.yml, snapshots.yml, deploy-dev.yml, from
+#      templates/rolling-maintenance), the Renovate rolling-maintenance preset in
+#      place of the maintenance window, and the monthly window's workflows
+#      removed. A caller the repository already has for rolling maintenance is
+#      kept as it is.
+#   4. Dev's GitHub environment: deploys from `maintenance` only, with SITE_ID,
+#      SITE_URL, BRANCH and ENVIRONMENT, and the SSH_USER secret when given.
+#   5. The "Green checks into maintenance" ruleset: the checks production
+#      requires, linchpin-bot exempt.
+#
+# It never merges anything into production, never deletes a branch holding a
+# person's commits, and never rewrites a deploy workflow: one still on
+# linchpin/actions v2 or v3 is reported, since Deploy to Dev needs only v4 itself.
+#
+# Options:
+#   --dev-environment <name>  dev's GitHub environment: the one whose SITE_ID is dev's,
+#                             else development, created when missing
+#   --dev-site-id <id>        dev's site id at the host (SITE_ID)
+#   --dev-url <url>           dev's URL (SITE_URL)
+#   --dev-ssh-user <user>     dev's SSH user, stored as the environment's SSH_USER secret
+#   --promotion-target <ref>  the branch snapshot PRs go into (the production branch)
+#   --staging-branch <ref>    a staging branch snapshots may also go into (staging, when it exists)
+#   --ci-workflow <name>      a workflow that checks PRs, by its name; repeat for more (detected)
+#   --skip-check <name>       a check production requires that never runs into maintenance; repeatable
+#   --close-windows           close monthly windows that hold only Renovate's commits
+#   --task <KEY>              ClickUp key for the PR's branch and commit scope (NO-TASK)
+#   --out <dir>               also write the files the PR would add or change into <dir>
+#   --apply                   make the changes; without it nothing is written
+#
+# Needs gh, logged in as a repository admin with the workflow scope, and jq.
+# Runs on macOS's own bash 3.2.
+# Exit status: 0 when the repository is converted or would be, 2 when something
+# needs a person first (each such line starts with !), 1 on an error.
+
+set -euo pipefail
+
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+TEMPLATES=$HERE/templates/rolling-maintenance
+
+BRANCH=maintenance
+RULESET="Green checks into maintenance"
+# linchpin-bot, which pushes and merges for the rolling job (GH_BOT_TOKEN).
+BOT_ID=81971745
+RETIRED=(auto-approve-maintenance.yml auto-merge-maintenance.yml combine-dependency-prs.yml combine-dependency-prs-schedule.yml)
+PRESET="github>linchpin/renovatebot-config:rolling-maintenance"
+WINDOW_PRESET="github>linchpin/renovatebot-config:maintenance-window"
+
+REPO=""
+APPLY=false
+DEV_ENV=""
+DEV_SITE_ID=""
+DEV_URL=""
+DEV_SSH_USER=""
+PROMOTION=""
+STAGING=""
+CI_WORKFLOWS=()
+SKIP_CHECKS=()
+CLOSE_WINDOWS=false
+TASK=NO-TASK
+OUT=""
+
+usage() {
+	sed -n '3,/^$/p' "$0" | sed -E 's/^# ?//'
+	exit "${1:-0}"
+}
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--dev-environment) DEV_ENV=$2; shift ;;
+	--dev-site-id) DEV_SITE_ID=$2; shift ;;
+	--dev-url) DEV_URL=$2; shift ;;
+	--dev-ssh-user) DEV_SSH_USER=$2; shift ;;
+	--promotion-target) PROMOTION=$2; shift ;;
+	--staging-branch) STAGING=$2; shift ;;
+	--ci-workflow) CI_WORKFLOWS+=("$2"); shift ;;
+	--skip-check) SKIP_CHECKS+=("$2"); shift ;;
+	--close-windows) CLOSE_WINDOWS=true ;;
+	--task) TASK=$2; shift ;;
+	--out) OUT=$2; shift ;;
+	--apply) APPLY=true ;;
+	-h | --help) usage ;;
+	-*) echo "Unknown option $1" >&2; usage 1 ;;
+	*) REPO=$1 ;;
+	esac
+	shift
+done
+[ -n "$REPO" ] || usage 1
+for tool in gh jq; do
+	command -v "$tool" >/dev/null || { echo "convert-repo needs $tool." >&2; exit 1; }
+done
+
+NEEDS=0
+step() { printf '\n%s\n' "$*"; }
+ok() { printf '  ✓ %s\n' "$*"; }
+warn() { printf '  ~ %s\n' "$*"; }
+need() {
+	printf '  ! %s\n' "$*"
+	NEEDS=$((NEEDS + 1))
+}
+
+# A change: done with --apply, reported otherwise. The first argument says what
+# it is; the rest is the command.
+change() {
+	local what=$1
+	shift
+	if [ "$APPLY" = "true" ]; then
+		"$@" >/dev/null
+		printf '  ✓ %s\n' "$what"
+	else
+		printf '  → %s\n' "$what"
+	fi
+}
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+api() { gh api "repos/$REPO/$1" "${@:2}"; }
+exists() { gh api "repos/$REPO/$1" >/dev/null 2>&1; }
+raw() { gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/$1?ref=$PROD" 2>/dev/null; }
+# For a sed replacement: \, | and & escaped.
+escaped() { printf '%s' "$1" | sed -e 's/[\\|&]/\\&/g'; }
+# A YAML single-quoted list body: a', 'b, each quote doubled.
+quoted() {
+	local out="" item
+	for item in "$@"; do
+		out+="${out:+"', '"}${item//\'/\'\'}"
+	done
+	printf '%s' "$out"
+}
+
+repo=$(gh api "repos/$REPO") || { echo "Cannot read $REPO." >&2; exit 1; }
+REPO=$(jq -r .full_name <<<"$repo")
+OWNER=${REPO%%/*}
+PROD=$(jq -r .default_branch <<<"$repo")
+mode="Plan (nothing is written; add --apply)"
+[ "$APPLY" = "true" ] && mode="Applying"
+printf '%s for %s, production branch %s\n' "$mode" "$REPO" "$PROD"
+if [ "$(jq -r .permissions.admin <<<"$repo")" != "true" ]; then
+	need "You need admin on $REPO for its environments and rulesets."
+	exit 2
+fi
+if [ -z "$STAGING" ] && exists "git/ref/heads/staging"; then
+	STAGING=staging
+fi
+PROMOTION=${PROMOTION:-$PROD}
+TARGETS=("$PROD")
+if [ -n "$STAGING" ]; then
+	TARGETS+=("$STAGING")
+fi
+case " ${TARGETS[*]} " in
+*" $PROMOTION "*) ;;
+*) TARGETS+=("$PROMOTION") ;;
+esac
+
+# Dev's environment: as named, else the one already deploying to dev's site,
+# else development. GitHub matches environment names in any case, so the
+# existing name is used as it is spelled.
+environments=$(api environments --jq '.environments[].name' 2>/dev/null || true)
+if [ -z "$DEV_ENV" ] && [ -n "$DEV_SITE_ID" ]; then
+	for env in $environments; do
+		if [ "$(api "environments/$env/variables/SITE_ID" --jq .value 2>/dev/null)" = "$DEV_SITE_ID" ]; then
+			DEV_ENV=$env
+			break
+		fi
+	done
+fi
+DEV_ENV=${DEV_ENV:-development}
+for env in $environments; do
+	if [ "$(tr '[:upper:]' '[:lower:]' <<<"$env")" = "$(tr '[:upper:]' '[:lower:]' <<<"$DEV_ENV")" ]; then
+		DEV_ENV=$env
+	fi
+done
+
+# 1 -------------------------------------------------------------------------
+step "1. Monthly maintenance windows"
+blocked=false
+close_window() {
+	if [ -n "$2" ]; then
+		api "issues/$2/comments" -f body="Closed by linchpin/actions bin/convert-repo: this repository moves to rolling maintenance, and Renovate raises these updates again against \`$BRANCH\`." >/dev/null
+		api "pulls/$2" -X PATCH -f state=closed >/dev/null
+	fi
+	api "git/refs/heads/$1" -X DELETE
+}
+windows=$(api "git/matching-refs/heads/$BRANCH/" --jq '.[].ref | sub("^refs/heads/"; "")')
+if [ -z "$windows" ]; then
+	ok "None open."
+fi
+for window in $windows; do
+	read -r ahead people < <(api "compare/$PROD...$window" --jq '
+		"\(.ahead_by) \([.commits[] | .author.login // .commit.author.name]
+		| unique | map(select(. != "renovate[bot]" and . != "linchpin-bot")) | join(","))"')
+	pr=$(api "pulls?state=open&head=$OWNER:$window" --jq '.[0].number // empty')
+	label="\`$window\`${pr:+ (#$pr)}"
+	if [ -n "$people" ]; then
+		need "$label holds $ahead commits $PROD lacks, some by $people. Merge it into $PROD, or close it, by hand."
+		blocked=true
+	elif [ "$CLOSE_WINDOWS" = "true" ]; then
+		change "Close $label: its $ahead commits are Renovate's, raised again against \`$BRANCH\`." close_window "$window" "$pr"
+	else
+		need "$label holds only Renovate's commits ($ahead). Re-run with --close-windows to close it."
+		blocked=true
+	fi
+done
+
+# 2 -------------------------------------------------------------------------
+step "2. The \`$BRANCH\` branch"
+if exists "git/ref/heads/$BRANCH"; then
+	ok "Exists."
+elif [ "$blocked" = "true" ]; then
+	need "Created once the windows above are gone."
+else
+	sha=$(api "git/ref/heads/$PROD" --jq .object.sha)
+	change "Create \`$BRANCH\` from \`$PROD\` at ${sha:0:7}." api git/refs -f ref="refs/heads/$BRANCH" -f sha="$sha"
+fi
+
+# 3 -------------------------------------------------------------------------
+step "3. Workflows and Renovate, in one PR into \`$PROD\`"
+files=$(api "contents/.github/workflows?ref=$PROD" --jq '.[] | select(.type == "file") | .name' 2>/dev/null || true)
+mkdir "$work/workflows"
+for file in $files; do
+	case "$file" in
+	*.yml | *.yaml) raw ".github/workflows/$file" >"$work/workflows/$file" || true ;;
+	esac
+done
+# A workflow's text, empty when the repository has none of that name.
+content() { cat "$work/workflows/$1" 2>/dev/null || true; }
+
+if [ ${#CI_WORKFLOWS[@]} -eq 0 ]; then
+	for file in $files; do
+		# Not the workflows this PR removes.
+		case " ${RETIRED[*]} " in *" $file "*) continue ;; esac
+		if grep -qE '^[[:space:]]*pull_request[[:space:]]*:|^on:.*[[ ,]pull_request[] ,]|^[[:space:]]*-[[:space:]]*pull_request[[:space:]]*$' <<<"$(content "$file")"; then
+			name=$(sed -nE "s/^name:[[:space:]]*['\"]?([^'\"]*)['\"]?[[:space:]]*$/\1/p" <<<"$(content "$file")" | head -1)
+			CI_WORKFLOWS+=("${name:-$file}")
+		fi
+	done
+fi
+if [ ${#CI_WORKFLOWS[@]} -gt 0 ]; then
+	ok "Updates merge as their checks finish: $(quoted "${CI_WORKFLOWS[@]}" | sed "s/', '/, /g")."
+else
+	warn "No workflow checks PRs, so updates merge on the next push, daily run or night instead of as checks finish."
+fi
+
+render() {
+	sed -e "s|@PRODUCTION_BRANCH@|$(escaped "$PROD")|g" \
+		-e "s|@PROMOTION_TARGET@|$(escaped "$PROMOTION")|g" \
+		-e "s|@DEV_ENVIRONMENT@|$(escaped "$DEV_ENV")|g" \
+		-e "s|@SNAPSHOT_TARGETS@|$(escaped "$(quoted "${TARGETS[@]}")")|g" \
+		-e "s|@CI_WORKFLOW@|$(escaped "$(quoted ${CI_WORKFLOWS[@]+"${CI_WORKFLOWS[@]}"})")|g" "$TEMPLATES/$1" |
+		if [ ${#CI_WORKFLOWS[@]} -eq 0 ]; then
+			# No CI to wait for: drop the workflow_run trigger and its comment.
+			awk '/^  # CI finishing/ { skip = 1 } /^  # An approving review/ { skip = 0 } !skip'
+		else
+			cat
+		fi
+}
+
+entries="[]"
+summary=()
+add() {
+	if [ -n "$OUT" ]; then
+		mkdir -p "$OUT/$(dirname "$1")"
+		printf '%s\n' "$2" >"$OUT/$1"
+	fi
+	entries=$(jq -c --arg path "$1" --arg body "$2" '. + [{path: $path, mode: "100644", type: "blob", content: $body}]' <<<"$entries")
+	summary+=("$3")
+}
+remove() {
+	entries=$(jq -c --arg path "$1" '. + [{path: $path, mode: "100644", type: "blob", sha: null}]' <<<"$entries")
+	summary+=("$2")
+}
+
+caller() {
+	local file=$1 marker=$2 existing
+	existing=$(content "$1")
+	if [ -n "$existing" ] && grep -qE "$marker" <<<"$existing"; then
+		ok "Keeps its own $file."
+	elif [ -n "$existing" ]; then
+		add ".github/workflows/$file" "$(render "$file")" "Replace \`$file\` with the rolling maintenance caller."
+	else
+		add ".github/workflows/$file" "$(render "$file")" "Add \`$file\`."
+	fi
+}
+caller maintenance.yml 'rolling-maintenance(\.yml@|\.sh)'
+caller snapshots.yml 'snapshots\.yml@|snapshot\.sh'
+caller deploy-dev.yml 'deploy\.yml@v4'
+if [ -n "$(content deploy-dev.yml)" ] && ! grep -q 'safety_net: true' <<<"$(content deploy-dev.yml)"; then
+	need "deploy-dev.yml does not set safety_net: true, so preflight refuses dev every night."
+fi
+for file in "${RETIRED[@]}"; do
+	if [ -n "$(content "$file")" ]; then
+		remove ".github/workflows/$file" "Remove \`$file\`, which served the monthly window."
+	fi
+done
+
+# What is left for a person to look at, and changes nothing.
+for file in $files; do
+	case " maintenance.yml snapshots.yml deploy-dev.yml ${RETIRED[*]} " in *" $file "*) continue ;; esac
+	if old=$(grep -oE 'linchpin/actions/[^@[:space:]]+@v[0-3]\b' <<<"$(content "$file")" | sort -u | tr '\n' ' ') && [ -n "$old" ]; then
+		warn "$file still calls $old(fine for now: only Deploy to Dev needs v4; docs/MIGRATION-v3-to-v4.md)."
+	fi
+	if grep -qE 'maintenance/|site-maintenance' <<<"$(content "$file")"; then
+		warn "$file names a maintenance/ or site-maintenance branch; retire it once rolling maintenance runs."
+	fi
+done
+
+config=""
+for path in renovate.json .github/renovate.json; do
+	if text=$(raw "$path") && [ -n "$text" ]; then
+		config=$path
+		break
+	fi
+done
+if [ -z "$config" ]; then
+	if raw renovate.json5 >/dev/null || raw .renovaterc >/dev/null || raw .renovaterc.json >/dev/null; then
+		need "Its Renovate config is not renovate.json; add $PRESET to its extends by hand."
+	else
+		need "It has no Renovate config, so nothing reaches \`$BRANCH\`."
+	fi
+else
+	if ! jq empty <<<"$text" 2>/dev/null; then
+		need "$config is not strict JSON; add $PRESET to its extends by hand."
+	else
+		bases=$(jq -c '(.baseBranches // .baseBranchPatterns) // empty' <<<"$text")
+		updated=$(jq --arg preset "$PRESET" --arg window "$WINDOW_PRESET" '
+			.extends = ((.extends // []) | map(select(. != $window))
+				| if index($preset) then . else . + [$preset] end)' <<<"$text")
+		if [ "$(jq -S . <<<"$updated")" = "$(jq -S . <<<"$text")" ]; then
+			ok "$config extends the rolling-maintenance preset."
+		elif jq -e --arg branch "$BRANCH" 'index($branch)' <<<"${bases:-[]}" >/dev/null; then
+			# linchpin.com's own rules, which the preset was drawn from.
+			ok "$config routes updates to \`$BRANCH\` with rules of its own."
+		elif [ -n "$bases" ]; then
+			need "$config sets its own base branches ($bases), which would replace the preset's. Remove them, then run this again."
+		else
+			add "$config" "$updated" "Extend the rolling-maintenance preset in \`$config\`, in place of the maintenance window."
+		fi
+	fi
+fi
+
+PR_BRANCH="no-task/rolling-maintenance"
+[ "$TASK" != "NO-TASK" ] && PR_BRANCH="issue/$TASK"
+open_pr() {
+	local base tree commit number body
+	base=$(api "git/ref/heads/$PROD" --jq .object.sha)
+	tree=$(jq -n --arg base "$(api "git/commits/$base" --jq .tree.sha)" --argjson tree "$entries" \
+		'{base_tree: $base, tree: $tree}' | api git/trees --input - --jq .sha)
+	commit=$(jq -n --arg tree "$tree" --arg base "$base" --arg message "ci($TASK): Move to rolling maintenance" \
+		'{message: $message, tree: $tree, parents: [$base]}' | api git/commits --input - --jq .sha)
+	if exists "git/ref/heads/$PR_BRANCH"; then
+		api "git/refs/heads/$PR_BRANCH" -X PATCH -f sha="$commit" -F force=true
+	else
+		api git/refs -f ref="refs/heads/$PR_BRANCH" -f sha="$commit"
+	fi
+	body=$(printf '%s\n\n%s\n\n%s\n\n%s\n' \
+		"Moves this repository from the monthly maintenance window to rolling maintenance: one permanent \`$BRANCH\` branch that Sisyphus on packagist.linchpin.com copies production onto dev for, deploys and tests every night, and promotes through a snapshot PR a person merges." \
+		"$(printf -- '- %s\n' "${summary[@]}")" \
+		"Merge it once \`$BRANCH\` exists and dev's \`$DEV_ENV\` environment is set up (bin/convert-repo reports both). The callers name linchpin/actions \`rolling-maintenance.yml@v4\` and \`snapshots.yml@v4\`." \
+		"_Opened by linchpin/actions bin/convert-repo._$([ "$TASK" = "NO-TASK" ] || printf ' ClickUp: https://app.clickup.com/t/%s' "$TASK")")
+	number=$(api "pulls?state=open&head=$OWNER:$PR_BRANCH" --jq '.[0].number // empty')
+	if [ -z "$number" ]; then
+		number=$(api pulls -f title="ci($TASK): Move to rolling maintenance" -f head="$PR_BRANCH" -f base="$PROD" -f body="$body" --jq .number)
+	fi
+	echo "$number"
+}
+if [ "${#summary[@]}" -eq 0 ]; then
+	ok "Nothing to change."
+else
+	for line in "${summary[@]}"; do
+		printf '      %s\n' "$line"
+	done
+	if [ "$APPLY" = "true" ]; then
+		number=$(open_pr)
+		ok "Opened or updated #$number from \`$PR_BRANCH\`: https://github.com/$REPO/pull/$number"
+	else
+		printf "  → Open one PR from \`%s\` with the changes above.\n" "$PR_BRANCH"
+	fi
+fi
+
+# 4 -------------------------------------------------------------------------
+step "4. Dev's \`$DEV_ENV\` environment"
+env_exists=false
+exists "environments/$DEV_ENV" && env_exists=true
+put_env() {
+	api "environments/$DEV_ENV" -X PUT --input - <<<'{"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}'
+}
+if [ "$env_exists" = "true" ]; then
+	policy=$(api "environments/$DEV_ENV" --jq '.deployment_branch_policy.custom_branch_policies // false')
+	if [ "$policy" != "true" ]; then
+		change "Limit \`$DEV_ENV\` to chosen branches." put_env
+	fi
+else
+	change "Create \`$DEV_ENV\`, deploying from chosen branches only." put_env
+fi
+
+policies=""
+[ "$env_exists" = "true" ] && policies=$(api "environments/$DEV_ENV/deployment-branch-policies" --jq '.branch_policies[] | "\(.id) \(.type) \(.name)"' 2>/dev/null || true)
+has_policy=false
+while read -r id type name; do
+	[ -n "$id" ] || continue
+	if [ "$type" = "branch" ] && [ "$name" = "$BRANCH" ]; then
+		has_policy=true
+	else
+		change "Stop \`$DEV_ENV\` deploying \`$name\`." api "environments/$DEV_ENV/deployment-branch-policies/$id" -X DELETE
+	fi
+done <<<"$policies"
+if [ "$has_policy" = "true" ]; then
+	ok "Deploys from \`$BRANCH\` only."
+else
+	change "Let \`$DEV_ENV\` deploy from \`$BRANCH\`." api "environments/$DEV_ENV/deployment-branch-policies" -f name="$BRANCH" -f type=branch
+fi
+
+# The production environment, to copy what dev shares with it: the one whose
+# BRANCH is the production branch, else the one named for production.
+production_env=""
+for env in $environments; do
+	[ "$env" = "$DEV_ENV" ] && continue
+	if [ "$(api "environments/$env/variables/BRANCH" --jq .value 2>/dev/null)" = "$PROD" ]; then
+		production_env=$env
+		break
+	fi
+	case "$env" in [Pp]roduction*) production_env=${production_env:-$env} ;; esac
+done
+
+variable() {
+	local name=$1 value=$2 current=""
+	[ "$env_exists" = "true" ] && current=$(api "environments/$DEV_ENV/variables/$name" --jq .value 2>/dev/null || true)
+	if [ "$current" = "$value" ]; then
+		ok "$name is $value."
+	elif [ -n "$current" ]; then
+		change "Change $name from $current to $value." api "environments/$DEV_ENV/variables/$name" -X PATCH -f name="$name" -f value="$value"
+	else
+		change "Set $name to $value." api "environments/$DEV_ENV/variables" -f name="$name" -f value="$value"
+	fi
+}
+known() {
+	[ "$env_exists" = "true" ] && api "environments/$DEV_ENV/variables/$1" --jq .value 2>/dev/null
+}
+variable BRANCH "$BRANCH"
+variable ENVIRONMENT "$DEV_ENV"
+if [ -n "$DEV_SITE_ID" ]; then
+	variable SITE_ID "$DEV_SITE_ID"
+elif current=$(known SITE_ID) && [ -n "$current" ]; then
+	ok "SITE_ID is $current."
+else
+	need "Give dev's site id at the host with --dev-site-id."
+fi
+if [ -n "$DEV_URL" ]; then
+	variable SITE_URL "$DEV_URL"
+elif current=$(known SITE_URL) && [ -n "$current" ]; then
+	ok "SITE_URL is $current."
+else
+	need "Give dev's URL with --dev-url."
+fi
+if [ -n "$production_env" ]; then
+	for name in HOST REMOTE_PLUGIN_INSTALL; do
+		if value=$(api "environments/$production_env/variables/$name" --jq .value 2>/dev/null) && [ -n "$value" ]; then
+			variable "$name" "$value"
+		fi
+	done
+fi
+if ! exists "actions/variables/HOST" && [ -z "$(known HOST || true)" ] && [ -z "$production_env" ]; then
+	need "Neither the repository nor $DEV_ENV sets HOST (pressable, wpengine or cloudways)."
+fi
+if [ -n "$DEV_SSH_USER" ]; then
+	change "Store dev's SSH user as SSH_USER." gh secret set SSH_USER --repo "$REPO" --env "$DEV_ENV" --body "$DEV_SSH_USER"
+elif [ "$env_exists" = "true" ] && api "environments/$DEV_ENV/secrets/SSH_USER" >/dev/null 2>&1; then
+	ok "SSH_USER is set."
+else
+	need "Give dev's SSH user with --dev-ssh-user (the SSH_USER secret)."
+fi
+
+# 5 -------------------------------------------------------------------------
+step "5. The \"$RULESET\" ruleset"
+required=$(api "rules/branches/$PROD" --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | unique')
+skips=$(printf '%s\n' ${SKIP_CHECKS[@]+"${SKIP_CHECKS[@]}"} | jq -R . | jq -sc 'map(select(length > 0))')
+checks=$(jq -c --argjson skips "$skips" '. - $skips' <<<"$required")
+if [ "$checks" = "[]" ]; then
+	warn "$PROD requires no checks, so neither does \`$BRANCH\`: an update merges once whatever runs on it is green."
+else
+	desired=$(jq -n --arg name "$RULESET" --arg ref "refs/heads/$BRANCH" --argjson checks "$checks" --argjson bot "$BOT_ID" '{
+		name: $name, target: "branch", enforcement: "active",
+		conditions: {ref_name: {include: [$ref], exclude: []}},
+		bypass_actors: [{actor_id: $bot, actor_type: "User", bypass_mode: "exempt"}],
+		rules: [{type: "required_status_checks", parameters: {
+			do_not_enforce_on_create: true, strict_required_status_checks_policy: false,
+			required_status_checks: [$checks[] | {context: .}]}}]}')
+	id=$(api rulesets | jq -r --arg name "$RULESET" '.[] | select(.name == $name) | .id')
+	if [ -z "$id" ]; then
+		change "Create it, requiring $(jq -r 'join(", ")' <<<"$checks")." api rulesets --input - <<<"$desired"
+	elif [ "$(api "rulesets/$id" | jq -c '[.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context] | sort')" = "$(jq -c sort <<<"$checks")" ]; then
+		ok "Requires $(jq -r 'join(", ")' <<<"$checks")."
+	else
+		change "Update it to require $(jq -r 'join(", ")' <<<"$checks")." api "rulesets/$id" -X PUT --input - <<<"$desired"
+	fi
+fi
+
+# ---------------------------------------------------------------------------
+step "Snapshots go into $(quoted "${TARGETS[@]}" | sed "s/', '/ or /g"); Sisyphus promotes into \`$PROMOTION\`."
+if [ "$NEEDS" -gt 0 ]; then
+	printf '\n%d thing(s) above need a person (!). Run it again once they are done.\n' "$NEEDS"
+	exit 2
+fi
+if [ "$APPLY" = "true" ]; then
+	printf '\nConverted. Merge the PR, then enroll the site in Sisyphus.\n'
+else
+	printf '\nNothing needs a person. Run it again with --apply.\n'
+fi
