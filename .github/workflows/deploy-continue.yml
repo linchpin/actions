@@ -92,6 +92,12 @@ on:
       SATISPRESS_PASSWORD:
         description: "Private Packagist password, used only by the REMOTE_PLUGIN_INSTALL reconcile"
         required: false
+      DEPLOYMENTS_API_CLIENT_ID:
+        description: "api.linchpin.com application client with deployments:write, for the deployment log"
+        required: false
+      DEPLOYMENTS_API_CLIENT_SECRET:
+        description: "That client's secret"
+        required: false
 
 jobs:
   deploy:
@@ -225,3 +231,16 @@ jobs:
             --field environment="${{ inputs.environment }}" \
             --field environment_url="${{ vars.SITE_URL }}" \
             --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      # The deployment log on api.linchpin.com.
+      - name: Report to the deployment log
+        if: ${{ always() }}
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: linchpin/actions/actions/report-deployment@v4
+        with:
+          deployment-id: ${{ inputs.deployment_id }}
+          status: ${{ job.status }}
+          environment-url: ${{ vars.SITE_URL }}
+          client-id: ${{ secrets.DEPLOYMENTS_API_CLIENT_ID }}
+          client-secret: ${{ secrets.DEPLOYMENTS_API_CLIENT_SECRET }}
