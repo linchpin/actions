@@ -551,7 +551,7 @@ jobs:
             --field log_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       # The deployment log on api.linchpin.com (LINCHPIN-5861). A deploy parked
-      # for a backup has not finished, so it is not reported here.
+      # for a backup is reported by deploy-continue.yml when it finishes.
       - name: Report to the deployment log
         if: ${{ always() && steps.deployment.outputs.id != '' && !(vars.HOST == 'pressable' && inputs.do_backup) }}
         continue-on-error: true
