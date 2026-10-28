@@ -25,13 +25,9 @@
 # Rollback: dispatch this workflow with the previous `release_tag`.
 #
 # Hosts: HOST=pressable|wpengine|cloudways (same composite-action pattern for
-# each). Backup first, then deploy: with `do_backup: true` on Pressable, the
-# deploy builds, parks the GitHub deployment as `queued`, and asks
-# api.linchpin.com to back the site up (POST /deployments/start). api takes
-# the files and database backup with the same workflow plugin updates wait on,
-# and when it completes dispatches the caller's continue workflow
-# (`continue_workflow`, -> deploy-continue.yml) to finish the deploy from this
-# run's artifact. A backup that fails fails the deployment, and nothing ships.
+# each). `do_backup: true` (Pressable) queues the deployment and has
+# api.linchpin.com back the site up; api then dispatches the caller's
+# `continue_workflow` (-> deploy-continue.yml) to deploy this run's artifact.
 #
 # Deployment log: when the deploy finishes, on success or failure, the
 # report-deployment action records it in api.linchpin.com's deployment log with
@@ -67,7 +63,7 @@ on:
         default: ""
         type: string
       do_backup:
-        description: "Pressable: pause as 'queued', have api.linchpin.com back the site up, and deploy only once it completes, through the caller's continue workflow"
+        description: "Pressable: have api.linchpin.com back the site up, then deploy through the caller's continue workflow"
         required: false
         default: false
         type: boolean
@@ -141,7 +137,7 @@ on:
         default: "1.12.0"
         type: string
       continue_workflow:
-        description: "With do_backup: the caller's workflow file api.linchpin.com dispatches, on vars.BRANCH, once the backup completes"
+        description: "With do_backup: the caller's workflow file that api.linchpin.com dispatches when the backup completes"
         required: false
         default: "deploy-production-continue.yml"
         type: string
@@ -288,18 +284,9 @@ jobs:
           echo "::error::release.zip never appeared on $TAG after ~2 min. Has this release been deployed yet? (a deploy with build_for_release attaches release.zip)"
           exit 1
 
-      # Backup-then-deploy (Pressable): park the deployment as `queued`, ask
-      # api.linchpin.com to back the site up, and end this run. api takes the
-      # files and database backup with the workflow plugin updates wait on
-      # (MANTLE-198), freeing a slot when Pressable's three are full, and when
-      # it completes dispatches the caller's continue workflow
-      # (-> deploy-continue.yml), which picks up the `release` artifact from
-      # THIS run via workflow_run_id. A failed backup fails the deployment.
-      #
-      # This used to start the backup itself, unchecked, and tell
-      # mantle.linchpin.com, which never dispatched anything, so every deploy
-      # with do_backup stayed queued. A refusal from api now fails the run
-      # instead of parking it where nothing will come for it.
+      # Queue the deployment and ask api.linchpin.com to back the site up, then
+      # end the run. api dispatches the caller's continue workflow when the
+      # backup completes. The run fails if api refuses.
       - name: Queue deployment pending backup (api.linchpin.com continues it)
         if: ${{ vars.HOST == 'pressable' && inputs.do_backup }}
         env:

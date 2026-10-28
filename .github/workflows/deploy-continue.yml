@@ -1,12 +1,9 @@
 # Continue Deploy (v4)
 #
-# Second half of the backup-then-deploy flow. When deploy.yml runs with
-# `do_backup: true` (Pressable), it parks the GitHub deployment as `queued`
-# and asks api.linchpin.com to back the site up. Once the backup completes,
-# api dispatches the caller repo's continue workflow (workflow_dispatch with
-# deployment_id + workflow_run_id) as linchpin-bot, which calls this reusable
-# workflow to finish the deploy. A failed backup fails the deployment and
-# dispatches nothing.
+# Finishes a `do_backup` deploy from deploy.yml once api.linchpin.com has
+# backed the site up. api dispatches the caller's continue workflow with
+# deployment_id and workflow_run_id as string inputs, so the caller must
+# declare both.
 #
 # Previous (v3): deploy-pressable-continue.yml. The plumbing had gaps that
 # kept the flow aspirational: the caller's dispatch workflow declared no
@@ -18,13 +15,6 @@
 # download-artifact's run-id + github-token (requires actions: read), or —
 # when the original deploy used a release asset — re-download by release_tag.
 # Status updates target the deployment_id created by the original run.
-#
-# api.linchpin.com contract:
-#   POST https://api.linchpin.com/api/v1/deployments/start receives
-#   pressable_site_id, deployment_id, workflow_run_id, repository, branch and
-#   continue_workflow. When the backup completes, api dispatches
-#   continue_workflow on branch with deployment_id and workflow_run_id as
-#   string inputs, so the caller's workflow must declare both.
 
 name: Continue Deploy
 
