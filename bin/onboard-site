@@ -115,6 +115,55 @@ wp() {
 	printf '%s' "$out"
 }
 
+# Read Safety Net's status route on dev over HTTPS, as Sisyphus's preflight does
+# every night. A dev it cannot read fails the night at Preflight, after 15
+# minutes of asking again, so stop here with what to fix. WordPress without
+# Safety Net yet is fine: the first Deploy to Dev installs it.
+reachable() {
+	local url=$1 host answer code=0 status location body environment
+	host=${url#*://}
+	host=${host%%/*}
+	answer=$(curl -sS --max-time 60 -H 'Cache-Control: no-cache' -w '\n%{http_code} %{redirect_url}' \
+		"https://$host/wp-json/safety-net/v1/status?onboard=$(date +%s)" 2>/dev/null) || code=$?
+	case $code in
+	0) ;;
+	6) need "$host has no DNS record. Add A records for it pointing at its Pressable site's IP addresses, DNS only, then run this again." ;;
+	35 | 51 | 58 | 59 | 60) need "$host has no valid certificate yet. Pressable issues one once its DNS points at the site; wait for it, then run this again." ;;
+	*) need "$host did not answer (curl exit $code). Check the site is up on Pressable, then run this again." ;;
+	esac
+	status=${answer##*$'\n'}
+	location=${status#* }
+	status=${status%% *}
+	body=${answer%$'\n'*}
+	case $status in
+	200)
+		if [ "$(jq -r '.active // false' <<<"$body" 2>/dev/null)" = "true" ]; then
+			environment=$(jq -r '.environment // ""' <<<"$body")
+			[ "$environment" = "development" ] ||
+				need "$host reports its environment as ${environment:-nothing}, not development, so Safety Net would not run there. Set WP_ENVIRONMENT_TYPE to development, then run this again."
+			ok "Sisyphus can reach $host, and Safety Net answers there."
+			return 0
+		fi
+		;;
+	404)
+		if [ "$(jq -r '.code // ""' <<<"$body" 2>/dev/null)" = "rest_no_route" ]; then
+			ok "Sisyphus can reach $host. Safety Net is not on it yet: the first Deploy to Dev installs it."
+			return 0
+		fi
+		;;
+	3??)
+		case $location in
+		*cloudflareaccess.com*)
+			need "Cloudflare Access stands in front of $host. Add an Access application for $host/wp-json/safety-net/v1/status with a Bypass policy (the route reports only Safety Net's flags), then run this again."
+			;;
+		esac
+		need "$host redirects Safety Net's status route to ${location:-another address}. Dev has to answer on its own hostname."
+		;;
+	401) need "$host asks for a password. Let Safety Net's status route through without one, then run this again." ;;
+	esac
+	need "$host answered HTTP $status without a Safety Net status, so Preflight would fail every night."
+}
+
 # Ask which of the lines on stdin; prints the chosen one. One line is chosen
 # without asking. The menu goes to stderr, so only the answer is captured.
 pick() {
@@ -221,6 +270,7 @@ if others=$(jq -r --arg site "$SITE" '[.used_by[] | select(.hostname != $site) |
 fi
 DEV_URL=$(jq -r '.url | if startswith("http") then . else "https://" + . end' <<<"$dev")
 ok "Dev is $DEV_URL (Pressable $DEV)."
+reachable "$DEV_URL"
 
 STAGING=${STAGING:-$(jq -r '.staging_ref // empty' <<<"$enrollment")}
 if [ -z "$STAGING" ]; then
@@ -231,7 +281,11 @@ staging=""
 if [ -n "$STAGING" ]; then
 	staging=$(jq -c --arg ref "$STAGING" '[.[] | select(.pressable_id == $ref)][0] // empty' <<<"$targets")
 	[ -n "$staging" ] || need "Pressable $STAGING is not a staging site Sisyphus can use."
-	ok "Staging is $(jq -r '.url | if startswith("http") then . else "https://" + . end' <<<"$staging") (Pressable $STAGING)."
+	staging_url=$(jq -r '.url | if startswith("http") then . else "https://" + . end' <<<"$staging")
+	ok "Staging is $staging_url (Pressable $STAGING)."
+	# Nothing nightly reads staging, but its deploys' health check loads it.
+	curl -sS -o /dev/null --max-time 30 "$staging_url" 2>/dev/null ||
+		warn "$staging_url does not answer over HTTPS yet (no DNS record or certificate), so a deploy to staging would fail its health check."
 else
 	ok "No staging: snapshots go straight to production's branch."
 fi
