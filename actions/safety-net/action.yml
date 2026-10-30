@@ -15,7 +15,7 @@ description: >-
 
 inputs:
   environment:
-    description: "The environment being deployed. Anything but `development` is refused."
+    description: "The environment being deployed. Anything but `development`, in any case (GitHub matches environment names that way), is refused."
     required: true
   ssh-host:
     description: "SSH host"
@@ -45,7 +45,9 @@ runs:
       env:
         ENVIRONMENT: ${{ inputs.environment }}
       run: |
-        if [ "$ENVIRONMENT" != "development" ]; then
+        # Case-insensitive, like GitHub's environment names and deploy.yml's own
+        # check: convert-repo writes a repo's existing name, such as Development.
+        if [ "$(printf '%s' "$ENVIRONMENT" | tr '[:upper:]' '[:lower:]')" != "development" ]; then
           echo "::error::Safety Net is installed on development only, never on '$ENVIRONMENT'."
           exit 1
         fi
