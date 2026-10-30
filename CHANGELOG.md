@@ -1,5 +1,22 @@
 # Changelog
 
+## [4.21.0](https://github.com/linchpin/actions/compare/v4.20.1...v4.21.0) (2026-10-30)
+
+
+### Features
+
+* **ITCA-145:** Check Sisyphus can reach dev before onboarding a site ([9b35ed9](https://github.com/linchpin/actions/commit/9b35ed929a5ecfbb78407a4a653a30011a5e8eaf))
+* **LINCHPIN-5942:** Land bin/onboard-site on main, checking Sisyphus can reach dev ([7a8a8d5](https://github.com/linchpin/actions/commit/7a8a8d5f7de421dcd45d1993bf435d0125a0b769))
+* **LINCHPIN-5942:** Onboard a site to nightly maintenance from one script ([#202](https://github.com/linchpin/actions/issues/202)) ([19d40f6](https://github.com/linchpin/actions/commit/19d40f67c6ea4ce754c6a7eb190e77afa0619888))
+* **NO-TASK:** Check WordPress on the server after a Pressable deploy ([9a10c9a](https://github.com/linchpin/actions/commit/9a10c9aebf37f15517ef898cbdfd8138dde1fd55))
+* **NO-TASK:** Check WordPress on the server after a Pressable deploy ([9969bf0](https://github.com/linchpin/actions/commit/9969bf07e5955252997b75fd7db7324572a79401))
+
+
+### Bug Fixes
+
+* **ITCA-145:** Let Safety Net install on a Development environment ([46866b9](https://github.com/linchpin/actions/commit/46866b92512c9a36a9670e36393d216662f0e1f9))
+* **ITCA-145:** Let Safety Net install on a Development environment ([cf1c333](https://github.com/linchpin/actions/commit/cf1c333a8962eee44fd0aab3a07bad21f3488b2a))
+
 ## [4.20.1](https://github.com/linchpin/actions/compare/v4.20.0...v4.20.1) (2026-10-28)
 
 
