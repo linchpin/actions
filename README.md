@@ -708,6 +708,32 @@ and adds the "Green checks into maintenance" ruleset from production's required
 checks. A line starting `!` needs a person, and the exit status is then 2.
 `--out <dir>` writes the files the PR would change, to read them first.
 
+### Onboarding a site
+
+`bin/onboard-site` is the whole onboarding, with `bin/convert-repo` as its
+step 4. It asks for the client, its production site, dev and staging (from the
+client's Pressable staging sites, flagging any another site already uses),
+then the repository and where snapshots go. It reads Safety Net's status route
+on dev over HTTPS, as Sisyphus's preflight does every night, and stops when it
+cannot: no DNS record, no certificate yet, Cloudflare Access or a password in
+front of dev, or a redirect elsewhere. It picks the next free run time,
+converts the repository, and enrolls the site in Sisyphus, paused. Once the
+conversion PR is merged it runs the first Deploy to Dev, so Safety Net is on dev
+before any night. Once that passes, it enables the site and starts one Run now.
+
+```bash
+export SISYPHUS_AUTH='your-username:application password'   # packagist.linchpin.com › Users › Profile
+bin/onboard-site                                  # the plan, picking from lists
+bin/onboard-site www.ctoec.org --close-windows --task LINCHPIN-5946 --apply
+```
+
+It stops at the first step that needs a person and says what to do. Run it
+again afterwards: the picks are read back from the enrollment, and finished
+steps are skipped. Every pick has a flag (`--dev`, `--staging`, `--repo`,
+`--promote`, `--run-time`) for running it without a terminal. Three things stay
+with a person: creating dev on Pressable when the client has none, its DNS
+records, and mapping a Ghost Inspector suite to dev in Sisyphus.
+
 ## The monthly maintenance window
 
 Three workflows make up the maintenance model, and they only work together:
