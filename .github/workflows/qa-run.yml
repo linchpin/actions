@@ -25,6 +25,13 @@
 # only its own project's token, so a leaked token cannot trigger or read another
 # client's runs. This workflow never sees the token's scope — it just presents
 # it — but a token for the wrong project surfaces as a 403 on trigger.
+#
+# Why two hosts: the QA platform serves its machine API and its UI from
+# different hostnames. The API (`api_base`, qa-api.linchpin.com) takes bearer
+# tokens and has no Cloudflare Access in front of it, so a CI job can reach it.
+# The UI (`ui_base`, qa.linchpin.com) is behind Access, so a call there gets a
+# 302 to the Access sign-in page instead of a run. Requests go to `api_base`;
+# `ui_base` is only used to build the run-detail links people click.
 
 name: QA Run
 
@@ -50,7 +57,12 @@ on:
         default: ""
         type: string
       api_base:
-        description: "Base URL of the QA platform. Override only for staging."
+        description: "Base URL of the QA platform's machine API (bearer token, no Access). Override only for staging."
+        required: false
+        default: "https://qa-api.linchpin.com"
+        type: string
+      ui_base:
+        description: "Base URL of the QA platform's UI. Used only for the run-detail links in the job output."
         required: false
         default: "https://qa.linchpin.com"
         type: string
@@ -150,6 +162,7 @@ jobs:
         if: steps.trigger.outputs.skipped_all == 'false'
         env:
           API_BASE: ${{ inputs.api_base }}
+          UI_BASE: ${{ inputs.ui_base }}
           QA_API_TOKEN: ${{ secrets.QA_API_TOKEN }}
           BATCH_ID: ${{ steps.trigger.outputs.batch_id }}
           POLL_INTERVAL: ${{ inputs.poll_interval_seconds }}
@@ -157,7 +170,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          run_url="${API_BASE%/}/runs/${BATCH_ID}"
+          # The link people click goes to the UI host; the machine API host serves
+          # no pages.
+          run_url="${UI_BASE%/}/runs/${BATCH_ID}"
 
           # timeout_minutes feeds the integer arithmetic below and
           # poll_interval_seconds feeds sleep. The workflow input type is `number`,
