@@ -6,11 +6,19 @@
 # release is published. Sisyphus freezes after a passing night. tidy tags merged
 # snapshots and closes stale ones.
 #
+# refresh brings `base` into `head` when a promotion's PR has fallen behind its
+# target and GitHub's update-branch refuses, usually because a release on the
+# production branch moved composer.json's version and composer.lock's
+# content-hash (LINCHPIN-6009). resolve-merge settles the manifests and
+# lockfiles; anything else it gives up on fails the job, with the files in the
+# summary. It never pushes to the production branch: that moves only by a PR.
+#
 # The caller owns the triggers and run name (templates/rolling-maintenance).
 # `mode` defaults to tidy on a schedule and freeze otherwise.
 #
-# GH_BOT_TOKEN (linchpin-bot) is a PAT, so the PRs it opens run CI. Nothing here
-# merges.
+# GH_BOT_TOKEN (linchpin-bot) is a PAT, so the PRs it opens run CI and its pushes
+# start the head branch's own workflows (a push to staging deploys staging).
+# Nothing here merges a PR.
 
 name: Snapshots
 
@@ -18,7 +26,7 @@ on:
   workflow_call:
     inputs:
       mode:
-        description: "freeze or tidy. Defaults to tidy on a schedule and freeze otherwise"
+        description: "freeze, tidy or refresh. Defaults to tidy on a schedule and freeze otherwise"
         required: false
         default: ""
         type: string
@@ -32,6 +40,21 @@ on:
         required: false
         default: ""
         type: string
+      head:
+        description: "refresh: the branch to bring `base` into, such as staging or a snapshot branch. Never the production branch"
+        required: false
+        default: ""
+        type: string
+      base:
+        description: "refresh: the branch brought into `head`. Defaults to the production branch"
+        required: false
+        default: ""
+        type: string
+      publish_conflicts:
+        description: "refresh: publish files resolve-merge cannot settle to sisyphus/conflicts/<pair> for Sisyphus to answer; a later refresh applies the answers"
+        required: false
+        default: false
+        type: boolean
       branch:
         description: "The maintenance branch"
         required: false
@@ -48,7 +71,7 @@ on:
         default: 7
         type: number
       dry_run:
-        description: "Log what would be frozen or closed without writing anything"
+        description: "Log what would be frozen, closed or pushed without writing anything"
         required: false
         default: false
         type: boolean
@@ -60,6 +83,12 @@ on:
     secrets:
       GH_BOT_TOKEN:
         required: true
+      PACKAGIST_COMPOSER_AUTH_JSON:
+        description: "refresh: COMPOSER_AUTH JSON for resolve-merge, for packagist.linchpin.com"
+        required: false
+      NPM_READ_TOKEN:
+        description: "refresh: npm read token for resolve-merge, for private @linchpinagency packages"
+        required: false
     outputs:
       branch:
         description: "freeze: the snapshot branch it cut"
@@ -67,6 +96,18 @@ on:
       pr:
         description: "freeze: the number of the PR it opened"
         value: ${{ jobs.snapshot.outputs.pr }}
+      refreshed:
+        description: "refresh: true when `head` now contains `base`, whether it was merged or already did"
+        value: ${{ jobs.refresh.outputs.refreshed }}
+      sha:
+        description: "refresh: the merge commit it pushed, empty when there was nothing to bring in"
+        value: ${{ jobs.refresh.outputs.sha }}
+      unresolved:
+        description: "refresh: space-separated files resolve-merge could not settle"
+        value: ${{ jobs.refresh.outputs.unresolved }}
+      conflicts_branch:
+        description: "refresh: the branch the unsettled files were published to, with publish_conflicts"
+        value: ${{ jobs.refresh.outputs.conflicts_branch }}
 
 permissions:
   contents: read
@@ -74,6 +115,7 @@ permissions:
 jobs:
   snapshot:
     name: ${{ (inputs.mode || (github.event_name == 'schedule' && 'tidy' || 'freeze')) == 'tidy' && 'Tidy snapshots' || 'Freeze a snapshot' }}
+    if: inputs.mode != 'refresh'
     runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
@@ -93,3 +135,86 @@ jobs:
           production-branch: ${{ inputs.production_branch }}
           max-age-days: ${{ inputs.max_age_days }}
           dry-run: ${{ inputs.dry_run }}
+
+  refresh:
+    name: Refresh a branch from its target
+    if: inputs.mode == 'refresh'
+    runs-on: ${{ inputs.runner || vars.RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    outputs:
+      refreshed: ${{ steps.check.outputs.current == 'true' || steps.resolve.outputs.resolved == 'true' }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      unresolved: ${{ steps.resolve.outputs.unresolved }}
+      conflicts_branch: ${{ steps.resolve.outputs.conflicts-branch }}
+    steps:
+      # Through the API, before any checkout: a head that already has every
+      # commit of base is done, and the wrong branches stop here.
+      - name: Check the branches
+        id: check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_BRANCH: ${{ inputs.head }}
+          BASE_BRANCH: ${{ inputs.base || inputs.production_branch || github.event.repository.default_branch }}
+          PRODUCTION_BRANCH: ${{ inputs.production_branch || github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [ -z "$HEAD_BRANCH" ]; then
+            echo "::error::refresh needs head, the branch to bring $BASE_BRANCH into."
+            exit 1
+          fi
+          if [ "$HEAD_BRANCH" = "$PRODUCTION_BRANCH" ]; then
+            echo "::error::refresh never pushes to the production branch ($PRODUCTION_BRANCH); it moves only by a PR."
+            exit 1
+          fi
+          if [ "$HEAD_BRANCH" = "$BASE_BRANCH" ]; then
+            echo "::error::head and base are both $HEAD_BRANCH."
+            exit 1
+          fi
+          # behind_by: the commits of base that head lacks.
+          behind=$(gh api "repos/$REPOSITORY/compare/$BASE_BRANCH...$HEAD_BRANCH" --jq .behind_by)
+          echo "base=$BASE_BRANCH" >> "$GITHUB_OUTPUT"
+          if [ "$behind" = "0" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+            echo "- \`$HEAD_BRANCH\` already has every commit of \`$BASE_BRANCH\`; nothing to bring in." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "- \`$HEAD_BRANCH\` lacks $behind commit(s) of \`$BASE_BRANCH\`." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Full history, blobless, with the bot's token because the merge is pushed.
+      - name: Check out the branch to refresh
+        if: steps.check.outputs.current == 'false'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.head }}
+          path: work
+          fetch-depth: 0
+          filter: blob:none
+          token: ${{ secrets.GH_BOT_TOKEN }}
+
+      - name: Bring base in
+        id: resolve
+        if: steps.check.outputs.current == 'false'
+        uses: linchpin/actions/actions/resolve-merge@v4
+        with:
+          working-directory: work
+          from: origin/${{ steps.check.outputs.base }}
+          branch: ${{ inputs.head }}
+          dry-run: ${{ inputs.dry_run }}
+          publish-conflicts: ${{ inputs.publish_conflicts }}
+          composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+          npm-token: ${{ secrets.NPM_READ_TOKEN }}
+
+      # resolve-merge gives up without failing; a refresh that could not bring
+      # base in is a failed run, for Sisyphus and for a person.
+      - name: Fail when base could not be brought in
+        if: steps.check.outputs.current == 'false' && steps.resolve.outputs.resolved != 'true'
+        shell: bash
+        env:
+          REASON: ${{ steps.resolve.outputs.reason }}
+          UNRESOLVED: ${{ steps.resolve.outputs.unresolved }}
+        run: |
+          echo "::error::Not refreshed: ${REASON:-resolve-merge gave up}${UNRESOLVED:+ (files: $UNRESOLVED)}"
+          exit 1

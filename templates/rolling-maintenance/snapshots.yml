@@ -3,18 +3,27 @@
 # Freezes a tested commit of `maintenance` as snapshot/YYYY-MM-DD and opens its
 # PR into @PROMOTION_TARGET@ for a person to merge. Sisyphus dispatches this file by name
 # after a passing night, so keep its name; the daily run tidies merged and stale
-# snapshots. Written by linchpin/actions bin/convert-repo.
+# snapshots. Sisyphus also dispatches it to refresh a promotion's branch (head)
+# from the branch it goes into (base) when GitHub cannot update it, which a
+# push to head then deploys like any other. Written by linchpin/actions
+# bin/convert-repo.
 
 name: Snapshots
 
 run-name: >-
-  ${{ github.event_name == 'workflow_dispatch'
-  && format('Freeze a snapshot into {0} {1}', inputs.target, inputs.correlation_id)
-  || 'Tidy snapshots' }}
+  ${{ github.event_name != 'workflow_dispatch' && 'Tidy snapshots'
+  || inputs.mode == 'refresh' && format('Refresh {0} from {1} {2}', inputs.head, inputs.base, inputs.correlation_id)
+  || inputs.mode == 'tidy' && format('Tidy snapshots {0}', inputs.correlation_id)
+  || format('Freeze a snapshot into {0} {1}', inputs.target, inputs.correlation_id) }}
 
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "freeze a snapshot, refresh head from base, or tidy"
+        type: choice
+        options: ['freeze', 'refresh', 'tidy']
+        default: 'freeze'
       target:
         description: "Branch the snapshot PR goes into"
         type: choice
@@ -24,8 +33,16 @@ on:
         description: "Commit of maintenance to freeze (the head of maintenance when empty)"
         type: string
         required: false
+      head:
+        description: "refresh: the branch to bring base into, like staging (never @PRODUCTION_BRANCH@)"
+        type: string
+        required: false
+      base:
+        description: "refresh: the branch brought in (@PRODUCTION_BRANCH@ when empty)"
+        type: string
+        required: false
       dry_run:
-        description: "Log what would be frozen or closed without writing anything"
+        description: "Log what would be frozen, closed or pushed without writing anything"
         type: boolean
         default: false
       correlation_id:
@@ -48,6 +65,9 @@ jobs:
     uses: linchpin/actions/.github/workflows/snapshots.yml@v4
     secrets: inherit
     with:
+      mode: ${{ inputs.mode }}
       target: ${{ inputs.target }}
       sha: ${{ inputs.sha }}
+      head: ${{ inputs.head }}
+      base: ${{ inputs.base }}
       dry_run: ${{ inputs.dry_run || false }}

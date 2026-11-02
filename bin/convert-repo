@@ -20,7 +20,8 @@
 #      templates/rolling-maintenance), the Renovate rolling-maintenance preset in
 #      place of the maintenance window, and the monthly window's workflows
 #      removed. A caller the repository already has for rolling maintenance is
-#      kept as it is.
+#      kept as it is, except a snapshots.yml from before refresh (no `mode`),
+#      which is updated so Sisyphus can refresh a promotion's branch.
 #   4. Dev's GitHub environment: deploys from `maintenance` only, with SITE_ID,
 #      SITE_URL, BRANCH and ENVIRONMENT, and the SSH_USER secret when given.
 #   5. The "Green checks into maintenance" ruleset: the checks production
@@ -288,11 +289,15 @@ remove() {
 	summary+=("$2")
 }
 
+# A file that already calls linchpin/actions (marker) is kept, unless it predates
+# what Sisyphus now dispatches it with (current, when given).
 caller() {
-	local file=$1 marker=$2 existing
+	local file=$1 marker=$2 current=${3:-} existing
 	existing=$(content "$1")
-	if [ -n "$existing" ] && grep -qE "$marker" <<<"$existing"; then
+	if [ -n "$existing" ] && grep -qE "$marker" <<<"$existing" && { [ -z "$current" ] || grep -qE "$current" <<<"$existing"; }; then
 		ok "Keeps its own $file."
+	elif [ -n "$existing" ] && grep -qE "$marker" <<<"$existing"; then
+		add ".github/workflows/$file" "$(render "$file")" "Update \`$file\` to the current caller."
 	elif [ -n "$existing" ]; then
 		add ".github/workflows/$file" "$(render "$file")" "Replace \`$file\` with the rolling maintenance caller."
 	else
@@ -300,7 +305,8 @@ caller() {
 	fi
 }
 caller maintenance.yml 'rolling-maintenance(\.yml@|\.sh)'
-caller snapshots.yml 'snapshots\.yml@|snapshot\.sh'
+# mode, head and base: Sisyphus's refresh (LINCHPIN-6009).
+caller snapshots.yml 'snapshots\.yml@|snapshot\.sh' 'mode:[[:space:]]*\$\{\{[[:space:]]*inputs\.mode'
 caller deploy-dev.yml 'deploy\.yml@v4'
 if [ -n "$(content deploy-dev.yml)" ] && ! grep -q 'safety_net: true' <<<"$(content deploy-dev.yml)"; then
 	need "deploy-dev.yml does not set safety_net: true, so preflight refuses dev every night."
