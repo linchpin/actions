@@ -358,9 +358,12 @@ for file in ${manifests[@]+"${manifests[@]}"}; do
 	fi
 done
 
-# Every locked package, production and dev, as {name: version}, from a lock on stdin.
+# Every locked package, production and dev, as {name: version}, from a lock on
+# stdin. Keys are sorted, so two maps compare equal as text whatever order the
+# packages were added in: a package new on the other side is appended last to
+# the expected map but sits in name order in Composer's lock.
 versions() {
-	jq -c '[(.packages // []) + (."packages-dev" // []) | .[] | {key: .name, value: .version}] | from_entries'
+	jq -cS '[(.packages // []) + (."packages-dev" // []) | .[] | {key: .name, value: .version}] | from_entries'
 }
 
 for dir in $(printf '%s\n' ${composer_dirs[@]+"${composer_dirs[@]}"} | sort -u); do
@@ -409,7 +412,7 @@ for dir in $(printf '%s\n' ${composer_dirs[@]+"${composer_dirs[@]}"} | sort -u);
 
 	# This side's lock with the other side's packages applied, and nothing else moved.
 	resolved=$(versions <"$lock")
-	expected=$(jq -nc --argjson ours "$ours" --argjson theirs "$theirs" --argjson base "$base" '
+	expected=$(jq -ncS --argjson ours "$ours" --argjson theirs "$theirs" --argjson base "$base" '
 		reduce (($base + $theirs | keys)[] | select($base[.] != $theirs[.])) as $name ($ours;
 			if $theirs[$name] == null then del(.[$name]) else .[$name] = $theirs[$name] end)')
 	if [ "$resolved" != "$expected" ]; then
