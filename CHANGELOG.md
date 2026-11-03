@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.22.0](https://github.com/linchpin/actions/compare/v4.21.0...v4.22.0) (2026-11-03)
+
+
+### Features
+
+* **LINCHPIN-6009:** Refresh a promotion's branch from its target in Snapshots ([dba44de](https://github.com/linchpin/actions/commit/dba44de83f89e2b3fd1abb66a81c9ff751157b68))
+* **LINCHPIN-6009:** Refresh a promotion's branch from its target in Snapshots ([8eb87da](https://github.com/linchpin/actions/commit/8eb87da616c2483c84c8bea02ac5c038afa3ba2b))
+
+
+### Bug Fixes
+
+* **AT-80:** Point qa-run at the machine API host ([45ef0d9](https://github.com/linchpin/actions/commit/45ef0d91bc6c33fac839025b88b0d7853bbc3031))
+* **AT-80:** Point qa-run at the machine API host ([6c87405](https://github.com/linchpin/actions/commit/6c874055887a63b02ff67f8d46fc38ebd22ec198))
+* **LINCHPIN-6009:** Compare composer.lock versions regardless of package order ([4a31aab](https://github.com/linchpin/actions/commit/4a31aab0f95a58ebfb1aa2c5a776bd81cb0a4c0e))
+
 ## [4.21.0](https://github.com/linchpin/actions/compare/v4.20.1...v4.21.0) (2026-10-30)
 
 
