@@ -645,7 +645,7 @@ A site repo needs three thin callers, which Sisyphus dispatches by file name.
 | --- | --- | --- |
 | `maintenance.yml` | `rolling-maintenance.yml` | bring production in and merge updates before each nightly deploy |
 | `deploy-dev.yml` | `deploy.yml` with `environment: development` and `safety_net: true` | deploy `maintenance` to dev |
-| `snapshots.yml` | `snapshots.yml` | freeze the night's commit into the promotion target |
+| `snapshots.yml` | `snapshots.yml` | freeze the night's commit into the promotion target, or refresh a promotion's branch from the branch it goes into |
 
 The callers keep the triggers and the run name, because a dispatch returns no
 run id: Sisyphus finds its run by the `correlation_id` it puts in the name.
@@ -684,6 +684,17 @@ jobs:
 - **Snapshot targets are any branch** other than `maintenance`: production, or a
   staging branch that promotes to it. The caller's `target` choice lists the
   ones the site uses.
+- **`mode: refresh` brings `base` into `head`** when a promotion's PR has fallen
+  behind and GitHub's update-branch refuses: typically staging's PR into
+  production after a release moved composer.json's `version` and composer.lock's
+  content-hash. It checks the two through the API first (a `head` that already
+  has every commit of `base` is done without a checkout), then runs
+  resolve-merge and pushes `head` with `GH_BOT_TOKEN`, so the push deploys `head`
+  like any other. It never pushes to the production branch, and it fails, with
+  the files in the summary, when resolve-merge gives up. `publish_conflicts`
+  hands any other file to Sisyphus, and a later refresh applies its answers.
+  Sisyphus dispatches it with `mode`, `head`, `base` and `correlation_id`; a
+  caller from before refresh is updated by running `bin/convert-repo` again.
 - Every script runs locally with `DRY_RUN=true`, for example
   `GH_REPO=linchpin/ctoec DRY_RUN=true actions/rolling-maintenance/rolling-maintenance.sh`.
 
