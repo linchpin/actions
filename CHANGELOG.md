@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.23.0](https://github.com/linchpin/actions/compare/v4.22.0...v4.23.0) (2026-11-10)
+
+
+### Features
+
+* **LINCHPIN-4913:** Split security-update auto-approval into its own workflow ([bc98e5c](https://github.com/linchpin/actions/commit/bc98e5ca1be54e4378828023b4a7258575f419ba))
+* **LINCHPIN-4913:** Split security-update auto-approval into its own workflow ([c98709d](https://github.com/linchpin/actions/commit/c98709d649509a32bb9e00ac38f32548a2f91ed6))
+
 ## [4.22.0](https://github.com/linchpin/actions/compare/v4.21.0...v4.22.0) (2026-11-03)
 
 
