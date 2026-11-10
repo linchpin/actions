@@ -12,7 +12,6 @@ jobs:
 
     if: >-
       startsWith(github.head_ref, 'maintenance/') ||
-      startsWith(github.head_ref, 'security-update/') ||
       startsWith(github.base_ref, 'maintenance/')
 
     steps:
