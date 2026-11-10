@@ -313,7 +313,7 @@ jobs:
 | [report-deployment](actions/report-deployment) | Record a finished deploy, and the commits it shipped since the environment's last one, in api.linchpin.com's deployment log |
 | [rolling-maintenance](actions/rolling-maintenance) | Bring production into the `maintenance` branch, then merge its green Renovate PRs, through the API alone |
 | [snapshot](actions/snapshot)                    | Freeze a snapshot of `maintenance` and open its PR, or tidy snapshots, through the API alone |
-| [governing-merge](actions/governing-merge)      | Merge Linchpin Governing's green, single-package release bumps into production |
+| [governing-merge](actions/governing-merge)      | Merge Linchpin Governing's green, single-package release and security bumps into production |
 | [resolve-merge](actions/resolve-merge)          | Bring one branch into another when GitHub refuses, resolving manifest and lockfile conflicts deterministically — see [below](#resolving-merges) |
 
 ## Example Shared Workflow Usage
