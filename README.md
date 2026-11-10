@@ -266,7 +266,8 @@ Linchpin WordPress projects use [Release Please](https://github.com/googleapis/r
 | [wp-version-checker.yml](.github/workflows/wp-version-checker.yml) | Open an issue when the plugin's `Tested up to` header falls behind WordPress |
 | [update-readme.yml](.github/workflows/update-readme.yml)   | Update the project README plugin table from composer.lock                                                      |
 | [qa-run.yml](.github/workflows/qa-run.yml)                 | Trigger a QA platform run on deploy, poll it to a terminal state, and fail the job on a red test — the Ghost Inspector replacement |
-| [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch (or from a `security-update/*` branch) when only allow-listed dependency/config files changed |
+| [auto-approve-maintenance.yml](.github/workflows/auto-approve-maintenance.yml) | Auto-approve PRs into a `maintenance/*` branch when only allow-listed dependency/config files changed |
+| [auto-approve-security-update.yml](.github/workflows/auto-approve-security-update.yml) | Auto-approve PRs from a `security-update/*` branch when only allow-listed dependency/config files changed |
 | [rolling-maintenance.yml](.github/workflows/rolling-maintenance.yml) | Keeps a permanent `maintenance` branch current: brings production in, merges green Renovate PRs into it, merges green Linchpin Governing bumps into production — see [Rolling maintenance](#rolling-maintenance) |
 | [snapshots.yml](.github/workflows/snapshots.yml)           | Freezes a tested commit of `maintenance` as `snapshot/YYYY-MM-DD` and opens its PR into production or staging; tidies merged and stale snapshots |
 | [maintenance.yml](.github/workflows/maintenance.yml)       | Opens the monthly window: creates `maintenance/YYYY-MM` and the draft PR that Renovate stacks its dependency PRs onto, and flags any older window still open |
