@@ -1,7 +1,8 @@
 name: "Governing Merge"
 description: >-
-  Merge Linchpin Governing's release bumps (governing/bump-* PRs from
-  linchpin-packagist[bot]) into the production branch once they are level with
+  Merge Linchpin Governing's release and security bumps (governing/bump-* PRs
+  from linchpin-packagist[bot], labelled automated or security) into the
+  production branch once they are level with
   it and green, when each moves exactly one package main already requires and is
   not a major, unless a person approved it. Behind, it updates the branch;
   conflicted, it asks Governing to regenerate the lock. governing-merge.sh has

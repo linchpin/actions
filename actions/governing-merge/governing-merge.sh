@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Merge Linchpin Governing's release bumps into the production branch (main
-# below: PRODUCTION_BRANCH, the default branch) once they are green.
+# Merge Linchpin Governing's release and security bumps into the production
+# branch (main below: PRODUCTION_BRANCH, the default branch) once they are green.
 #
 # When one of Linchpin's own packages publishes a release, Linchpin Governing
 # (packagist-plugin-manager, on packagist.linchpin.com) opens a PR against main
@@ -12,10 +12,17 @@
 # still moves only when a person merges the release PR. That is what gets a
 # release onto main in minutes rather than whenever someone next looks.
 #
+# Governing also opens a bump when a person patches a vulnerable plugin from its
+# Security tab: the site is updated straight away, and the PR, labelled
+# security, is what stops the next deploy from putting the vulnerable version
+# back. Until it merges, a release can revert the fix, so it gets the same
+# treatment as a release bump (MANTLE-649).
+#
 # A PR merges once all of these hold:
 #
-#   - linchpin-packagist[bot] opened it from governing/bump-*, labelled automated:
-#     the release watcher, not a person pushing an update by hand.
+#   - linchpin-packagist[bot] opened it from governing/bump-*, labelled automated
+#     (the release watcher) or security (a security fix). Any other bump a
+#     person pushed by hand waits for a person.
 #   - It changes composer.json and composer.lock and nothing else, moves one
 #     require entry main already had (adding a package is a scope change), and
 #     its lock moves that package alone.
@@ -119,9 +126,9 @@ fi
 
 jq -r --arg bot "$GOVERNING" '.[]
 	| select(.user.login == $bot and (.draft | not) and (.head.ref | startswith("governing/bump-"))
-	         and any(.labels[]; .name == "automated"))
-	| "\(.number) \(.head.sha)"' <<<"$candidates" |
-	while read -r number sha; do
+	         and any(.labels[]; .name == "automated" or .name == "security"))
+	| "\(.number) \(.head.sha) \(if any(.labels[]; .name == "security") then "security" else "release" end)"' <<<"$candidates" |
+	while read -r number sha kind; do
 		files=$(gh api "repos/$GH_REPO/pulls/$number/files?per_page=100" --jq '[.[].filename] | sort | join(" ")')
 		if [ "$files" != "composer.json composer.lock" ]; then
 			note "#$number changes $files, not just composer.json and composer.lock; leaving it for a person."
@@ -213,12 +220,19 @@ jq -r --arg bot "$GOVERNING" '.[]
 
 		# The squash commit is what release-please reads, so it is worded the way
 		# Renovate words the updates it merges (COMMIT_PREFIX), and lands in the
-		# same section.
+		# same section. A security fix gets Renovate's [SECURITY] suffix too.
+		if [ "$kind" = "security" ]; then
+			title="$PREFIX Update dependency $name to v$version [SECURITY] (#$number)"
+			reason="a security fix"
+		else
+			title="$PREFIX Update dependency $name to v$version (#$number)"
+			reason="the release"
+		fi
 		if write gh api -X PUT "repos/$GH_REPO/pulls/$number/merge" \
 			-f merge_method=squash -f sha="$sha" \
-			-f commit_title="$PREFIX Update dependency $name to v$version (#$number)" \
-			-f commit_message="Opened by Linchpin Governing for the release; merged by linchpin/actions governing-merge once it was level with $BASE and green." >/dev/null; then
-			note "Merged #$number: $name $from to $version."
+			-f commit_title="$title" \
+			-f commit_message="Opened by Linchpin Governing for $reason; merged by linchpin/actions governing-merge once it was level with $BASE and green." >/dev/null; then
+			note "Merged #$number ($kind): $name $from to $version."
 		else
 			note "Could not merge #$number (conflicted, or pushed since); the next run looks again."
 		fi
