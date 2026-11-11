@@ -1,0 +1,30 @@
+{
+  "$comment": "ClickUp routing for this repo. IDs are workspace-stable; names are for humans. Schema: the task-tracking skill's references/clickup-json.md in linchpin/skills.",
+  "space": {
+    "id": "90140688927",
+    "name": "Linchpin",
+    "customIdPrefix": "LINCHPIN"
+  },
+  "defaultList": {
+    "id": "901401968912",
+    "name": "Improvement Plan",
+    "path": "Linchpin › Deployment Process › Improvement Plan",
+    "use": "Shared workflow and action work: deploys, builds, checks, maintenance workflows, README and docs fixes."
+  },
+  "lists": {
+    "Deployment Process › Improvement Plan": "901401968912",
+    "Sisyphus › Maintenance": "901422760976",
+    "DocsPress": "901422736055"
+  },
+  "folders": {
+    "Deployment Process": "90141127375",
+    "Sisyphus": "901414821918"
+  },
+  "unmapped": {
+    "$comment": "No moduleRouting: the board is organised by project, not by directory.",
+    "listsWithoutModule": [
+      "Sisyphus › Maintenance — work driven by Sisyphus's nightly runs or promotions (e.g. snapshots refresh, LINCHPIN-6009), even when the change lands here",
+      "DocsPress — the DocsPress fork and docs.linchpin.com itself; publishing this repo's docs stays in Improvement Plan"
+    ]
+  }
+}
