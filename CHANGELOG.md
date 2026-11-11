@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.24.0](https://github.com/linchpin/actions/compare/v4.23.0...v4.24.0) (2026-11-11)
+
+
+### Features
+
+* **MANTLE-649:** Merge Governing's security bumps into production too ([ba146f9](https://github.com/linchpin/actions/commit/ba146f9a68c9d72183f526a49402531f0d0557cb))
+* **MANTLE-649:** Merge Governing's security bumps into production too ([c1d0e86](https://github.com/linchpin/actions/commit/c1d0e8643435c6df618fbc7b8245ae2aa6fbbd47))
+
 ## [4.23.0](https://github.com/linchpin/actions/compare/v4.22.0...v4.23.0) (2026-11-10)
 
 
