@@ -1,4 +1,6 @@
-# Migrating from v3 to v4
+---
+title: Migrating from v3 to v4
+---
 
 v4 is a ground-up rework of the shared build/deploy workflows focused on three
 things: **build once and deploy from the release asset**, **working caches**,
@@ -17,10 +19,10 @@ minutes).
 | v3 | v4 | Notes |
 | --- | --- | --- |
 | `build.yml` (5 jobs) | `build.yml` (1 job) | Single `release` artifact; optional `release_tag` input attaches `release.zip` to a GitHub release |
-| `create-release.yml` (4 jobs) | `create-release.yml` (thin wrapper around `build.yml`) | The attached `release.zip` is now actually deployable (see "v3 bugs fixed") |
+| `create-release.yml` (4 jobs) | Removed in v4.3.0 | The production deploy (`deploy.yml` with `build_for_release`) builds, deploys and attaches a `release.zip` that is actually deployable (see "v3 bugs fixed") |
 | `deploy.yml` (up to 9 jobs) | `deploy.yml` (2 jobs; 1 when `release_tag` is set) | Preflight/Complete bookkeeping became `gh api` steps; deploy-time lint removed; fans out to pressable/wpengine/cloudways composites by `vars.HOST` |
 | `deploy-pressable.yml` | `actions/deploy-pressable` composite action | Entrypoint script ships inside the action (no runtime wget); health check gates success |
-| `deploy-pressable-continue.yml` + `deploy-pressable-webhook.yml` | `deploy-continue.yml` | Backup-and-continue flow preserved and actually wired (see below); Mantle contract unchanged |
+| `deploy-pressable-continue.yml` + `deploy-pressable-webhook.yml` | `deploy-continue.yml` | Backup-and-continue flow preserved and actually wired (see below); api.linchpin.com takes the backup and dispatches the continue workflow since v4.20.0 |
 | `deploy-wpengine.yml` | `actions/deploy-wpengine` composite action | SSH config inlined (drops the `actions-wpengine-ssh@main` moving ref); endpoint.sh folded into the entrypoint |
 | `deploy-cloudways.yml` | `actions/deploy-cloudways` composite action | Key and password auth in one code path; maintenance.php ships with the action |
 | `phplint.yml` + `phpcs.yml` + `phpcbf.yml` | `lint.yml` (1 job) | One cached Composer install; phpcs annotates changed files via cs2pr; phpcbf is a local pre-commit concern now |
@@ -100,19 +102,21 @@ survives the rewrite:
   per-theme/per-plugin rsync is brief; most deploys don't need a window.
   v3 always enabled it. Set `maintenance_mode: true` for risky releases.
 - **The backup-and-continue flow is preserved — and now actually plumbed.**
-  With `do_backup: true` (Pressable), `deploy.yml` triggers the on-demand
-  backup, registers the deployment with Mantle
-  (`POST mantle.linchpin.com/api/v1/deployments/start` with `deployment_id` +
-  `workflow_run_id`, same contract as v3), parks the GitHub deployment as
-  `queued`, and ends. Mantle dispatches the caller's continue workflow, which
-  calls `deploy-continue.yml` to finish from the already-built artifact.
+  With `do_backup: true` (Pressable), `deploy.yml` parks the GitHub
+  deployment as `queued`, asks api.linchpin.com to back the site up
+  (`POST api.linchpin.com/api/v1/deployments/start` with `deployment_id`,
+  `workflow_run_id` and the caller's `continue_workflow`), and ends. Since
+  v4.20.0 api.linchpin.com takes the backup itself; earlier v4 releases
+  triggered it from the runner and registered with Mantle. When the backup
+  completes, api dispatches the caller's continue workflow, which calls
+  `deploy-continue.yml` to finish from the already-built artifact.
   v4 fixes the v3 gaps that kept this aspirational: the caller's dispatch
   workflow now declares explicit inputs (v3 read `github.event.deployment.id`,
   which a `workflow_dispatch` payload does not carry), and the cross-run
   artifact download now passes `run-id` + `github-token` (plus the
   `actions: read` permission), which v3 omitted — so the continue run can
   genuinely fetch the release built by the original run.
-  ⚠️ Mantle must dispatch with
+  ⚠️ The dispatch must carry
   `{"inputs": {"deployment_id": "...", "workflow_run_id": "..."}}`.
 - **Success means the site responds.** The deploy job now health-checks
   `vars.SITE_URL` (any HTTP status < 500 passes, so auth walls and redirects
@@ -265,13 +269,13 @@ jobs:
 
 ### Continue workflow — declare the dispatch inputs
 
-The caller-side continue workflow stays (Mantle dispatches it), but it must
-declare its inputs explicitly:
+The caller-side continue workflow stays (api.linchpin.com dispatches it), but
+it must declare its inputs explicitly:
 
 ```yaml
 name: Continue Deploy to Production
 on:
-  workflow_dispatch: # Dispatched by Mantle when the Pressable backup completes
+  workflow_dispatch: # Dispatched by api.linchpin.com when the backup completes
     inputs:
       deployment_id:
         description: "GitHub deployment ID from the original deploy run"
@@ -328,11 +332,13 @@ is no longer read. `SATISPRESS_USER`/`SATISPRESS_PASSWORD` are used only by the
 they are now declared in `deploy.yml`/`deploy-continue.yml`; a caller that passes
 secrets individually rather than with `secrets: inherit` must add them.
 
-## Versioning plan for v4
+## Versioning
 
 v3 was a moving branch — before this rework the last real tag on this repo
 was `v1.0.2` (2022), so every client absorbed v3 changes the moment they
-landed. Current state:
+landed. v4 is released: `v4.0.0` was cut by release-please, the `v4`
+development branch is gone, and the floating `v4` tag follows every release.
+How v4 got there:
 
 - **`v3.0.0` exists** — an immutable snapshot of the `v3` branch tip
   (49d2a98, cut 2026-06-12). The `v3` branch is frozen (bug fixes only);
@@ -346,7 +352,7 @@ landed. Current state:
   self-references (`linchpin/actions/actions/*@v4`) therefore stay correct
   with no rewrite step.
 
-GA sequence after this PR merges into main:
+The GA sequence, now complete:
 
 1. Merge the release-please PR it opens → `v4.0.0` is tagged and released.
 2. Delete the `v4` development branch (a floating tag cannot coexist with a
@@ -361,11 +367,12 @@ GA sequence after this PR merges into main:
 - [ ] Validate the WP Engine and Cloudways composites against a live client
       site before any client repo moves to v4 (ported from v3 logic, with its
       shell bugs fixed, but untested against real installs)
-- [ ] Update Mantle to dispatch the continue workflow with explicit
+- [x] Dispatch the continue workflow with explicit
       `inputs: {deployment_id, workflow_run_id}` (v3 dispatched without
-      inputs, which could never work)
+      inputs, which could never work) — api.linchpin.com does this since
+      v4.20.0
 - [x] `REMOTE_PLUGIN_INSTALL=true` flow — ported to
-      [`actions/remote-plugin-install`](../actions/remote-plugin-install).
+      [`actions/remote-plugin-install`](composite-actions/remote-plugin-install.md).
       `.deployment/remote-plugin-install.sh` is superseded and no longer read by
       anything in v4. Still needs validating against a live client site.
 - [ ] WP Engine / Cloudways equivalents for `do_backup` (was already a TODO in v3)
