@@ -220,12 +220,24 @@ runs:
 
     # Loads WordPress on the server, so it sees past Cloudflare Access and the
     # CDN. Sites whose Mantle predates `wp mantle health` only get the load.
+    # health-report.sh turns the JSON into the table and, for a failing check,
+    # an annotation saying what to do; a plugin active but missing from disk
+    # gets where it came from and the options (LINCHPIN-6088). The outcome is
+    # still wp mantle health's own exit status.
     - name: WordPress health check
       if: ${{ inputs.health-check == 'true' }}
       shell: bash
+      env:
+        PROTECTED_PATHS_FILE: ${{ runner.temp }}/protected-paths.txt
+        RELEASE_ARCHIVE: ${{ inputs.release-archive }}
+        RELEASE_DIRECTORY: ${{ inputs.release-directory }}
       run: |
         if ssh pressable "cd /srv/htdocs && wp cli has-command 'mantle health'" >/dev/null 2>&1; then
-          if ! ssh pressable "cd /srv/htdocs && wp mantle health"; then
+          health_status=0
+          health=$(ssh pressable "cd /srv/htdocs && wp mantle health --format=json" 2>/dev/null) || health_status=$?
+          HEALTH_OUTPUT="$health" SSH_ALIAS=pressable WP_PATH=/srv/htdocs \
+            bash "$GITHUB_ACTION_PATH/health-report.sh" || true
+          if [ "$health_status" -ne 0 ]; then
             echo "::error::wp mantle health failed on the server"
             exit 1
           fi

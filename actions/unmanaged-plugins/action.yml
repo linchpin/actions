@@ -1,0 +1,115 @@
+name: "Report unmanaged plugins"
+description: >-
+  After a deploy, list the plugins on the server that the repository does not
+  manage, and say what to do about each: add it to the repo, mark it as
+  managed by the host (PROTECTED_PATHS), or remove it. A plugin installed by
+  hand on one environment never reaches the others, and a development site
+  that copies that environment's database lists it as active without its
+  files, which fails Mantle's health check on Deploy to Dev. Reports only: a
+  warning per plugin and a step summary, never a failure.
+
+  Managed means shipped in release.zip, a wordpress-plugin package in the
+  composer.lock it carries (remote-plugin-install), a symlink on the server
+  (the host's own, like Pressable's Jetpack), or covered by protected-paths.
+
+inputs:
+  host:
+    description: "The deploy host: pressable, wpengine or cloudways. Pressable's jetpack and akismet always count as managed by the host, as in deploy-pressable."
+    required: false
+    default: ""
+  ssh-host:
+    description: "SSH host"
+    required: true
+  ssh-user:
+    description: "SSH user"
+    required: true
+  ssh-key:
+    description: "SSH private key. Password auth is not supported."
+    required: true
+  wp-path:
+    description: "Absolute (or ~-relative) path to the WordPress root on the server. Pressable: /srv/htdocs. WP Engine: ~/sites/<install>. Cloudways: ~/public_html."
+    required: true
+  release-archive:
+    description: "Path to the release.zip that was just deployed, on the runner"
+    required: true
+  protected-paths:
+    description: "Paths managed outside the repo, relative to wp-content: the same value the deploy actions take (one per line, comma separated, or a JSON array; globs allowed)"
+    required: false
+    default: ""
+  environment:
+    description: "The environment's name, for the messages (e.g. production)"
+    required: false
+    default: "this environment"
+  registry-url:
+    description: "The Composer repository that serves WordPress.org plugins as wp-plugin/<slug>, used to suggest the package to require"
+    required: false
+    default: "https://wp-packages.org"
+
+outputs:
+  count:
+    description: "How many unmanaged plugins were found; empty when the check was skipped"
+    value: ${{ steps.report.outputs.count }}
+  unmanaged:
+    description: "JSON array of {slug, title, version, status, package} for each unmanaged plugin"
+    value: ${{ steps.report.outputs.unmanaged }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure SSH connection
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_USER: ${{ inputs.ssh-user }}
+        SSH_KEY: ${{ inputs.ssh-key }}
+      run: |
+        SSH_PATH="$HOME/.ssh"
+        mkdir -p "$SSH_PATH" "$SSH_PATH/ctl"
+        ssh-keyscan -t rsa "$SSH_HOST" >> "$SSH_PATH/known_hosts" 2>/dev/null
+        echo "$SSH_KEY" > "$SSH_PATH/unmanaged_plugins"
+        chmod 700 "$SSH_PATH"
+        chmod 644 "$SSH_PATH/known_hosts"
+        chmod 600 "$SSH_PATH/unmanaged_plugins"
+        # Its own alias, so it never collides with the host deploy action's Host
+        # block in the same job; ControlPath %C still shares that connection.
+        cat >> "$SSH_PATH/config" <<END
+          Host unmanagedplugins
+          HostName $SSH_HOST
+          User $SSH_USER
+          IdentityFile $SSH_PATH/unmanaged_plugins
+          StrictHostKeyChecking no
+          ControlMaster auto
+          ControlPath $SSH_PATH/ctl/%C
+          ControlPersist 60
+        END
+
+    # Same normalisation as the deploy actions, so PROTECTED_PATHS means the
+    # same thing here as it does to the sync.
+    - name: Resolve protected paths
+      shell: bash
+      env:
+        PROTECTED_PATHS: ${{ inputs.protected-paths }}
+      run: |
+        list="$RUNNER_TEMP/unmanaged-plugins-protected.txt"
+        : > "$list"
+        if [ -n "$PROTECTED_PATHS" ]; then
+          if printf '%s' "$PROTECTED_PATHS" | jq -e 'type == "array"' >/dev/null 2>&1; then
+            printf '%s' "$PROTECTED_PATHS" | jq -r '.[]' >> "$list"
+          else
+            printf '%s\n' "$PROTECTED_PATHS" | tr ',' '\n' >> "$list"
+          fi
+          sed -i -e 's#^[[:space:]"/]*##' -e 's#[[:space:]"/]*$##' -e '/^#/d' -e '/^$/d' "$list"
+        fi
+
+    - name: Report plugins the repository doesn't manage
+      id: report
+      shell: bash
+      env:
+        SSH_ALIAS: unmanagedplugins
+        HOST: ${{ inputs.host }}
+        WP_PATH: ${{ inputs.wp-path }}
+        RELEASE_ARCHIVE: ${{ inputs.release-archive }}
+        PROTECTED_PATHS_FILE: ${{ runner.temp }}/unmanaged-plugins-protected.txt
+        ENVIRONMENT_LABEL: ${{ inputs.environment }}
+        REGISTRY_URL: ${{ inputs.registry-url }}
+      run: bash "$GITHUB_ACTION_PATH/unmanaged-plugins.sh"

@@ -59,6 +59,22 @@ directly. Any of these forms works:
   [remote plugin install](remote-plugin-install.md) reconcile does not, so a path
   followed by a comment protects nothing there.
 
+## A plugin on the server but not in the repo
+
+After every deploy, [unmanaged-plugins](../composite-actions/unmanaged-plugins.md)
+warns about each plugin on the server that the release doesn't ship, its
+`composer.lock` doesn't list, and isn't a symlink or a protected path, with
+what to do: add it to the repo, protect it, or remove it.
+
+Protect it only when the host, or something else, puts it on **every**
+environment, the way Pressable puts Jetpack on every site. Protection stops a
+deploy from overwriting a plugin that is on that server; it can't put one on a
+server that never had it. A plugin installed by hand on production is missing
+on development, and because development's database is a copy of production's,
+the plugin is active there without its files. Pressable's health check then
+fails Deploy to Dev with `Active but not on disk`, protected or not. Add a
+plugin like that to the repo instead.
+
 ## Override it for one deploy
 
 [deploy.yml](../workflows/deploy.md) takes two inputs for this:

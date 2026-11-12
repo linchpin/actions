@@ -210,6 +210,23 @@ jobs:
           package-auth-user: ${{ secrets.SATISPRESS_USER }}
           package-auth-password: ${{ secrets.SATISPRESS_PASSWORD }}
 
+      # Mirrors deploy.yml (LINCHPIN-6088): plugins on the server that the
+      # repository doesn't manage, reported and never failing the deploy.
+      - name: Report plugins the repository doesn't manage
+        if: ${{ success() }}
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: linchpin/actions/actions/unmanaged-plugins@v4
+        with:
+          host: pressable
+          ssh-host: ${{ secrets.SSH_HOST }}
+          ssh-user: ${{ secrets.SSH_USER }}
+          ssh-key: ${{ secrets.SSH_KEY }}
+          wp-path: /srv/htdocs
+          release-archive: ${{ github.workspace }}/release.zip
+          protected-paths: ${{ inputs.protected_paths || vars.PROTECTED_PATHS }}
+          environment: ${{ inputs.environment }}
+
       - name: Mark deployment successful
         if: ${{ success() }}
         env:
