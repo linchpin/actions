@@ -20,6 +20,7 @@ The steps the reusable workflows are built from, each usable on its own as `uses
 | [deploy-wpengine](deploy-wpengine.md) | The same for WP Engine | `deploy.yml` |
 | [deploy-cloudways](deploy-cloudways.md) | The same for Cloudways, with key or password SSH auth | `deploy.yml` |
 | [remote-plugin-install](remote-plugin-install.md) | Reconciles third-party plugins and themes on the server against `composer.lock`, one WP-CLI call per package | `deploy.yml`, `deploy-continue.yml` |
+| [unmanaged-plugins](unmanaged-plugins.md) | Warns about each plugin on the server that the repository doesn't manage, with what to do: add it to the repo, protect it, or remove it | `deploy.yml`, `deploy-continue.yml` |
 | [safety-net](safety-net.md) | Development only: installs Safety Net as an mu-plugin and fails unless every site reports its data scrubbed | `deploy.yml` |
 | [report-deployment](report-deployment.md) | Records a finished deploy, and the commits it shipped, in api.linchpin.com's deployment log | `deploy.yml`, `deploy-continue.yml` |
 

@@ -41,7 +41,7 @@ backup completes.
 
 ## How it works
 
-<!-- wp:docspress/flow {"start":1,"steps":[{"title":"Authenticate","content":"\u003cp\u003eExchanges the API client for a token at \u003ccode\u003emy.pressable.com\u003c/code\u003e. Fails here if the client is wrong.\u003c/p\u003e"},{"title":"Back up, optionally","content":"\u003cp\u003eWith \u003ccode\u003etrigger-backup: true\u003c/code\u003e, requests a Pressable on-demand backup and carries on without waiting for it.\u003c/p\u003e"},{"title":"Upload","content":"\u003cp\u003eShips the release zip (or zips \u003ccode\u003erelease-directory\u003c/code\u003e), the server entrypoint and the protected-paths list to \u003ccode\u003edeployment-path\u003c/code\u003e, as \u003ccode\u003e&lt;timestamp&gt;.zip\u003c/code\u003e.\u003c/p\u003e"},{"title":"Maintenance mode on","content":"\u003cp\u003eOnly with \u003ccode\u003emaintenance-mode: true\u003c/code\u003e, through the Pressable API.\u003c/p\u003e"},{"title":"Sync on the server","content":"\u003cp\u003eThe entrypoint unzips the release, logs every symlink under \u003ccode\u003ewp-content\u003c/code\u003e, then syncs each plugin and theme folder with its own rsync and \u003ccode\u003emu-plugins\u003c/code\u003e as one tree, skipping symlinks and protected paths. It keeps the two newest release zips and flushes the page cache when \u003ccode\u003ewp page-cache\u003c/code\u003e exists.\u003c/p\u003e"},{"title":"Maintenance mode off","content":"\u003cp\u003eRuns even when the sync failed.\u003c/p\u003e"},{"title":"Post-deploy command","content":"\u003cp\u003eRuns \u003ccode\u003epost-deploy-command\u003c/code\u003e from \u003ccode\u003e/srv/htdocs\u003c/code\u003e.\u003c/p\u003e"},{"title":"Health checks","content":"\u003cp\u003eRuns \u003ccode\u003ewp mantle health\u003c/code\u003e on the server, or just loads WordPress when the site's Mantle predates that command, then requests \u003ccode\u003esite-url\u003c/code\u003e up to 10 times. Any HTTP status below 500 passes.\u003c/p\u003e"}]} /-->
+<!-- wp:docspress/flow {"start":1,"steps":[{"title":"Authenticate","content":"\u003cp\u003eExchanges the API client for a token at \u003ccode\u003emy.pressable.com\u003c/code\u003e. Fails here if the client is wrong.\u003c/p\u003e"},{"title":"Back up, optionally","content":"\u003cp\u003eWith \u003ccode\u003etrigger-backup: true\u003c/code\u003e, requests a Pressable on-demand backup and carries on without waiting for it.\u003c/p\u003e"},{"title":"Upload","content":"\u003cp\u003eShips the release zip (or zips \u003ccode\u003erelease-directory\u003c/code\u003e), the server entrypoint and the protected-paths list to \u003ccode\u003edeployment-path\u003c/code\u003e, as \u003ccode\u003e&lt;timestamp&gt;.zip\u003c/code\u003e.\u003c/p\u003e"},{"title":"Maintenance mode on","content":"\u003cp\u003eOnly with \u003ccode\u003emaintenance-mode: true\u003c/code\u003e, through the Pressable API.\u003c/p\u003e"},{"title":"Sync on the server","content":"\u003cp\u003eThe entrypoint unzips the release, logs every symlink under \u003ccode\u003ewp-content\u003c/code\u003e, then syncs each plugin and theme folder with its own rsync and \u003ccode\u003emu-plugins\u003c/code\u003e as one tree, skipping symlinks and protected paths. It keeps the two newest release zips and flushes the page cache when \u003ccode\u003ewp page-cache\u003c/code\u003e exists.\u003c/p\u003e"},{"title":"Maintenance mode off","content":"\u003cp\u003eRuns even when the sync failed.\u003c/p\u003e"},{"title":"Post-deploy command","content":"\u003cp\u003eRuns \u003ccode\u003epost-deploy-command\u003c/code\u003e from \u003ccode\u003e/srv/htdocs\u003c/code\u003e.\u003c/p\u003e"},{"title":"Health checks","content":"\u003cp\u003eRuns \u003ccode\u003ewp mantle health\u003c/code\u003e on the server and prints its checks, with an error for each failing one, or just loads WordPress when the site's Mantle predates that command, then requests \u003ccode\u003esite-url\u003c/code\u003e up to 10 times. Any HTTP status below 500 passes.\u003c/p\u003e"}]} /-->
 
 ## Behaviour to know
 
@@ -59,6 +59,14 @@ backup completes.
   failing the step. Leave `health-check` on.
 - **The WordPress check runs on the server,** so Cloudflare Access and the CDN
   in front of the site do not hide a fatal error from it.
+- **A plugin that is active but not on disk is explained.** The error says
+  where the activation came from and what to do. On a development site with
+  Safety Net, it says the database is production's, so production has the
+  plugin, and that it belongs in the repo or should be deactivated on
+  production. A plugin in the release's `composer.lock` is one that
+  [remote-plugin-install](remote-plugin-install.md) installs after this check.
+  The step summary repeats it. See
+  [Host-managed folders](../guides/host-managed-folders.md).
 - **`trigger-backup` never waits.** For a deploy that holds until the backup
   exists, use `deploy.yml`'s `do_backup`, which hands the second half to
   [deploy-continue.yml](../workflows/deploy-continue.md).
@@ -71,4 +79,4 @@ backup completes.
 
 ## Source
 
-[`action.yml`](https://github.com/linchpin/actions/blob/main/actions/deploy-pressable/action.yml), [`pressable-entrypoint.sh`](https://github.com/linchpin/actions/blob/main/actions/deploy-pressable/pressable-entrypoint.sh)
+[`action.yml`](https://github.com/linchpin/actions/blob/main/actions/deploy-pressable/action.yml), [`pressable-entrypoint.sh`](https://github.com/linchpin/actions/blob/main/actions/deploy-pressable/pressable-entrypoint.sh), [`health-report.sh`](https://github.com/linchpin/actions/blob/main/actions/deploy-pressable/health-report.sh)

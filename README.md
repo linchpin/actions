@@ -306,6 +306,7 @@ jobs:
 | [deploy-wpengine](actions/deploy-wpengine)      | Upload + symlink-aware sync of a release to WP Engine over SSH, health check       |
 | [deploy-cloudways](actions/deploy-cloudways)    | Upload + symlink-aware sync of a release to Cloudways (key or password SSH auth), health check |
 | [remote-plugin-install](actions/remote-plugin-install) | Reconcile third-party plugins/themes against composer.lock with per-package WP-CLI calls over SSH |
+| [unmanaged-plugins](actions/unmanaged-plugins) | After a deploy, warn about each plugin on the server that the repository doesn't manage, with what to do about it |
 | [safety-net](actions/safety-net)                | Development only: install our Safety Net release as an mu-plugin and fail unless every site reports its data scrubbed — see [above](#safety-net-on-development) |
 | [update-readme](actions/update-readme)          | Regenerate the README plugin/theme table from composer.lock                        |
 | [check-overrides](actions/check-overrides)      | Probe each npm `overrides` pin and report the ones that are redundant or dangling  |
