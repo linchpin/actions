@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.25.0](https://github.com/linchpin/actions/compare/v4.24.0...v4.25.0) (2026-11-12)
+
+
+### Features
+
+* **LINCHPIN-6088:** Say which plugins are on the server but not in the repo, and what to do ([ef890d5](https://github.com/linchpin/actions/commit/ef890d5efe6e25c6ef64ce68da922d8e03119d49))
+* **LINCHPIN-6088:** Say which plugins are on the server but not in the repo, and what to do ([51bbbd2](https://github.com/linchpin/actions/commit/51bbbd220948de41221f8926c95c10cc59411329))
+
 ## [4.24.0](https://github.com/linchpin/actions/compare/v4.23.0...v4.24.0) (2026-11-11)
 
 
