@@ -47,6 +47,9 @@ To learn more [about variables](https://docs.github.com/en/actions/writing-workf
 | PLUGINS               |         | A JSON formatted array of plugins to build Ex `["linchpin-functionality"]`                                                                            |
 | THEME_USES_COMPOSER   | false   | Do the theme(s) use composer to load dependencies                                                                                                     |
 | PLUGIN_USES_COMPOSER  | true    | Do the plugins(s) use composer to load dependencies                                                                                                   |
+| PANTHEON_MACHINE_TOKEN | | When using Pantheon this is how we authenticate |
+| PANTHEON_SITE_MACHINE_NAME | | WHen using Pantheon this is out we reference our site |
+
 
 ## Breaking Changes from `main` or `v2`
 
