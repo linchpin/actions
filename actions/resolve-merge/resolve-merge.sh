@@ -19,8 +19,9 @@
 #       When both sides raised the same thing, the higher one wins: the
 #       top-level "version", which release-please owns, or a dependency's range
 #       (Renovate sends a major to main and a minor of the same package to
-#       `maintenance`, and the major supersedes it). Any other key both sides
-#       changed to different values gives up.
+#       `maintenance`, and the major supersedes it). A dependency or override
+#       one side removed and the other moved stays removed. Any other key both
+#       sides changed to different values gives up.
 #   package-lock.json
 #       Three-way merge by package entry, the same way, then
 #       `npm install --package-lock-only` repairs the tree against the merged
@@ -291,17 +292,23 @@ for file in ${manifests[@]+"${manifests[@]}"}; do
 		| [$ps[] | . as $p | {p: $p, b: ($B | getpath($p)), o: ($O | getpath($p)), t: ($T | getpath($p))}
 			| select(.o != .b and .t != .b and .o != .t)] as $both
 		# Both raised the same thing: the release version, or a dependency.
-		| def raised: (.p == ["version"]) or (
-			(.p | length) == 2
-			and (.p[0] | IN("dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "overrides", "require", "require-dev"))
-			and (.o | type) == "string" and (.t | type) == "string");
-		  [$both[] | select(raised | not) | .p | map(tostring) | join(".")] as $refused
+		| def dependency: (.p | length) == 2
+			and (.p[0] | IN("dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "overrides", "require", "require-dev"));
+		  def raised: (.p == ["version"]) or (
+			dependency and (.o | type) == "string" and (.t | type) == "string");
+		  # One side removed a dependency or override, the other moved its
+		  # version: the removal wins, since a bump of something no longer
+		  # wanted means nothing. On linchpin.com, main dropped the postcss
+		  # override while Renovate raised it on maintenance (November 2026).
+		  def dropped: dependency and ((.o == null and (.t | type) == "string") or (.t == null and (.o | type) == "string"));
+		  [$both[] | select((raised or dropped) | not) | .p | map(tostring) | join(".")] as $refused
 		| if ($refused | length) > 0 then {refused: $refused}
 		  else
 			reduce ($ps[] | . as $p | select(($O | getpath($p)) != ($B | getpath($p)))) as $p ($T;
 				($O | getpath($p)) as $v
 				| if $v == null then delpaths([$p]) else setpath($p; $v) end)
 			| reduce ($both[] | select(raised)) as $x (.; setpath($x.p; [$x.o, $x.t] | max_by(vkey)))
+			| reduce ($both[] | select(dropped)) as $x (.; delpaths([$x.p]))
 			# Keep dependency lists sorted when the other side kept them sorted.
 			| reduce ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "require", "require-dev") as $k (.;
 				if (.[$k] | type) == "object" and ($T[$k] | type) == "object" and ($T[$k] | keys_unsorted) == ($T[$k] | keys)

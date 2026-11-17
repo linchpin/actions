@@ -19,7 +19,7 @@ Each conflicted file is resolved by what it is, and nothing cleverer.
 
 | Conflicted file | Resolved by |
 | --- | --- |
-| `package.json`, `composer.json` | A three-way merge by key: each value comes from the side that changed it. When both sides raised the top-level `version` (release-please's) or the same dependency's range, the higher one wins. Renovate sends a major to `main` and a minor of the same package to `maintenance`, and the major supersedes it. |
+| `package.json`, `composer.json` | A three-way merge by key: each value comes from the side that changed it. When both sides raised the top-level `version` (release-please's) or the same dependency's range, the higher one wins. Renovate sends a major to `main` and a minor of the same package to `maintenance`, and the major supersedes it. A dependency or override one side removed and the other moved stays removed: a bump of something no longer wanted means nothing. |
 | `package-lock.json` | A three-way merge by package entry, the same way, taking the higher version where both moved one. Then `npm install --package-lock-only` repairs the tree against the merged `package.json`, and `npm ls` checks it. A problem `npm ls` already finds on both sides, such as a peer range one side's TypeScript is outside, is noted, not given up on. |
 | `composer.lock` | Keeps this side's lock and re-applies each package the other side moved, at exactly the version it locked (`composer update <name> --with <name>:<version>`). It then checks nothing else moved and runs `composer validate`. When only `composer.json` changed, `composer update --lock` refreshes the content-hash. |
 | Anything else | Sisyphus's answer for this exact pair of commits, when one exists. Otherwise it gives up. |
