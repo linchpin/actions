@@ -121,8 +121,10 @@ jobs:
           resolver: ${{ inputs.resolve_conflicts }}
           dry-run: ${{ inputs.dry_run }}
 
-      # Only after a refused merge. Full history, blobless, with the bot's token
-      # because the resolved merge is pushed.
+      # Only after a refused merge. Full history and every blob, with the bot's
+      # token because the resolved merge is pushed. Not blobless: there git asks
+      # GitHub for a conflicted file the merge has just written, GitHub refuses,
+      # and the merge never starts (linchpin.com, November 2026).
       - name: Check out the maintenance branch to resolve the merge
         if: steps.roll.outputs.conflict == 'true'
         uses: actions/checkout@v6
@@ -130,7 +132,6 @@ jobs:
           ref: ${{ inputs.branch }}
           path: work
           fetch-depth: 0
-          filter: blob:none
           token: ${{ secrets.GH_BOT_TOKEN }}
 
       # Giving up is not a failure: the next step opens the issue. Files it
@@ -145,6 +146,7 @@ jobs:
           publish-conflicts: ${{ inputs.publish_conflicts }}
           composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
           npm-token: ${{ secrets.NPM_READ_TOKEN }}
+          php-version: ${{ vars.PHP_VERSION }}
 
       - name: Bring production in again, or open the issue for a person
         if: steps.roll.outputs.conflict == 'true'

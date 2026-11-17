@@ -20,7 +20,7 @@ Each conflicted file is resolved by what it is, and nothing cleverer.
 | Conflicted file | Resolved by |
 | --- | --- |
 | `package.json`, `composer.json` | A three-way merge by key: each value comes from the side that changed it. When both sides raised the top-level `version` (release-please's) or the same dependency's range, the higher one wins. Renovate sends a major to `main` and a minor of the same package to `maintenance`, and the major supersedes it. |
-| `package-lock.json` | A three-way merge by package entry, the same way, taking the higher version where both moved one. Then `npm install --package-lock-only` repairs the tree against the merged `package.json`, and `npm ls` checks it. |
+| `package-lock.json` | A three-way merge by package entry, the same way, taking the higher version where both moved one. Then `npm install --package-lock-only` repairs the tree against the merged `package.json`, and `npm ls` checks it. A problem `npm ls` already finds on both sides, such as a peer range one side's TypeScript is outside, is noted, not given up on. |
 | `composer.lock` | Keeps this side's lock and re-applies each package the other side moved, at exactly the version it locked (`composer update <name> --with <name>:<version>`). It then checks nothing else moved and runs `composer validate`. When only `composer.json` changed, `composer update --lock` refreshes the content-hash. |
 | Anything else | Sisyphus's answer for this exact pair of commits, when one exists. Otherwise it gives up. |
 
@@ -38,7 +38,8 @@ It aborts the merge, pushes nothing, and sets `resolved` to `false`, `reason` to
 | `<lock>: <name> is a dev branch (<version>) on '<from>'; its lock entry is not a version to re-apply.` | A `dev-*` requirement has no version to pin. Resolve by hand |
 | `npm moved packages neither side moved in <lock>: <name> <expected> became <actual>, …` | npm floated a package already in the tree that neither side moved and `package.json` does not name. Resolve by hand |
 | `<lock> is lockfileVersion 1, which has no package entries to merge.` | Resolve by hand. Lockfiles from npm 7 or later have package entries |
-| `npm could not repair <lock>: …` or `npm ls finds <lock>'s tree broken: …` | The merged manifest does not install. Read the npm error in the summary |
+| `git could not start the merge: <git's error>` | Read git's error. In a partial clone it reads `not our ref`: check the branch out with no `filter` |
+| `npm could not repair <lock>: …` or `npm ls finds <lock>'s tree broken where neither side was: …` | The merged manifest does not install, or breaks something neither side broke. Read the npm error in the summary |
 | `<lock> moved more than '<from>' did: …` | Composer moved packages beyond the ones the other side moved. Resolve by hand |
 | `the push to '<branch>' was refused; it may have moved.` | The branch moved during the run. The next run starts from the new head |
 

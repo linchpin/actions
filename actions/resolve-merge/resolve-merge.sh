@@ -24,7 +24,8 @@
 #   package-lock.json
 #       Three-way merge by package entry, the same way, then
 #       `npm install --package-lock-only` repairs the tree against the merged
-#       package.json and `npm ls` checks it. An entry both sides moved takes the
+#       package.json and `npm ls` checks it: a problem neither side already had
+#       gives up. An entry both sides moved takes the
 #       higher version and npm checks it. It gives up when npm moved a package
 #       that was already in the tree, neither side moved, and the merged
 #       package.json does not name: npm's own conflict handling re-resolves
@@ -56,7 +57,9 @@
 # token, and nothing from either branch should execute in it.
 #
 # Run it from a checkout of the branch with full history and the other side
-# fetched:
+# fetched, and not a partial clone: in a blobless checkout git asks GitHub for
+# a conflicted file the merge itself has just written, GitHub refuses ("not our
+# ref"), and the merge never starts (linchpin.com, November 2026):
 #
 #   MERGE_FROM=origin/main DRY_RUN=true bash resolve-merge.sh
 #
@@ -101,6 +104,30 @@ give_up() {
 # A file as a ref has it, or null when that side has no such file.
 show() {
 	git show "$1:$2" 2>/dev/null || echo null
+}
+
+# What npm ls finds wrong with a directory's tree, one problem per line and
+# sorted, so two trees compare: "name@version invalid", "name@version
+# extraneous" or "UNMET DEPENDENCY name@range". Paths are dropped, since the
+# same problem lists different dependents on each side. An unmet optional
+# dependency is not a problem: npm ls passes with one.
+npm_problems() {
+	(cd "$1" && npm ls --package-lock-only --all 2>/dev/null || true) |
+		sed -E 's/^[│├└─┬ ]+//; s/ deduped//; s/^(UNMET DEPENDENCY [^ ]+).*/\1/; s/^([^ ]+) (invalid|extraneous).*/\1 \2/' |
+		grep -E '^(UNMET DEPENDENCY [^ ]+|[^ ]+ (invalid|extraneous))$' | LC_ALL=C sort -u || true
+}
+
+# The same, for a directory's package.json and lock as a ref has them. A tree
+# that was already broken on both sides is not the merge's doing:
+# linchpin.com's TypeScript 7 sits outside typescript-eslint's peer range on
+# main and maintenance alike (November 2026).
+npm_problems_at() {
+	local tmp
+	tmp=$(mktemp -d)
+	show "$1" "$(at "$2" package.json)" >"$tmp/package.json"
+	show "$1" "$(at "$2" package-lock.json)" >"$tmp/package-lock.json"
+	npm_problems "$tmp"
+	rm -rf "$tmp"
 }
 
 # A file's path inside a directory, with "." meaning the top.
@@ -180,8 +207,16 @@ publish_conflicts() {
 }
 
 conflicted=()
-if ! git -c merge.conflictStyle=diff3 merge --no-ff --no-commit "$MERGE_FROM" >/dev/null 2>&1; then
-	git rev-parse -q --verify MERGE_HEAD >/dev/null || give_up "git could not start the merge."
+merge_log=$(mktemp)
+if ! git -c merge.conflictStyle=diff3 merge --no-ff --no-commit "$MERGE_FROM" >"$merge_log" 2>&1; then
+	if ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+		why=$(grep -m 3 -E '^(fatal|error):' "$merge_log" | tr '\n' ' ' || true)
+		why=${why:-$(tail -n 3 "$merge_log" | tr '\n' ' ')}
+		if [ "$(git config --get remote.origin.promisor || true)" = "true" ]; then
+			why="$why(This checkout is a partial clone: check it out with no filter.)"
+		fi
+		give_up "git could not start the merge: $why"
+	fi
 	while IFS= read -r file; do
 		conflicted+=("$file")
 	done < <(git diff --name-only --diff-filter=U)
@@ -320,8 +355,18 @@ for dir in $(printf '%s\n' ${npm_dirs[@]+"${npm_dirs[@]}"} | sort -u); do
 	log=$(mktemp)
 	(cd "$dir" && npm install --package-lock-only --ignore-scripts --no-audit --no-fund --loglevel=error) >"$log" 2>&1 ||
 		give_up "npm could not repair $lock: $(grep -m 3 -E 'ERR|error' "$log" | tr '\n' ' ')" "$lock"
-	(cd "$dir" && npm ls --package-lock-only --all) >"$log" 2>&1 ||
-		give_up "npm ls finds $lock's tree broken: $(grep -m 3 -E 'invalid|missing|ERR' "$log" | tr '\n' ' ')" "$lock"
+	if ! (cd "$dir" && npm ls --package-lock-only --all) >"$log" 2>&1; then
+		problems=$(npm_problems "$dir")
+		if [ -z "$problems" ]; then
+			give_up "npm ls cannot read $lock's tree: $(grep -m 3 -E 'ERR|error' "$log" | tr '\n' ' ')" "$lock"
+		fi
+		known=$( (npm_problems_at HEAD "$dir" && npm_problems_at "$MERGE_FROM" "$dir") | LC_ALL=C sort -u)
+		new=$(LC_ALL=C comm -23 <(echo "$problems") <(echo "$known"))
+		if [ -n "$new" ]; then
+			give_up "npm ls finds $lock's tree broken where neither side was: $(head -n 3 <<<"$new" | tr '\n' ' ')" "$lock"
+		fi
+		done_lines+=("$lock: npm ls reports only what both sides already had: $(head -n 3 <<<"$problems" | tr '\n' ',' | sed 's/,$//; s/,/, /g').")
+	fi
 
 	# Each existing package at the version a side moved it to, or left it at.
 	drift=$(jq -nr \

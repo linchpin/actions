@@ -21,7 +21,8 @@
 #      place of the maintenance window, and the monthly window's workflows
 #      removed. A caller the repository already has for rolling maintenance is
 #      kept as it is, except a snapshots.yml from before refresh (no `mode`),
-#      which is updated so Sisyphus can refresh a promotion's branch.
+#      which is updated so Sisyphus can refresh a promotion's branch. It notes a
+#      composer.json that pins no PHP (config.platform.php).
 #   4. Dev's GitHub environment: deploys from `maintenance` only, with SITE_ID,
 #      SITE_URL, BRANCH and ENVIRONMENT, and the SSH_USER secret when given.
 #   5. The "Green checks into maintenance" ruleset: the checks production
@@ -258,6 +259,25 @@ if [ ${#CI_WORKFLOWS[@]} -gt 0 ]; then
 	ok "Updates merge as their checks finish: $(quoted "${CI_WORKFLOWS[@]}" | sed "s/', '/, /g")."
 else
 	warn "No workflow checks PRs, so updates merge on the next push, daily run or night instead of as checks finish."
+fi
+
+# Composer resolves for the PHP it runs on unless composer.json pins one, so an
+# unpinned repository gets locks that production's PHP may not install, and the
+# nightly merge into maintenance cannot re-lock them (ITCA and CTOEC, November
+# 2026).
+if composer_json=$(raw composer.json) && [ -n "$composer_json" ]; then
+	pin=$(jq -r '.config.platform.php // empty' <<<"$composer_json" 2>/dev/null || true)
+	php=$(api actions/variables/PHP_VERSION --jq .value 2>/dev/null) || php=""
+	case "$php" in
+	*.*.*) suggest=$php ;;
+	?*) suggest=$php.0 ;;
+	*) suggest="" ;;
+	esac
+	if [ -n "$pin" ]; then
+		ok "composer.json pins PHP $pin (config.platform.php)."
+	else
+		warn "composer.json pins no PHP (config.platform.php), so Renovate locks for its own PHP. Pin production's in a PR into \`$PROD\`: composer config platform.php ${suggest:-<the PHP production runs>}"
+	fi
 fi
 
 render() {

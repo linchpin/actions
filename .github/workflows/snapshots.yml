@@ -183,7 +183,8 @@ jobs:
             echo "- \`$HEAD_BRANCH\` lacks $behind commit(s) of \`$BASE_BRANCH\`." >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      # Full history, blobless, with the bot's token because the merge is pushed.
+      # Full history and every blob, with the bot's token because the merge is
+      # pushed. Not blobless: resolve-merge cannot start a merge there.
       - name: Check out the branch to refresh
         if: steps.check.outputs.current == 'false'
         uses: actions/checkout@v6
@@ -191,7 +192,6 @@ jobs:
           ref: ${{ inputs.head }}
           path: work
           fetch-depth: 0
-          filter: blob:none
           token: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Bring base in
@@ -206,6 +206,7 @@ jobs:
           publish-conflicts: ${{ inputs.publish_conflicts }}
           composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
           npm-token: ${{ secrets.NPM_READ_TOKEN }}
+          php-version: ${{ vars.PHP_VERSION }}
 
       # resolve-merge gives up without failing; a refresh that could not bring
       # base in is a failed run, for Sisyphus and for a person.
