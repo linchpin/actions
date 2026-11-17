@@ -134,9 +134,11 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_BOT_TOKEN }}
 
-      # Giving up is not a failure: the next step opens the issue. Files it
-      # cannot settle go to Sisyphus, whose answers apply on a later run.
+      # Giving up is not a failure here: the next step opens the issue with the
+      # reason, and the last step fails the run. Files it cannot settle go to
+      # Sisyphus, whose answers apply on a later run.
       - name: Resolve the merge
+        id: resolve
         if: steps.roll.outputs.conflict == 'true'
         uses: linchpin/actions/actions/resolve-merge@v4
         with:
@@ -149,6 +151,7 @@ jobs:
           php-version: ${{ vars.PHP_VERSION }}
 
       - name: Bring production in again, or open the issue for a person
+        id: again
         if: steps.roll.outputs.conflict == 'true'
         uses: linchpin/actions/actions/rolling-maintenance@v4
         with:
@@ -157,6 +160,8 @@ jobs:
           production-branch: ${{ inputs.production_branch }}
           skip-checks: ${{ inputs.skip_checks }}
           resolver: tried
+          resolver-reason: ${{ steps.resolve.outputs.reason }}
+          resolver-unresolved: ${{ steps.resolve.outputs.unresolved }}
           dry-run: ${{ inputs.dry_run }}
 
       # Runs even when a step above failed, so a release is never held up.
@@ -179,3 +184,19 @@ jobs:
           mode: tidy
           branch: ${{ inputs.branch }}
           production-branch: ${{ inputs.production_branch }}
+
+      # Last, so governing-merge and the snapshot tidy have run. While
+      # production cannot come into maintenance nothing new reaches dev or a
+      # snapshot, so the run is red: on a push to production, that commit gets
+      # a red X, which is how the people merging there see it.
+      - name: Fail while production cannot come into maintenance
+        if: ${{ !cancelled() && (steps.roll.outputs.stalled == 'true' || steps.again.outputs.stalled == 'true') }}
+        shell: bash
+        env:
+          BRANCH: ${{ inputs.branch }}
+          BEHIND: ${{ steps.again.outputs.behind || steps.roll.outputs.behind }}
+          SINCE: ${{ steps.again.outputs.since || steps.roll.outputs.since }}
+          ISSUE: ${{ steps.again.outputs.issue || steps.roll.outputs.issue }}
+        run: |
+          echo "::error::\`$BRANCH\` is $BEHIND commit(s) behind production, since $SINCE, and could not be brought up to date. #$ISSUE says why."
+          exit 1

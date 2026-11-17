@@ -26,7 +26,8 @@ steps:
       fetch-depth: 0
       token: ${{ secrets.GH_BOT_TOKEN }}
 
-  - if: steps.roll.outputs.conflict == 'true'
+  - id: resolve
+    if: steps.roll.outputs.conflict == 'true'
     uses: linchpin/actions/actions/resolve-merge@v4
     with:
       working-directory: work
@@ -38,6 +39,8 @@ steps:
     with:
       token: ${{ secrets.GH_BOT_TOKEN }}
       resolver: tried
+      resolver-reason: ${{ steps.resolve.outputs.reason }}
+      resolver-unresolved: ${{ steps.resolve.outputs.unresolved }}
 ```
 
 ## Hop 1: production into the branch
@@ -48,10 +51,12 @@ steps:
 | Not behind production | Nothing to bring in |
 | Behind, with nothing of its own | Fast-forwarded to production |
 | Behind and ahead | GitHub makes a merge commit, `Merge branch '<production>' into maintenance` |
-| GitHub refuses (HTTP 409) | `resolver: true` sets the `conflict` output. `tried` or `false` opens one issue labelled `maintenance-conflict`, titled `Bring <production> into maintenance by hand`, unless one is already open. |
+| GitHub refuses (HTTP 409) | `resolver: true` sets the `conflict` output. `tried` or `false` opens one issue labelled `maintenance-conflict`, titled `Bring <production> into maintenance by hand`, unless one is already open. The issue says how many commits behind the branch is, since when (the merge base), the resolver's reason and files (`resolver-reason`, `resolver-unresolved`), and links the run. A later run comments on it when the reason changes. |
 | Any other merge error | The step fails with GitHub's answer |
 
 Once production is in again, the open `maintenance-conflict` issue is closed. Sisyphus reads that label, so it is not an input.
+
+While production cannot come in, the `stalled` output is `true`, with `behind`, `since` and `issue`. The action itself still succeeds, so the caller's other steps run. [rolling-maintenance.yml](../workflows/rolling-maintenance.md) fails the run as its last step. Before November 2026 the run stayed green, and ITCA's `maintenance` sat 72 commits behind for nine days with nobody told.
 
 ## Hop 2: green Renovate PRs into the branch
 
@@ -74,11 +79,11 @@ It reads `GH_REPO` (required), `GH_TOKEN`, `DRY_RUN`, `MAINTENANCE_BRANCH`, `PRO
 
 ## Inputs
 
-<!-- wp:docspress/fields {"title":"Inputs","fields":[{"name":"token","type":"string","required":true,"defaultValue":"","description":"Token for the GitHub API","values":"","deprecated":false},{"name":"repository","type":"string","required":false,"defaultValue":"${{ github.repository }}","description":"owner/name. Defaults to the repository the workflow runs in","values":"","deprecated":false},{"name":"branch","type":"string","required":false,"defaultValue":"maintenance","description":"The maintenance branch","values":"","deprecated":false},{"name":"production-branch","type":"string","required":false,"defaultValue":"","description":"The branch brought into it, whose ruleset names the required checks. Defaults to the default branch","values":"","deprecated":false},{"name":"skip-checks","type":"string","required":false,"defaultValue":"","description":"Checks the production branch requires that never run on a PR into the maintenance branch, one per line","values":"","deprecated":false},{"name":"self-check","type":"string","required":false,"defaultValue":"Rolling maintenance","description":"The calling job's name, whose own check run is never waited for","values":"","deprecated":false},{"name":"resolver","type":"string","required":false,"defaultValue":"false","description":"true hands a refused merge to resolve-merge through the conflict output; tried says resolve-merge already gave up, so the issue opens; false opens the issue at once","values":"","deprecated":false},{"name":"dry-run","type":"string","required":false,"defaultValue":"false","description":"Log every write instead of making it (true/false)","values":"","deprecated":false}],"searchable":true,"compact":false} /-->
+<!-- wp:docspress/fields {"title":"Inputs","fields":[{"name":"token","type":"string","required":true,"defaultValue":"","description":"Token for the GitHub API","values":"","deprecated":false},{"name":"repository","type":"string","required":false,"defaultValue":"${{ github.repository }}","description":"owner/name. Defaults to the repository the workflow runs in","values":"","deprecated":false},{"name":"branch","type":"string","required":false,"defaultValue":"maintenance","description":"The maintenance branch","values":"","deprecated":false},{"name":"production-branch","type":"string","required":false,"defaultValue":"","description":"The branch brought into it, whose ruleset names the required checks. Defaults to the default branch","values":"","deprecated":false},{"name":"skip-checks","type":"string","required":false,"defaultValue":"","description":"Checks the production branch requires that never run on a PR into the maintenance branch, one per line","values":"","deprecated":false},{"name":"self-check","type":"string","required":false,"defaultValue":"Rolling maintenance","description":"The calling job's name, whose own check run is never waited for","values":"","deprecated":false},{"name":"resolver","type":"string","required":false,"defaultValue":"false","description":"true hands a refused merge to resolve-merge through the conflict output; tried says resolve-merge already gave up, so the issue opens; false opens the issue at once","values":"","deprecated":false},{"name":"resolver-reason","type":"string","required":false,"defaultValue":"","description":"resolve-merge's reason for giving up, with resolver tried, for the issue","values":"","deprecated":false},{"name":"resolver-unresolved","type":"string","required":false,"defaultValue":"","description":"The files resolve-merge left, with resolver tried, for the issue","values":"","deprecated":false},{"name":"dry-run","type":"string","required":false,"defaultValue":"false","description":"Log every write instead of making it (true/false)","values":"","deprecated":false}],"searchable":true,"compact":false} /-->
 
 ## Outputs
 
-<!-- wp:docspress/fields {"title":"Outputs","fields":[{"name":"conflict","type":"string","required":false,"defaultValue":"","description":"true when GitHub refused to bring the production branch in and resolver was true","values":"","deprecated":false}],"searchable":false,"compact":false} /-->
+<!-- wp:docspress/fields {"title":"Outputs","fields":[{"name":"conflict","type":"string","required":false,"defaultValue":"","description":"true when GitHub refused to bring the production branch in and resolver was true","values":"","deprecated":false},{"name":"stalled","type":"string","required":false,"defaultValue":"","description":"true when the run ends with the production branch not in the branch; the caller fails its run on it, after everything else has run","values":"","deprecated":false},{"name":"behind","type":"string","required":false,"defaultValue":"","description":"How many commits of the production branch the branch lacks, when stalled","values":"","deprecated":false},{"name":"since","type":"string","required":false,"defaultValue":"","description":"The date of the last production commit the branch has (the merge base), when stalled","values":"","deprecated":false},{"name":"issue","type":"string","required":false,"defaultValue":"","description":"The maintenance-conflict issue, when stalled","values":"","deprecated":false}],"searchable":false,"compact":false} /-->
 
 ## Source
 

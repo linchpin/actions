@@ -43,6 +43,14 @@ inputs:
       the issue at once
     required: false
     default: "false"
+  resolver-reason:
+    description: "resolve-merge's reason for giving up, with resolver tried, for the issue"
+    required: false
+    default: ""
+  resolver-unresolved:
+    description: "The files resolve-merge left, with resolver tried, for the issue"
+    required: false
+    default: ""
   dry-run:
     description: "Log every write instead of making it (true/false)"
     required: false
@@ -52,6 +60,20 @@ outputs:
   conflict:
     description: "true when GitHub refused to bring the production branch in and resolver was true"
     value: ${{ steps.roll.outputs.conflict == 'true' }}
+  stalled:
+    description: >-
+      true when the run ends with the production branch not in the branch: the
+      caller fails its run on it, after everything else has run
+    value: ${{ steps.roll.outputs.stalled == 'true' }}
+  behind:
+    description: "How many commits of the production branch the branch lacks, when stalled"
+    value: ${{ steps.roll.outputs.behind }}
+  since:
+    description: "The date of the last production commit the branch has (the merge base), when stalled"
+    value: ${{ steps.roll.outputs.since }}
+  issue:
+    description: "The maintenance-conflict issue, when stalled"
+    value: ${{ steps.roll.outputs.issue }}
 
 runs:
   using: "composite"
@@ -67,5 +89,7 @@ runs:
         BRANCH_SKIPS_CHECKS: ${{ inputs.skip-checks }}
         SELF_CHECK: ${{ inputs.self-check }}
         LOCK_RESOLVER: ${{ inputs.resolver }}
+        RESOLVER_REASON: ${{ inputs.resolver-reason }}
+        RESOLVER_UNRESOLVED: ${{ inputs.resolver-unresolved }}
         DRY_RUN: ${{ inputs.dry-run }}
       run: bash "$GITHUB_ACTION_PATH/rolling-maintenance.sh"
