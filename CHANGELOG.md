@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.26.1](https://github.com/linchpin/actions/compare/v4.26.0...v4.26.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **LINCHPIN-6082:** Let a removed dependency or override beat the other side's bump ([4eb905f](https://github.com/linchpin/actions/commit/4eb905f095f76abfe334fde1d51ab79bf0608624))
+* **LINCHPIN-6082:** Let a removed dependency or override beat the other side's bump ([bfea16f](https://github.com/linchpin/actions/commit/bfea16feacad8b7379b6d9c54b1ca1b0f748f089))
+
 ## [4.26.0](https://github.com/linchpin/actions/compare/v4.25.0...v4.26.0) (2026-11-17)
 
 
