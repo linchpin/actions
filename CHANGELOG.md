@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.26.0](https://github.com/linchpin/actions/compare/v4.25.0...v4.26.0) (2026-11-17)
+
+
+### Features
+
+* **LINCHPIN-6076:** Turn Rolling Maintenance red, with the reason, while production can't come in ([173dbe5](https://github.com/linchpin/actions/commit/173dbe54295a310e447764bb15f4763d93d61e98))
+* **LINCHPIN-6076:** Turn Rolling Maintenance red, with the reason, while production can't come in ([d4a85f4](https://github.com/linchpin/actions/commit/d4a85f4fdd50a748231fb865af1419abc3ce8979))
+
+
+### Bug Fixes
+
+* **LINCHPIN-6077:** Let resolve-merge start the merge, keep git's error and use the repo's PHP ([def010f](https://github.com/linchpin/actions/commit/def010f968ec16222fbea83773c819b40fc8e2d1))
+* **LINCHPIN-6077:** Let resolve-merge start the merge, keep git's error and use the repo's PHP ([6eab3a1](https://github.com/linchpin/actions/commit/6eab3a1e1884f584bbb3b0b84aee40a89864cdae))
+
 ## [4.25.0](https://github.com/linchpin/actions/compare/v4.24.0...v4.25.0) (2026-11-12)
 
 
