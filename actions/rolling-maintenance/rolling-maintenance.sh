@@ -35,7 +35,12 @@
 # become one it resolves. Once the resolver has given up, or without
 # LOCK_RESOLVER, it opens one issue labelled maintenance-conflict for a person,
 # and closes it once the production branch is in again. Sisyphus reads that
-# label, so it is not an input.
+# label, so it is not an input. The issue says how far behind the branch is,
+# since when, and the resolver's reason (RESOLVER_REASON, RESOLVER_UNRESOLVED),
+# and gets a comment when that reason changes. While the production branch
+# cannot come in, the script sets stalled=true, and the workflow fails the run
+# once everything else in it has run: a green run 72 commits behind told nobody
+# anything for nine days (ITCA, November 2026).
 #
 # Run it locally to see what it would do against the live repository:
 #
@@ -47,8 +52,10 @@
 # tried says it already gave up), MAINTENANCE_BRANCH (maintenance),
 # PRODUCTION_BRANCH (the default branch), BRANCH_SKIPS_CHECKS (checks the
 # production branch requires that never run on a PR into the maintenance branch,
-# one per line), and SELF_CHECK (this job's own check name, Rolling maintenance,
-# which is never waited for).
+# one per line), SELF_CHECK (this job's own check name, Rolling maintenance,
+# which is never waited for), and RESOLVER_REASON and RESOLVER_UNRESOLVED
+# (resolve-merge's reason and files, with LOCK_RESOLVER=tried). Outputs:
+# conflict, and stalled, behind, since and issue while the branch is behind.
 
 set -euo pipefail
 
@@ -133,11 +140,49 @@ if ! ref_sha "$BRANCH" >/dev/null 2>&1; then
 fi
 
 # Hop 1: the production branch into the maintenance branch.
-read -r ahead behind < <(gh api "repos/$GH_REPO/compare/$BASE...$BRANCH" \
-	--jq '"\(.ahead_by) \(.behind_by)"')
+read -r ahead behind since base_sha < <(gh api "repos/$GH_REPO/compare/$BASE...$BRANCH" \
+	--jq '"\(.ahead_by) \(.behind_by) \(.merge_base_commit.commit.committer.date[0:10]) \(.merge_base_commit.sha[0:7])"')
 issue=$(gh api "repos/$GH_REPO/issues?state=open&labels=$CONFLICT&per_page=10" \
 	--jq '[.[] | select(.pull_request | not)][0].number // empty')
 level=false
+
+RUN_URL="${GITHUB_SERVER_URL:-https://github.com}/$GH_REPO/actions/runs/${GITHUB_RUN_ID:-}"
+REASON=${RESOLVER_REASON:-}
+UNRESOLVED=${RESOLVER_UNRESOLVED:-}
+
+# Why the production branch is not in, for the summary, the issue and its
+# comments. Long npm output is cut, since the run summary keeps all of it.
+why() {
+	if [ "$LOCK_RESOLVER" = "tried" ] && [ -n "$REASON" ]; then
+		local reason=${REASON:0:1500}
+		printf 'linchpin/actions resolve-merge tried and gave up: %s.' "${reason%.}"
+		if [ -n "$UNRESOLVED" ]; then
+			printf ' Files left: %s.' "$UNRESOLVED"
+		fi
+	elif [ "$LOCK_RESOLVER" = "tried" ]; then
+		printf 'linchpin/actions resolve-merge tried and gave up; the run summary says why.'
+	else
+		printf 'GitHub refused the merge: both branches changed the same lines.'
+	fi
+}
+
+# Marks a reason in the issue, so a later run comments only when it changes.
+marker() {
+	printf '<!-- rolling-maintenance-reason: %s -->' "$(printf '%s' "$1" | cksum | cut -d' ' -f1)"
+}
+
+# The run ends red while the production branch cannot come in: the workflow
+# fails it last, after governing-merge and the snapshot tidy, so the people
+# merging to the production branch see a red X on their commit.
+stalled() {
+	{
+		echo "stalled=true"
+		echo "behind=$behind"
+		echo "since=$since"
+		echo "issue=$1"
+	} >>"${GITHUB_OUTPUT:-/dev/null}"
+	note "\`$BRANCH\` is $behind commit(s) behind \`$BASE\`, since $since (merge base $base_sha). $(why)"
+}
 
 if [ "$behind" -eq 0 ]; then
 	level=true
@@ -160,19 +205,32 @@ elif grep -q 'HTTP 409' <<<"$out"; then
 		note "\`$BASE\` conflicts with \`$BRANCH\`; handing it to linchpin/actions resolve-merge."
 	elif [ -n "$issue" ]; then
 		note "\`$BASE\` still conflicts with \`$BRANCH\`; #$issue is open for a person."
+		reason=$(why)
+		seen=$( (gh api "repos/$GH_REPO/issues/$issue" --jq .body &&
+			gh api --paginate "repos/$GH_REPO/issues/$issue/comments?per_page=100" --jq '.[].body') |
+			grep -o 'rolling-maintenance-reason: [0-9]*' | tail -n 1 || true)
+		if [ "$(marker "$reason")" != "<!-- $seen -->" ]; then
+			comment=$(printf '%s\n\n%s\n\n%s\n' \
+				"**The reason changed.** $reason" \
+				"\`$BRANCH\` is $behind commit(s) behind \`$BASE\`, since $since. [This run]($RUN_URL)." \
+				"$(marker "$reason")")
+			write gh api "repos/$GH_REPO/issues/$issue/comments" -f body="$comment" >/dev/null
+			note "Commented on #$issue: the reason changed."
+		fi
+		stalled "$issue"
 	else
 		ensure_label "$CONFLICT" B60205 "Main and maintenance changed the same lockfile"
-		tried=""
-		if [ "$LOCK_RESOLVER" = "tried" ]; then
-			tried=" linchpin/actions resolve-merge tried first and gave up; the workflow run's summary says why and names the files left."
-		fi
-		body=$(printf '%s\n\n%s\n\n%s\n' \
-			"**\`$BASE\` and \`$BRANCH\` changed the same lines, so \`$BASE\` cannot be brought into \`$BRANCH\` automatically.**$tried" \
+		reason=$(why)
+		body=$(printf '%s\n\n%s\n\n%s\n\n%s\n\n%s\n' \
+			"**\`$BASE\` cannot be brought into \`$BRANCH\` automatically.** $reason" \
+			"\`$BRANCH\` is $behind commit(s) behind \`$BASE\`, since $since (merge base $base_sha). Until it catches up, nothing new reaches dev or a snapshot, and every Rolling Maintenance run is red. [The run that opened this]($RUN_URL)." \
 			"Merge \`$BASE\` into \`$BRANCH\` locally, resolve what the resolver could not, and push. For a lockfile, take the lock from \`$BASE\` and re-run \`composer update\` (or \`npm install\`) for the packages \`$BRANCH\` bumped. The next run closes this issue." \
-			"_Opened by linchpin/actions rolling-maintenance._")
+			"_Opened by linchpin/actions rolling-maintenance._" \
+			"$(marker "$reason")")
 		number=$(gh api "repos/$GH_REPO/issues" -f title="Bring $BASE into $BRANCH by hand" \
 			-f body="$body" -f "labels[]=$CONFLICT" --jq .number)
 		note "\`$BASE\` conflicts with \`$BRANCH\`; opened #$number for a person."
+		stalled "$number"
 	fi
 else
 	note "Could not merge \`$BASE\` into \`$BRANCH\`: $out"

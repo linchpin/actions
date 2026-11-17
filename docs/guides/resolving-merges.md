@@ -66,7 +66,7 @@ The merge commit names every file resolved this way, as `<file>: resolved by Sis
 
 ## When both give up
 
-- **Rolling maintenance** opens one issue labelled `maintenance-conflict`, titled `Bring <production> into <maintenance> by hand`, and says resolve-merge tried first. Sisyphus reads that label. The resolver still runs on every run while the issue is open, and the issue closes once production is in again.
+- **Rolling maintenance** opens one issue labelled `maintenance-conflict`, titled `Bring <production> into <maintenance> by hand`, with the resolver's reason, how many commits behind the branch is and since when. Sisyphus reads that label. The resolver still runs on every run while the issue is open, a run whose reason differs comments on the issue, and the issue closes once production is in again. Every run is red until then.
 - **A snapshot refresh** fails its run with `Not refreshed: <reason> (files: <files>)`.
 
 To resolve by hand, merge the production branch into the branch locally, resolve what the resolver could not, and push. For a lockfile, the issue's advice is to take the lock from production and re-run `composer update` (or `npm install`) for the packages the maintenance branch bumped.
