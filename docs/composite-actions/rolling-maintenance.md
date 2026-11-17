@@ -24,7 +24,6 @@ steps:
       ref: maintenance
       path: work
       fetch-depth: 0
-      filter: blob:none
       token: ${{ secrets.GH_BOT_TOKEN }}
 
   - if: steps.roll.outputs.conflict == 'true'

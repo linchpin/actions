@@ -51,7 +51,12 @@ inputs:
     required: false
     default: "24"
   php-version:
-    description: "PHP version Composer runs on. Defaults to the runner's own: Composer only resolves, and composer.json's config.platform pins what it resolves for."
+    description: >-
+      PHP version Composer runs on, normally the repository's PHP_VERSION.
+      Empty falls back to composer.json's config.platform.php, then to the
+      runner's own. Composer resolves for this PHP unless config.platform pins
+      one, so the runner's (8.3) cannot re-lock a package that needs a newer
+      PHP (ITCA, November 2026).
     required: false
     default: ""
   git-user-name:
@@ -91,12 +96,16 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
 
-    - name: Read the runner's PHP version
+    - name: Choose the PHP version Composer runs on
       id: php
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       env:
         PHP_VERSION: ${{ inputs.php-version }}
       run: |
+        if [ -z "$PHP_VERSION" ] && [ -f composer.json ]; then
+          PHP_VERSION=$(jq -r '.config.platform.php // empty' composer.json | cut -d. -f1,2)
+        fi
         if [ -z "$PHP_VERSION" ]; then
           PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION, ".", PHP_MINOR_VERSION;')
         fi

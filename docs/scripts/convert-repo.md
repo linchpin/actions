@@ -39,7 +39,7 @@ It never merges anything into production, never deletes a branch holding a perso
 | `auto-approve-maintenance.yml`, `auto-merge-maintenance.yml`, `combine-dependency-prs.yml`, `combine-dependency-prs-schedule.yml` | Removed, since they served the monthly window |
 | `renovate.json` or `.github/renovate.json` | `github>linchpin/renovatebot-config:rolling-maintenance` added to `extends`, and `github>linchpin/renovatebot-config:maintenance-window` taken out |
 
-It also notes, and leaves alone, workflows that still call linchpin/actions at v3 or older (only Deploy to Dev needs v4) and workflows naming a `maintenance/` or `site-maintenance` branch.
+It also notes, and leaves alone, workflows that still call linchpin/actions at v3 or older (only Deploy to Dev needs v4) and workflows naming a `maintenance/` or `site-maintenance` branch. It notes a `composer.json` that pins no PHP (`config.platform.php`) and gives the command to pin the repository's `PHP_VERSION`: without a pin, Renovate locks for its own PHP, which production may not run.
 
 Production's environment is the one whose `BRANCH` variable is the production branch, else one named `Production…`. When production requires no checks there is no ruleset to add, and `maintenance` merges an update once whatever runs on it is green.
 
