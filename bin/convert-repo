@@ -23,8 +23,10 @@
 #      kept as it is, except a snapshots.yml from before refresh (no `mode`),
 #      which is updated so Sisyphus can refresh a promotion's branch. It notes a
 #      composer.json that pins no PHP (config.platform.php).
-#   4. Dev's GitHub environment: deploys from `maintenance` only, with SITE_ID,
-#      SITE_URL, BRANCH and ENVIRONMENT, and the SSH_USER secret when given.
+#   4. Dev's GitHub environment: deploys from `maintenance` only, with SITE_URL,
+#      BRANCH and ENVIRONMENT. On Pressable it also holds SITE_ID and the
+#      SSH_USER secret; on WP Engine, INSTALL_NAME, which is the SSH user too,
+#      and the repository's SSH_KEY deploys.
 #   5. The "Green checks into maintenance" ruleset: the checks production
 #      requires, linchpin-bot exempt.
 #
@@ -35,9 +37,10 @@
 # Options:
 #   --dev-environment <name>  dev's GitHub environment: the one whose SITE_ID is dev's,
 #                             else development, created when missing
-#   --dev-site-id <id>        dev's site id at the host (SITE_ID)
+#   --dev-site-id <id>        dev's site id at the host (SITE_ID); not on WP Engine
+#   --dev-install-name <name> dev's WP Engine install name (INSTALL_NAME); WP Engine only
 #   --dev-url <url>           dev's URL (SITE_URL)
-#   --dev-ssh-user <user>     dev's SSH user, stored as the environment's SSH_USER secret
+#   --dev-ssh-user <user>     dev's SSH user, stored as the environment's SSH_USER secret; not on WP Engine
 #   --promotion-target <ref>  the branch snapshot PRs go into (the production branch)
 #   --staging-branch <ref>    a staging branch snapshots may also go into (staging, when it exists)
 #   --ci-workflow <name>      a workflow that checks PRs, by its name; repeat for more (detected)
@@ -69,6 +72,7 @@ REPO=""
 APPLY=false
 DEV_ENV=""
 DEV_SITE_ID=""
+DEV_INSTALL=""
 DEV_URL=""
 DEV_SSH_USER=""
 PROMOTION=""
@@ -88,6 +92,7 @@ while [ $# -gt 0 ]; do
 	case "$1" in
 	--dev-environment) DEV_ENV=$2; shift ;;
 	--dev-site-id) DEV_SITE_ID=$2; shift ;;
+	--dev-install-name) DEV_INSTALL=$2; shift ;;
 	--dev-url) DEV_URL=$2; shift ;;
 	--dev-ssh-user) DEV_SSH_USER=$2; shift ;;
 	--promotion-target) PROMOTION=$2; shift ;;
@@ -482,7 +487,31 @@ known() {
 }
 variable BRANCH "$BRANCH"
 variable ENVIRONMENT "$DEV_ENV"
-if [ -n "$DEV_SITE_ID" ]; then
+
+# The host decides how dev is named: Pressable deploys to a site id as an SSH
+# user of its own, WP Engine to an install whose name is also its SSH user.
+# Dev's own HOST wins, as it does in a run; then the repository's, then the
+# production environment's, which dev is about to copy.
+# A missing variable answers 404 with its error body on stdout, so a value
+# counts only when the call succeeded.
+host=""
+if value=$(known HOST) && [ -n "$value" ]; then
+	host=$value
+elif value=$(api "actions/variables/HOST" --jq .value 2>/dev/null) && [ -n "$value" ]; then
+	host=$value
+elif [ -n "$production_env" ] && value=$(api "environments/$production_env/variables/HOST" --jq .value 2>/dev/null) && [ -n "$value" ]; then
+	host=$value
+fi
+
+if [ "$host" = "wpengine" ]; then
+	if [ -n "$DEV_INSTALL" ]; then
+		variable INSTALL_NAME "$DEV_INSTALL"
+	elif current=$(known INSTALL_NAME) && [ -n "$current" ]; then
+		ok "INSTALL_NAME is $current."
+	else
+		need "Give dev's WP Engine install name with --dev-install-name."
+	fi
+elif [ -n "$DEV_SITE_ID" ]; then
 	variable SITE_ID "$DEV_SITE_ID"
 elif current=$(known SITE_ID) && [ -n "$current" ]; then
 	ok "SITE_ID is $current."
@@ -506,7 +535,16 @@ fi
 if ! exists "actions/variables/HOST" && [ -z "$(known HOST || true)" ] && [ -z "$production_env" ]; then
 	need "Neither the repository nor $DEV_ENV sets HOST (pressable, wpengine or cloudways)."
 fi
-if [ -n "$DEV_SSH_USER" ]; then
+if [ "$host" = "wpengine" ]; then
+	# WP Engine's SSH user is the install name, and one key deploys every
+	# install its WP Engine user reaches. An organization secret is invisible
+	# here, so a missing repository one is a warning, not a stop.
+	if exists "actions/secrets/SSH_KEY" || { [ "$env_exists" = "true" ] && exists "environments/$DEV_ENV/secrets/SSH_KEY"; }; then
+		ok "SSH_KEY is set; WP Engine's SSH user is the install name."
+	else
+		warn "No repository SSH_KEY. Deploys to WP Engine need one, unless an organization secret provides it."
+	fi
+elif [ -n "$DEV_SSH_USER" ]; then
 	change "Store dev's SSH user as SSH_USER." gh secret set SSH_USER --repo "$REPO" --env "$DEV_ENV" --body "$DEV_SSH_USER"
 elif [ "$env_exists" = "true" ] && api "environments/$DEV_ENV/secrets/SSH_USER" >/dev/null 2>&1; then
 	ok "SSH_USER is set."
