@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.27.0](https://github.com/linchpin/actions/compare/v4.26.1...v4.27.0) (2026-11-19)
+
+
+### Features
+
+* **LINCHPIN-6181:** Convert WP Engine repositories with convert-repo ([8ebe424](https://github.com/linchpin/actions/commit/8ebe4246130b6a9972bd6ed7a7f5f9b1142b8b4f))
+* **LINCHPIN-6181:** Convert WP Engine repositories with convert-repo ([d42f5c7](https://github.com/linchpin/actions/commit/d42f5c7eb25a10a6eca7e7c04b50729d5ec8bab6))
+
+
+### Bug Fixes
+
+* **LINCHPIN-5952:** Send Safety Net's server commands on stdin so WP Engine runs them ([bbc3821](https://github.com/linchpin/actions/commit/bbc38212dc602755413556de12fa6287c6d78385))
+* **LINCHPIN-5952:** Send Safety Net's server commands on stdin so WP Engine runs them ([c71ac16](https://github.com/linchpin/actions/commit/c71ac162675c1104918b52a9dbb4bcf0a3a1ee94))
+
 ## [4.26.1](https://github.com/linchpin/actions/compare/v4.26.0...v4.26.1) (2026-11-17)
 
 
