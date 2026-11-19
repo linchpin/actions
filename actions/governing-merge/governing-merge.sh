@@ -84,15 +84,20 @@ write() {
 
 # green, pending or red for a commit, as in rolling-maintenance.sh. Green needs
 # every check finished and passing, and each name in $2 (a JSON array) present.
+# Commit statuses count as checks, so a failed renovate/artifacts is red.
 verdict() {
-	gh api "repos/$GH_REPO/commits/$1/check-runs?per_page=100" |
-		jq -r --arg self "$SELF" --argjson want "$2" '
-			def ok: (.conclusion // "") as $c | $c == "success" or $c == "skipped" or $c == "neutral";
-			[.check_runs[] | select(.name != $self and (.name | endswith(" / " + $self) | not))] as $runs
-			| if any($runs[]; .status != "completed") then "pending"
-			  elif any($runs[]; ok | not) then "red"
-			  elif ($want - [$runs[].name] | length) > 0 then "pending"
-			  else "green" end'
+	local checks statuses
+	checks=$(gh api "repos/$GH_REPO/commits/$1/check-runs?per_page=100" \
+		--jq '[.check_runs[] | {name, status, conclusion}]')
+	statuses=$(gh api "repos/$GH_REPO/commits/$1/status" \
+		--jq '[.statuses[] | {name: .context, status: (if .state == "pending" then "in_progress" else "completed" end), conclusion: .state}]')
+	jq -nr --arg self "$SELF" --argjson want "$2" --argjson checks "$checks" --argjson statuses "$statuses" '
+		def ok: (.conclusion // "") as $c | $c == "success" or $c == "skipped" or $c == "neutral";
+		[($checks + $statuses)[] | select(.name != $self and (.name | endswith(" / " + $self) | not))] as $runs
+		| if any($runs[]; .status != "completed") then "pending"
+		  elif any($runs[]; ok | not) then "red"
+		  elif ($want - [$runs[].name] | length) > 0 then "pending"
+		  else "green" end'
 }
 
 # true when a person approved the PR and nobody's latest review asks for

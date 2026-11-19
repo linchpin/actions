@@ -34,8 +34,15 @@
 #   composer.lock
 #       Keep this side's lock and re-apply each package the other side moved, at
 #       exactly the version it locked (`composer update <name> --with
-#       <name>:<version>`), then check nothing else moved. A package both sides
-#       moved, or a dev branch, gives up.
+#       <name>:<version>`), then check nothing else moved. A package one side
+#       removed and the other moved stays removed when the merged composer.json
+#       no longer asks for it, as in the manifests: ctoec's main dropped a
+#       plugin while Renovate raised it on maintenance (November 2026). Then a
+#       package the merged composer.json pins where neither lock holds it, left
+#       by a commit that changed composer.json without its lock, is re-locked
+#       to what composer.json asks for and nothing else (composer-relock's
+#       relock.sh; ITCA, November 2026). Any other package both sides moved,
+#       or a dev branch, gives up.
 #
 # Any other conflicted file is left to Sisyphus or a person (LINCHPIN-5903).
 # The two are handed over on branches named for the exact pair of commits, so
@@ -418,17 +425,29 @@ versions() {
 	jq -cS '[(.packages // []) + (."packages-dev" // []) | .[] | {key: .name, value: .version}] | from_entries'
 }
 
+RELOCK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../composer-relock/relock.sh"
+
 for dir in $(printf '%s\n' ${composer_dirs[@]+"${composer_dirs[@]}"} | sort -u); do
 	lock=$(at "$dir" composer.lock)
 	ours=$(show HEAD "$lock" | versions)
 	theirs=$(show "$MERGE_FROM" "$lock" | versions)
 	base=$(show "$BASE" "$lock" | versions)
 
+	# What the merged composer.json still asks for, by the lowercase name the
+	# lock uses.
+	required=$(jq -c '[.require, ."require-dev" | objects | keys[] | ascii_downcase]' "$(at "$dir" composer.json)" 2>/dev/null || echo '[]')
+
 	# One line per package the other side moved, saying what to do with it here.
-	plan=$(jq -nr --argjson base "$base" --argjson theirs "$theirs" --argjson ours "$ours" '
+	# A package one side removed and the other moved, which the merged
+	# composer.json no longer names, stays removed: "remove" when the other side
+	# removed it, "kept" when this side did.
+	plan=$(jq -nr --argjson base "$base" --argjson theirs "$theirs" --argjson ours "$ours" --argjson required "$required" '
 		($base + $theirs | keys)[] as $name
 		| select($base[$name] != $theirs[$name])
+		| (($ours[$name] == null or $theirs[$name] == null) and ($required | index($name)) == null) as $dropped
 		| if $ours[$name] == $theirs[$name] then empty
+		  elif $ours[$name] != $base[$name] and $dropped then
+			(if $theirs[$name] == null then "remove \($name) \($ours[$name])" else "kept \($name) \($theirs[$name])" end)
 		  elif $ours[$name] != $base[$name] then "differ \($name) \($ours[$name] // "absent") \($theirs[$name] // "absent")"
 		  elif $theirs[$name] == null then "remove \($name)"
 		  elif ($theirs[$name] | startswith("dev-")) then "dev \($name) \($theirs[$name])"
@@ -436,13 +455,26 @@ for dir in $(printf '%s\n' ${composer_dirs[@]+"${composer_dirs[@]}"} | sort -u);
 
 	names=()
 	with=()
+	kept=()
 	applied=""
+	noted=false
 	while read -r action name version extra; do
 		case "$action" in
 		"") ;;
 		differ) give_up "$lock: $name moved on both sides, $version in \`$BRANCH\` and $extra on \`$FROM\`." "$lock" ;;
 		dev) give_up "$lock: $name is a dev branch ($version) on \`$FROM\`; its lock entry is not a version to re-apply." "$lock" ;;
-		remove) names+=("$name") ;;
+		remove)
+			names+=("$name")
+			if [ -n "$version" ]; then
+				done_lines+=("$lock: $name was removed on \`$FROM\` and moved to $version in \`$BRANCH\`; removed, as composer.json no longer asks for it.")
+				noted=true
+			fi
+			;;
+		kept)
+			kept+=("$name")
+			done_lines+=("$lock: $name was removed in \`$BRANCH\` and moved to $version on \`$FROM\`; kept removed, as composer.json no longer asks for it.")
+			noted=true
+			;;
 		apply)
 			names+=("$name")
 			with+=(--with "$name:$version")
@@ -462,15 +494,32 @@ for dir in $(printf '%s\n' ${composer_dirs[@]+"${composer_dirs[@]}"} | sort -u);
 		--no-install --no-scripts --no-plugins --no-audit --no-interaction --no-ansi --no-progress >&2 ||
 		give_up "composer could not apply what \`$FROM\` moved in $lock." "$lock"
 
-	# This side's lock with the other side's packages applied, and nothing else moved.
+	# This side's lock with the other side's packages applied, and nothing else
+	# moved. A package this side removed stays removed.
 	resolved=$(versions <"$lock")
-	expected=$(jq -ncS --argjson ours "$ours" --argjson theirs "$theirs" --argjson base "$base" '
+	expected=$(jq -ncS --argjson ours "$ours" --argjson theirs "$theirs" --argjson base "$base" \
+		--argjson kept "$(printf '%s\n' ${kept[@]+"${kept[@]}"} | jq -Rcs 'split("\n") | map(select(length > 0))')" '
 		reduce (($base + $theirs | keys)[] | select($base[.] != $theirs[.])) as $name ($ours;
-			if $theirs[$name] == null then del(.[$name]) else .[$name] = $theirs[$name] end)')
+			if $theirs[$name] == null or ($kept | index($name)) != null then del(.[$name]) else .[$name] = $theirs[$name] end)')
 	if [ "$resolved" != "$expected" ]; then
 		give_up "$lock moved more than \`$FROM\` did: $(jq -nr --argjson r "$resolved" --argjson e "$expected" '
 			($r + $e | keys)[] as $n | select($r[$n] != $e[$n]) | "\($n) \($e[$n] // "absent") became \($r[$n] // "absent")"' | tr '\n' ' ')" "$lock"
 	fi
+
+	# A side that changed composer.json without its lock leaves a constraint
+	# neither lock satisfies, and composer update above never touches that
+	# package: re-lock exactly what composer.json asks for. ITCA's main took
+	# mantle 4.6.2 in composer.json alone, and this step then failed validation
+	# on every run (November 2026).
+	relock_log=$(mktemp)
+	relocked=$(bash "$RELOCK" "$dir" 2>"$relock_log") ||
+		give_up "$lock: $(tail -n 1 "$relock_log")" "$lock"
+	while read -r name old new; do
+		if [ -n "$name" ]; then
+			done_lines+=("$lock: re-locked $name $old => $new, which the merged composer.json asks for and neither lock held.")
+			noted=true
+		fi
+	done <<<"$relocked"
 
 	# composer update has just written the content-hash, so this fails only if
 	# the merged composer.json itself is broken.
@@ -480,7 +529,7 @@ for dir in $(printf '%s\n' ${composer_dirs[@]+"${composer_dirs[@]}"} | sort -u);
 	git add "$lock"
 	if [ -n "$applied" ]; then
 		done_lines+=("$lock: kept \`$BRANCH\`'s lock and re-applied what \`$FROM\` moved:${applied%,}.")
-	else
+	elif [ "$noted" = "false" ]; then
 		done_lines+=("$lock: both sides lock the same versions, so only the content-hash was refreshed.")
 	fi
 done
