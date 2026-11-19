@@ -30,8 +30,8 @@ MU="wp-content/mu-plugins"
 # The command goes to the server's bash on stdin, not as ssh's command line.
 # WP Engine's SSH gateway splits a command line again on spaces and drops its
 # quotes, so `wp eval '<php>'` arrived as a syntax error, the environment type
-# read as unknown, and Safety Net was never installed on WP Engine (fgxidev,
-# 2026-11-19). On stdin it reaches bash as written, on every host.
+# read as unknown, and Safety Net was never installed on WP Engine
+# (2026-11-19). On stdin it reaches bash as written, on every host.
 remote() {
 	ssh "$SSH_ALIAS" 'bash -s' <<<"cd $WP_PATH || exit 9; $1"
 }
