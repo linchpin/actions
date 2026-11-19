@@ -26,8 +26,14 @@ MU="wp-content/mu-plugins"
 
 # Run a command in the WordPress root. WP_PATH is left unquoted on the server
 # so that WP Engine's and Cloudways' ~-relative paths expand there.
+#
+# The command goes to the server's bash on stdin, not as ssh's command line.
+# WP Engine's SSH gateway splits a command line again on spaces and drops its
+# quotes, so `wp eval '<php>'` arrived as a syntax error, the environment type
+# read as unknown, and Safety Net was never installed on WP Engine (fgxidev,
+# 2026-11-19). On stdin it reaches bash as written, on every host.
 remote() {
-	ssh -n "$SSH_ALIAS" "cd $WP_PATH || exit 9; $1"
+	ssh "$SSH_ALIAS" 'bash -s' <<<"cd $WP_PATH || exit 9; $1"
 }
 
 # The PHP below goes inside single quotes on the server, so it holds none.
