@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.28.0](https://github.com/linchpin/actions/compare/v4.27.0...v4.28.0) (2026-11-19)
+
+
+### Features
+
+* **LINCHPIN-6214:** Re-lock composer.lock when it drifts from composer.json ([f479470](https://github.com/linchpin/actions/commit/f4794702a9e3e827ee11b4b6fb040d993a63f17e))
+* **LINCHPIN-6214:** Re-lock composer.lock when it drifts from composer.json ([d516eba](https://github.com/linchpin/actions/commit/d516ebaa05bd480397a6d6e34af14a04d835b221))
+
 ## [4.27.0](https://github.com/linchpin/actions/compare/v4.26.1...v4.27.0) (2026-11-19)
 
 
