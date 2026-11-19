@@ -172,10 +172,9 @@ jobs:
       # package missing either is inert or prebuilt, and correctly unlisted.
       #
       # Warns by default, and only fails when STRICT_BUILD_LIST is 'true'.
-      # Failing everywhere would have been wrong: centro, techconnect and
-      # nutrience-ca set no THEMES/PLUGINS at all and still deploy happily
-      # (they commit their build output), so a hard error would have broken
-      # three live projects to protect a fourth. Opt in per repo once its list
+      # Failing everywhere would have been wrong: some live projects set no
+      # THEMES/PLUGINS at all and still deploy happily (they commit their build
+      # output), so a hard error would break them. Opt in per repo once its list
       # is known good.
       - name: Check every buildable theme and plugin is configured
         env:

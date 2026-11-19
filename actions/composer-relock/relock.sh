@@ -9,8 +9,8 @@
 # Renovate makes one when its artifact update fails (packagist.linchpin.com
 # answered it 403 on 2026-11-18), and a repository with `ignoreTests` merges it
 # anyway; a merge GitHub makes cleanly then carries it to the other branch,
-# since git sees no conflict in a lock nobody touched. That night birth23 and
-# LCB stopped at Deploy to Dev on one, and ITCA at Update.
+# since git sees no conflict in a lock nobody touched. That night three sites
+# stopped on one, at Deploy to Dev or at Update.
 #
 # The repair is what a person would do: `composer update` exactly the packages
 # Composer names, with scripts and plugins off, then check that nothing else in

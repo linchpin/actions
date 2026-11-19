@@ -56,7 +56,7 @@ steps:
 
 Once production is in again, the open `maintenance-conflict` issue is closed. Sisyphus reads that label, so it is not an input.
 
-While production cannot come in, the `stalled` output is `true`, with `behind`, `since` and `issue`. The action itself still succeeds, so the caller's other steps run. [rolling-maintenance.yml](../workflows/rolling-maintenance.md) fails the run as its last step. Before November 2026 the run stayed green, and ITCA's `maintenance` sat 72 commits behind for nine days with nobody told.
+While production cannot come in, the `stalled` output is `true`, with `behind`, `since` and `issue`. The action itself still succeeds, so the caller's other steps run. [rolling-maintenance.yml](../workflows/rolling-maintenance.md) fails the run as its last step. Before November 2026 the run stayed green, and one site's `maintenance` sat 72 commits behind for nine days with nobody told.
 
 ## Hop 2: green Renovate PRs into the branch
 
@@ -73,7 +73,7 @@ There are no other rules. A PR need not be up to date with the branch, because t
 
 `rolling-maintenance.sh` runs against the live repository with `gh`'s own login, and logs every write instead of making it when `DRY_RUN=true`:
 
-<!-- wp:docspress/terminal-session {"title":"Dry run against a live repository","shell":"bash","prompt":"$","command":"GH_REPO=linchpin/ctoec DRY_RUN=true actions/rolling-maintenance/rolling-maintenance.sh"} /-->
+<!-- wp:docspress/terminal-session {"title":"Dry run against a live repository","shell":"bash","prompt":"$","command":"GH_REPO=linchpin/example-site DRY_RUN=true actions/rolling-maintenance/rolling-maintenance.sh"} /-->
 
 It reads `GH_REPO` (required), `GH_TOKEN`, `DRY_RUN`, `MAINTENANCE_BRANCH`, `PRODUCTION_BRANCH`, `BRANCH_SKIPS_CHECKS`, `SELF_CHECK` and `LOCK_RESOLVER`, which are the inputs below under the names the action passes them as.
 

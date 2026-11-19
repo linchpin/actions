@@ -44,8 +44,7 @@ root, which this repository owns whole (`root-slug` and `managed-path` are both
 - `composite-actions/` — one page per `actions/*/action.yml`, and an index.
 - `scripts/` — `bin/convert-repo` and `bin/onboard-site`.
 - `renovate-presets.md`, `troubleshooting.md`, `contributing.md`.
-- `MIGRATION-v3-to-v4.md` and `REF-AUDIT-2026-06-12.md` stay at their paths;
-  `README.md` links the first.
+- `MIGRATION-v3-to-v4.md` stays at its path; `README.md` links it.
 
 ## Non-goals
 

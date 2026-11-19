@@ -700,7 +700,7 @@ jobs:
   Sisyphus dispatches it with `mode`, `head`, `base` and `correlation_id`; a
   caller from before refresh is updated by running `bin/convert-repo` again.
 - Every script runs locally with `DRY_RUN=true`, for example
-  `GH_REPO=linchpin/ctoec DRY_RUN=true actions/rolling-maintenance/rolling-maintenance.sh`.
+  `GH_REPO=linchpin/example-site DRY_RUN=true actions/rolling-maintenance/rolling-maintenance.sh`.
 
 ### Converting a site repository
 
@@ -710,8 +710,8 @@ checkout of this repository with `gh` logged in as a repository admin. Without
 changes still missing:
 
 ```bash
-bin/convert-repo linchpin/ctoec --dev-site-id 1804699 --promotion-target staging
-bin/convert-repo linchpin/ctoec --dev-site-id 1804699 --promotion-target staging --close-windows --apply
+bin/convert-repo linchpin/example-site --dev-site-id 123456 --promotion-target staging
+bin/convert-repo linchpin/example-site --dev-site-id 123456 --promotion-target staging --close-windows --apply
 ```
 
 It closes monthly windows that hold only Renovate's commits (`--close-windows`;
@@ -739,7 +739,7 @@ before any night. Once that passes, it enables the site and starts one Run now.
 ```bash
 export SISYPHUS_AUTH='your-username:application password'   # packagist.linchpin.com › Users › Profile
 bin/onboard-site                                  # the plan, picking from lists
-bin/onboard-site www.ctoec.org --close-windows --task LINCHPIN-5946 --apply
+bin/onboard-site www.example.com --close-windows --task LINCHPIN-1234 --apply
 ```
 
 It stops at the first step that needs a person and says what to do. Run it

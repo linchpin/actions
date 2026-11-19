@@ -8,8 +8,8 @@
 # A plugin installed by hand on one environment never reaches the others: no
 # deploy ships it. Worse, a development site that copies this environment's
 # database lists it as active without its files, and Mantle's health check fails
-# Deploy to Dev. ideainfanttoddler hit exactly that with MCP Adapter, installed
-# by hand on production (LINCHPIN-6087). Saying so on every deploy finds such a
+# Deploy to Dev. A client site hit exactly that with MCP Adapter, installed by
+# hand on production (LINCHPIN-6087). Saying so on every deploy finds such a
 # plugin the day it is installed, with what to do about it.
 #
 # A plugin counts as managed when it is:
@@ -102,7 +102,7 @@ protected_patterns=()
 if [ "$HOST" = "pressable" ]; then
 	# deploy-pressable protects jetpack and akismet however they appear on disk.
 	# Pressable also installs the Automattic for Agencies client on its sites as
-	# a real folder, dev sites included (seen 2026-11-12 on itcadev, which never
+	# a real folder, dev sites included (seen 2026-11-12 on a dev site that never
 	# received production's files, and on packagist.linchpin.com).
 	protected_patterns+=("plugins/jetpack" "plugins/akismet" "plugins/automattic-for-agencies-client")
 fi

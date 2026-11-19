@@ -45,7 +45,7 @@ The caller decides which events start the workflow. The job then skips itself, b
 ## Behaviour notes
 
 - **`GH_BOT_TOKEN` is linchpin-bot's PAT.** Its pushes and PRs start other workflows, which `GITHUB_TOKEN`'s do not, and linchpin-bot is exempt from production's ruleset, which governing-merge relies on.
-- **Commit statuses count as checks.** Renovate reports a failed lock update as the `renovate/artifacts` status, not a check run. Before November 2026 only check runs were read, so birth23#1455 merged with that status red.
+- **Commit statuses count as checks.** Renovate reports a failed lock update as the `renovate/artifacts` status, not a check run. Before November 2026 only check runs were read, so a PR merged with that status red.
 - **Required checks are read from production's ruleset at run time.** A check that runs only on PRs into production, such as linchpin.com's `npm audit`, goes in `skip_checks`, or no update into `maintenance` turns green. The snapshot PR runs it.
 - **The job's own check run is never waited for.** GitHub names it `<caller's job> / Rolling maintenance`, and the actions skip any check ending that way when they judge a PR.
 - **No checkout, no repository code.** The scripts ship with the actions, so nothing from the site repository, or from a PR whose CI started the run, runs with `GH_BOT_TOKEN`. A checkout of `maintenance` itself happens to resolve a refused merge and to re-lock it; Composer runs there with scripts and plugins off.

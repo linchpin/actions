@@ -172,8 +172,8 @@ jobs:
       # A commit that changed composer.json without its lock (a Renovate PR
       # whose artifact update failed, merged anyway), or a clean merge that
       # carried one in from production, leaves a lock composer install refuses,
-      # and every deploy of the branch fails at Build: birth23 and LCB on
-      # 2026-11-19. Checked on every run, after everything above has merged.
+      # and every deploy of the branch fails at Build. Checked on every run,
+      # after everything above has merged.
       # Only the branch itself is checked out, never a PR, and Composer runs
       # with scripts and plugins off.
       - name: Check out the maintenance branch to check its lock

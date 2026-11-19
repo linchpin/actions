@@ -74,6 +74,6 @@ A repository on the monthly window has to leave it first, because Git cannot hol
 
 Every script behind these workflows runs locally against the live repository with `gh`'s own login. With `DRY_RUN=true` each logs its writes instead of making them:
 
-<!-- wp:docspress/terminal-session {"title":"What would the rolling job do now?","shell":"bash","prompt":"$","command":"GH_REPO=linchpin/ctoec DRY_RUN=true actions/rolling-maintenance/rolling-maintenance.sh"} /-->
+<!-- wp:docspress/terminal-session {"title":"What would the rolling job do now?","shell":"bash","prompt":"$","command":"GH_REPO=linchpin/example-site DRY_RUN=true actions/rolling-maintenance/rolling-maintenance.sh"} /-->
 
 The same works for [snapshot](../composite-actions/snapshot.md) (`snapshot.sh freeze` or `tidy`) and [governing-merge](../composite-actions/governing-merge.md).

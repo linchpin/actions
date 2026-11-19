@@ -9,7 +9,7 @@
 # fails on wp mantle health's own exit status.
 #
 # The case it was written for (LINCHPIN-6087): MCP Adapter was installed by hand
-# on ideainfanttoddler's production, outside the repo. Sisyphus copies
+# on a site's production, outside the repo. Sisyphus copies
 # production's database to dev, so dev listed it as active without its files,
 # and Deploy to Dev failed with only "Active but not on disk".
 #

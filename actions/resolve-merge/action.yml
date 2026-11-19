@@ -56,7 +56,7 @@ inputs:
       Empty falls back to composer.json's config.platform.php, then to the
       runner's own. Composer resolves for this PHP unless config.platform pins
       one, so the runner's (8.3) cannot re-lock a package that needs a newer
-      PHP (ITCA, November 2026).
+      PHP.
     required: false
     default: ""
   git-user-name:
