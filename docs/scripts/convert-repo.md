@@ -11,9 +11,9 @@ Moves one site repository onto [rolling maintenance](../guides/rolling-maintenan
 
 ## Usage
 
-<!-- wp:docspress/terminal-session {"title":"See the plan","shell":"bash","prompt":"$","command":"bin/convert-repo linchpin/ctoec --dev-site-id 1804699 --promotion-target staging"} /-->
+<!-- wp:docspress/terminal-session {"title":"See the plan","shell":"bash","prompt":"$","command":"bin/convert-repo linchpin/example-site --dev-site-id 123456 --promotion-target staging"} /-->
 
-<!-- wp:docspress/terminal-session {"title":"Make the changes","shell":"bash","prompt":"$","command":"bin/convert-repo linchpin/ctoec --dev-site-id 1804699 --promotion-target staging --close-windows --apply"} /-->
+<!-- wp:docspress/terminal-session {"title":"Make the changes","shell":"bash","prompt":"$","command":"bin/convert-repo linchpin/example-site --dev-site-id 123456 --promotion-target staging --close-windows --apply"} /-->
 
 `--out <dir>` writes the files the PR would change, so you can read them first.
 

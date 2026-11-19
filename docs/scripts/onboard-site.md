@@ -16,7 +16,7 @@ The whole onboarding of one client site onto Sisyphus's nightly [rolling mainten
 
 <!-- wp:docspress/terminal-session {"title":"Plan, picking the client and its site from lists","shell":"bash","prompt":"$","command":"export SISYPHUS_AUTH='your-username:application password'\nbin/onboard-site"} /-->
 
-<!-- wp:docspress/terminal-session {"title":"Apply, for a site already picked","shell":"bash","prompt":"$","command":"bin/onboard-site www.ctoec.org --close-windows --task LINCHPIN-5946 --apply"} /-->
+<!-- wp:docspress/terminal-session {"title":"Apply, for a site already picked","shell":"bash","prompt":"$","command":"bin/onboard-site www.example.com --close-windows --task LINCHPIN-1234 --apply"} /-->
 
 Every pick has a flag, so it also runs without a terminal. With more than one choice and no terminal to ask in, it exits 1 and asks you to name the choice with an option.
 

@@ -26,7 +26,7 @@ How this repository is laid out, checked and released. It is for changes to linc
 Run the same tools locally before pushing. Most scripts also run locally with `DRY_RUN=true`, which writes nothing. For example:
 
 ```bash
-GH_REPO=linchpin/ctoec DRY_RUN=true actions/rolling-maintenance/rolling-maintenance.sh
+GH_REPO=linchpin/example-site DRY_RUN=true actions/rolling-maintenance/rolling-maintenance.sh
 MERGE_FROM=origin/main DRY_RUN=true bash actions/resolve-merge/resolve-merge.sh
 ```
 

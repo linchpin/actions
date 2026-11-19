@@ -4,7 +4,7 @@ title: composer-relock
 
 Repairs a branch whose `composer.lock` no longer agrees with its `composer.json`, then commits and pushes the lock. [rolling-maintenance.yml](../workflows/rolling-maintenance.md) runs it on `maintenance` on every run, and [resolve-merge](resolve-merge.md) runs its script after resolving a `composer.lock`.
 
-A commit that changes `composer.json` without its lock breaks every build after it. `composer install` refuses with `Required package "linchpin/mantle" is in the lock file as "4.6.1" but that does not satisfy your constraint "4.6.2"`. Renovate makes one when its lock update fails, and a repository with `ignoreTests` merges it anyway. A merge GitHub makes cleanly then carries it to the other branch, because git sees no conflict in a lock nobody touched. On 2026-11-19 that stopped birth23 and LCB at Deploy to Dev, and ITCA at Update.
+A commit that changes `composer.json` without its lock breaks every build after it. `composer install` refuses with `Required package "linchpin/mantle" is in the lock file as "4.6.1" but that does not satisfy your constraint "4.6.2"`. Renovate makes one when its lock update fails, and a repository with `ignoreTests` merges it anyway. A merge GitHub makes cleanly then carries it to the other branch, because git sees no conflict in a lock nobody touched. On 2026-11-19 that stopped three sites, two at Deploy to Dev and one at Update.
 
 ## Example
 

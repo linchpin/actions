@@ -4,7 +4,7 @@ title: unmanaged-plugins
 
 `unmanaged-plugins` lists the plugins on a server that the repository does not manage, and says what to do about each. [`deploy.yml`](../workflows/deploy.md) and [`deploy-continue.yml`](../workflows/deploy-continue.md) run it after every successful deploy.
 
-A plugin installed by hand on one environment never reaches the others, because no deploy ships it. A development site that copies that environment's database also lists it as active without its files, and the [health check](deploy-pressable.md) then fails Deploy to Dev. ideainfanttoddler hit exactly that with MCP Adapter, installed from wp-admin on production. This action reports such a plugin on the first deploy after it appears.
+A plugin installed by hand on one environment never reaches the others, because no deploy ships it. A development site that copies that environment's database also lists it as active without its files, and the [health check](deploy-pressable.md) then fails Deploy to Dev. A client site hit exactly that with MCP Adapter, installed from wp-admin on production. This action reports such a plugin on the first deploy after it appears.
 
 It only reports. Each plugin gets a warning and a row in the step summary, and the deploy never fails because of it.
 

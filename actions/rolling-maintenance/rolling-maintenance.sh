@@ -40,7 +40,7 @@
 # and gets a comment when that reason changes. While the production branch
 # cannot come in, the script sets stalled=true, and the workflow fails the run
 # once everything else in it has run: a green run 72 commits behind told nobody
-# anything for nine days (ITCA, November 2026).
+# anything for nine days (November 2026).
 #
 # Run it locally to see what it would do against the live repository:
 #
@@ -99,7 +99,7 @@ ensure_label() {
 # passing, and each name in $2 (a JSON array) present among them. Commit
 # statuses count as checks: Renovate reports a failed lock update as the
 # renovate/artifacts status, not a check run, and a PR whose lock it could not
-# update changed composer.json alone (birth23 #1455, November 2026).
+# update changed composer.json alone (November 2026).
 verdict() {
 	local checks statuses
 	checks=$(gh api "repos/$GH_REPO/commits/$1/check-runs?per_page=100" \

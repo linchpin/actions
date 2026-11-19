@@ -36,12 +36,12 @@
 #       exactly the version it locked (`composer update <name> --with
 #       <name>:<version>`), then check nothing else moved. A package one side
 #       removed and the other moved stays removed when the merged composer.json
-#       no longer asks for it, as in the manifests: ctoec's main dropped a
+#       no longer asks for it, as in the manifests: one site's main dropped a
 #       plugin while Renovate raised it on maintenance (November 2026). Then a
 #       package the merged composer.json pins where neither lock holds it, left
 #       by a commit that changed composer.json without its lock, is re-locked
 #       to what composer.json asks for and nothing else (composer-relock's
-#       relock.sh; ITCA, November 2026). Any other package both sides moved,
+#       relock.sh). Any other package both sides moved,
 #       or a dev branch, gives up.
 #
 # Any other conflicted file is left to Sisyphus or a person (LINCHPIN-5903).
@@ -508,7 +508,7 @@ for dir in $(printf '%s\n' ${composer_dirs[@]+"${composer_dirs[@]}"} | sort -u);
 
 	# A side that changed composer.json without its lock leaves a constraint
 	# neither lock satisfies, and composer update above never touches that
-	# package: re-lock exactly what composer.json asks for. ITCA's main took
+	# package: re-lock exactly what composer.json asks for. One site's main took
 	# mantle 4.6.2 in composer.json alone, and this step then failed validation
 	# on every run (November 2026).
 	relock_log=$(mktemp)

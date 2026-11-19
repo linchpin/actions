@@ -268,8 +268,7 @@ fi
 
 # Composer resolves for the PHP it runs on unless composer.json pins one, so an
 # unpinned repository gets locks that production's PHP may not install, and the
-# nightly merge into maintenance cannot re-lock them (ITCA and CTOEC, November
-# 2026).
+# nightly merge into maintenance cannot re-lock them (November 2026).
 if composer_json=$(raw composer.json) && [ -n "$composer_json" ]; then
 	pin=$(jq -r '.config.platform.php // empty' <<<"$composer_json" 2>/dev/null || true)
 	php=$(api actions/variables/PHP_VERSION --jq .value 2>/dev/null) || php=""
