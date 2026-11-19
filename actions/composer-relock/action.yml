@@ -1,0 +1,165 @@
+name: "Composer Relock"
+description: >-
+  Repair a branch whose composer.lock no longer agrees with its composer.json,
+  which happens when a commit changes composer.json without its lock (a
+  Renovate PR whose artifact update failed, merged anyway) or a clean merge
+  carries such a commit across. Re-locks exactly the packages Composer names,
+  checks nothing else in the lock moved, then commits and pushes the lock.
+  Anything else, or a package Composer cannot re-lock, fails the step with the
+  reason, and nothing is pushed. relock.sh has the rules.
+
+  Run it in a checkout of the branch with credentials that can push to it.
+
+inputs:
+  working-directory:
+    description: "The checkout to repair"
+    required: false
+    default: "."
+  directories:
+    description: "Directories inside the checkout holding a composer.json and composer.lock to check, one per line"
+    required: false
+    default: "."
+  branch:
+    description: "The branch to push the repair to. Defaults to the checked-out branch."
+    required: false
+    default: ""
+  dry-run:
+    description: "Re-lock in the checkout, but commit and push nothing (true/false)"
+    required: false
+    default: "false"
+  composer-auth:
+    description: "COMPOSER_AUTH JSON, for private Composer repositories such as packagist.linchpin.com"
+    required: false
+    default: ""
+  php-version:
+    description: >-
+      PHP version Composer runs on, normally the repository's PHP_VERSION.
+      Empty falls back to composer.json's config.platform.php, then to the
+      runner's own.
+    required: false
+    default: ""
+  commit-message:
+    description: "Subject of the repair commit"
+    required: false
+    default: "build(composer): Re-lock composer.lock to match composer.json"
+  git-user-name:
+    description: "Author of the repair commit"
+    required: false
+    default: "linchpin-bot"
+  git-user-email:
+    description: "Author email of the repair commit"
+    required: false
+    default: "81971745+linchpin-bot@users.noreply.github.com"
+
+outputs:
+  relocked:
+    description: "true when a lock was repaired and pushed (or repaired in the checkout, on a dry run)"
+    value: ${{ steps.relock.outputs.relocked == 'true' }}
+  packages:
+    description: "What was re-locked, one 'name old new' per line"
+    value: ${{ steps.relock.outputs.packages }}
+  sha:
+    description: "The repair commit"
+    value: ${{ steps.relock.outputs.sha }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Choose the PHP version Composer runs on
+      id: php
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PHP_VERSION: ${{ inputs.php-version }}
+      run: |
+        if [ -z "$PHP_VERSION" ] && [ -f composer.json ]; then
+          PHP_VERSION=$(jq -r '.config.platform.php // empty' composer.json | cut -d. -f1,2)
+        fi
+        if [ -z "$PHP_VERSION" ]; then
+          PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION, ".", PHP_MINOR_VERSION;')
+        fi
+        echo "version=$PHP_VERSION" >> "$GITHUB_OUTPUT"
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ steps.php.outputs.version }}
+        coverage: none
+        tools: composer
+
+    - name: Re-lock what composer.json asks for
+      id: relock
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DIRECTORIES: ${{ inputs.directories }}
+        BRANCH: ${{ inputs.branch }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        COMMIT_MESSAGE: ${{ inputs.commit-message }}
+        COMPOSER_AUTH: ${{ inputs.composer-auth }}
+        GIT_AUTHOR_NAME: ${{ inputs.git-user-name }}
+        GIT_AUTHOR_EMAIL: ${{ inputs.git-user-email }}
+        GIT_COMMITTER_NAME: ${{ inputs.git-user-name }}
+        GIT_COMMITTER_EMAIL: ${{ inputs.git-user-email }}
+      run: |
+        BRANCH=${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}
+        lines=()
+        changed=()
+        while IFS= read -r dir; do
+          [ -n "$dir" ] || continue
+          lock="${dir%/}/composer.lock"
+          [ "$dir" = "." ] && lock=composer.lock
+          [ -f "$lock" ] || continue
+          if ! out=$(bash "${{ github.action_path }}/relock.sh" "$dir" 2>relock.err); then
+            reason=$(tail -n 1 relock.err)
+            cat relock.err >&2
+            echo "::error title=$lock does not match composer.json on $BRANCH::$reason Until it is re-locked, composer install refuses it and every deploy of $BRANCH fails at Build."
+            echo "- Could not re-lock \`$lock\` on \`$BRANCH\`: $reason" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          cat relock.err >&2
+          if [ -n "$(git status --porcelain -- "$lock")" ]; then
+            changed+=("$lock")
+            while IFS= read -r line; do
+              [ -n "$line" ] && lines+=("$lock: $line")
+            done <<<"$out"
+          fi
+        done <<<"$DIRECTORIES"
+        rm -f relock.err
+
+        if [ "${#changed[@]}" -eq 0 ]; then
+          echo "relocked=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        body="composer.json asked for versions the lock did not hold, so composer install refused it. Re-locked by linchpin/actions composer-relock, moving nothing else:"
+        if [ "${#lines[@]}" -eq 0 ]; then
+          body="$body"$'\n'"- content-hash only"
+        fi
+        for line in ${lines[@]+"${lines[@]}"}; do
+          read -r file name old new <<<"$line"
+          body="$body"$'\n'"- $file $name $old => $new"
+        done
+
+        {
+          echo "packages<<RELOCK_EOF"
+          printf '%s\n' ${lines[@]+"${lines[@]}"}
+          echo "RELOCK_EOF"
+        } >> "$GITHUB_OUTPUT"
+
+        git add -- "${changed[@]}"
+        git commit -q -m "$COMMIT_MESSAGE" -m "$body"
+        sha=$(git rev-parse HEAD)
+        echo "sha=$sha" >> "$GITHUB_OUTPUT"
+        echo "relocked=true" >> "$GITHUB_OUTPUT"
+        echo "$body" | sed '1s/^/- /' >> "$GITHUB_STEP_SUMMARY"
+
+        if [ "$DRY_RUN" = "true" ]; then
+          echo "- Dry run, would push the re-lock to \`$BRANCH\` (${sha:0:7})." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        if ! git push -q origin "HEAD:refs/heads/$BRANCH"; then
+          echo "::error title=Could not push the re-lock to $BRANCH::The push was refused; the branch may have moved. The next run tries again."
+          exit 1
+        fi
+        echo "::notice title=Re-locked composer.lock on $BRANCH::$(printf '%s; ' "${lines[@]:-content-hash only}" | sed 's/; $//')"

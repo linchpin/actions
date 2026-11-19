@@ -60,6 +60,11 @@ on:
         required: false
         default: "build(composer):"
         type: string
+      relock:
+        description: "Re-lock composer.lock on the maintenance branch when it no longer agrees with composer.json"
+        required: false
+        default: true
+        type: boolean
       tidy_snapshots:
         description: "Tag a snapshot merged into the production branch and delete its branch on the push that merges it"
         required: false
@@ -162,6 +167,33 @@ jobs:
           resolver: tried
           resolver-reason: ${{ steps.resolve.outputs.reason }}
           resolver-unresolved: ${{ steps.resolve.outputs.unresolved }}
+          dry-run: ${{ inputs.dry_run }}
+
+      # A commit that changed composer.json without its lock (a Renovate PR
+      # whose artifact update failed, merged anyway), or a clean merge that
+      # carried one in from production, leaves a lock composer install refuses,
+      # and every deploy of the branch fails at Build: birth23 and LCB on
+      # 2026-11-19. Checked on every run, after everything above has merged.
+      # Only the branch itself is checked out, never a PR, and Composer runs
+      # with scripts and plugins off.
+      - name: Check out the maintenance branch to check its lock
+        id: lock-checkout
+        if: ${{ !cancelled() && inputs.relock }}
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch }}
+          path: lock
+          token: ${{ secrets.GH_BOT_TOKEN }}
+
+      - name: Re-lock what composer.json asks for
+        id: relock
+        if: ${{ !cancelled() && inputs.relock && steps.lock-checkout.outcome == 'success' }}
+        uses: linchpin/actions/actions/composer-relock@v4
+        with:
+          working-directory: lock
+          branch: ${{ inputs.branch }}
+          composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+          php-version: ${{ vars.PHP_VERSION }}
           dry-run: ${{ inputs.dry_run }}
 
       # Runs even when a step above failed, so a release is never held up.

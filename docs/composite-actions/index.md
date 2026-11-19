@@ -32,6 +32,7 @@ The steps the reusable workflows are built from, each usable on its own as `uses
 | [governing-merge](governing-merge.md) | Merges Linchpin Governing's green single-package release bumps into production | `rolling-maintenance.yml` |
 | [snapshot](snapshot.md) | Freezes a snapshot of `maintenance` and opens its PR, or tidies snapshots, through the GitHub API alone | `snapshots.yml`, `rolling-maintenance.yml` |
 | [resolve-merge](resolve-merge.md) | Merges one branch into another when GitHub refuses, resolving manifest and lockfile conflicts deterministically | `rolling-maintenance.yml`, `snapshots.yml` |
+| [composer-relock](composer-relock.md) | Re-locks a `composer.lock` that no longer agrees with its `composer.json`, moving only the packages Composer names | `rolling-maintenance.yml`, resolve-merge |
 
 ## Repository upkeep
 

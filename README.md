@@ -316,6 +316,7 @@ jobs:
 | [snapshot](actions/snapshot)                    | Freeze a snapshot of `maintenance` and open its PR, or tidy snapshots, through the API alone |
 | [governing-merge](actions/governing-merge)      | Merge Linchpin Governing's green, single-package release and security bumps into production |
 | [resolve-merge](actions/resolve-merge)          | Bring one branch into another when GitHub refuses, resolving manifest and lockfile conflicts deterministically — see [below](#resolving-merges) |
+| [composer-relock](actions/composer-relock)      | Re-lock a `composer.lock` that no longer agrees with its `composer.json`, moving only the packages Composer names, and push it |
 
 ## Example Shared Workflow Usage
 
@@ -595,7 +596,7 @@ other. `resolve-merge` does what a person would, in a checkout of the branch:
 | --- | --- |
 | `package.json`, `composer.json` | A three-way merge by key, each value from the side that changed it. When both raised the same dependency, or the release `version`, the higher one wins |
 | `package-lock.json` | A three-way merge by package entry, then `npm install --package-lock-only` repairs it against the merged `package.json` and `npm ls` checks the tree |
-| `composer.lock` | Keeping this side's lock and re-applying each package the other side moved, at the version it locked |
+| `composer.lock` | Keeping this side's lock and re-applying each package the other side moved, at the version it locked. A package one side removed stays removed when the merged `composer.json` no longer asks for it, and a constraint neither lock satisfies is re-locked by [composer-relock](actions/composer-relock) |
 
 It gives up, pushes nothing and says why (`resolved` is `false`, `reason` and
 `unresolved` say what is left) when:
@@ -603,7 +604,8 @@ It gives up, pushes nothing and says why (`resolved` is `false`, `reason` and
 - any other file conflicts;
 - both sides changed some other key to different values;
 - npm moves a package already in the tree that neither side moved;
-- both sides moved the same Composer package.
+- both sides moved the same Composer package, and the merged `composer.json`
+  still asks for it.
 
 npm's own lockfile conflict handling is not used: it re-resolves freely, and on
 linchpin.com's #1890 it moved 74 untouched packages, one of them a major.
