@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.28.1](https://github.com/linchpin/actions/compare/v4.28.0...v4.28.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **LINCHPIN-6214:** Keep re-lock commits under 100 characters and say what moved ([dc91444](https://github.com/linchpin/actions/commit/dc91444ac7aeefc31eeb7c48f82b36d0912a5f2e))
+* **LINCHPIN-6214:** Keep re-lock commits under 100 characters and say what moved ([c64bbd7](https://github.com/linchpin/actions/commit/c64bbd7c58c7e1553f8b3848f05b0e75005389f3))
+
 ## [4.28.0](https://github.com/linchpin/actions/compare/v4.27.0...v4.28.0) (2026-11-19)
 
 
