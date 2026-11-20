@@ -6,7 +6,7 @@
 ### Bug Fixes
 
 * **LINCHPIN-6214:** Keep re-lock commits under 100 characters and say what moved ([dc91444](https://github.com/linchpin/actions/commit/dc91444ac7aeefc31eeb7c48f82b36d0912a5f2e))
-* **LINCHPIN-6214:** Keep re-lock commits under 100 characters and say what moved ([c64bbd7](https://github.com/linchpin/actions/commit/c64bbd7c58c7e1553f8b3848f05b0e75005389f3))
+* **LINCHPIN-6214:** List repeated commits once in a snapshot PR ([559704b](https://github.com/linchpin/actions/commit/559704ba9c02bb1765d9330a1e8b32856b37b643))
 
 ## [4.28.0](https://github.com/linchpin/actions/compare/v4.27.0...v4.28.0) (2026-11-19)
 
