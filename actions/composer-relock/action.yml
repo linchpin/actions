@@ -39,9 +39,12 @@ inputs:
     required: false
     default: ""
   commit-message:
-    description: "Subject of the repair commit"
+    description: >-
+      Subject of the repair commit. Empty, the default, writes one that says
+      what moved: "build(composer): Re-lock phpunit/phpunit to 13.4.8" or
+      "build(composer): Refresh the composer.lock content-hash".
     required: false
-    default: "build(composer): Re-lock composer.lock to match composer.json"
+    default: ""
   git-user-name:
     description: "Author of the repair commit"
     required: false
@@ -132,14 +135,39 @@ runs:
           exit 0
         fi
 
-        body="composer.json asked for versions the lock did not hold, so composer install refused it. Re-locked by linchpin/actions composer-relock, moving nothing else:"
-        if [ "${#lines[@]}" -eq 0 ]; then
-          body="$body"$'\n'"- content-hash only"
+        # The subject says what moved, because a snapshot PR lists its commits
+        # by subject. The body lists each package. commitlint caps every line
+        # at 100 characters, so a subject that would run longer falls back to
+        # the generic one, and fold wraps any long body line.
+        subject=$COMMIT_MESSAGE
+        if [ -z "$subject" ]; then
+          if [ "${#lines[@]}" -eq 1 ]; then
+            read -r _ name _ new <<<"${lines[0]}"
+            subject="build(composer): Re-lock $name to $new"
+          elif [ "${#lines[@]}" -gt 1 ]; then
+            subject="build(composer): Re-lock ${#lines[@]} packages to match composer.json"
+          elif [ "${#changed[@]}" -eq 1 ]; then
+            subject="build(composer): Refresh the ${changed[0]} content-hash"
+          else
+            subject="build(composer): Refresh the content-hash of ${#changed[@]} lock files"
+          fi
+          [ "${#subject}" -le 100 ] || subject="build(composer): Re-lock composer.lock to match composer.json"
         fi
-        for line in ${lines[@]+"${lines[@]}"}; do
-          read -r file name old new <<<"$line"
-          body="$body"$'\n'"- $file $name $old => $new"
+
+        # One "- name old => new" line per package. A lock other than the root
+        # one is named above its packages, and so is every lock when more than
+        # one changed.
+        body=""
+        for lock in "${changed[@]}"; do
+          items=$(printf '%s\n' ${lines[@]+"${lines[@]}"} | awk -v f="$lock:" '$1 == f { print "- " $2 " " $3 " => " $4 }')
+          if [ "${#changed[@]}" -gt 1 ]; then
+            body+="$lock:"$'\n'"${items:-- content-hash only}"$'\n'
+          elif [ -n "$items" ]; then
+            [ "$lock" = composer.lock ] || body+="$lock:"$'\n'
+            body+="$items"$'\n'
+          fi
         done
+        body=$(fold -s -w 100 <<<"$body")
 
         {
           echo "packages<<RELOCK_EOF"
@@ -148,11 +176,18 @@ runs:
         } >> "$GITHUB_OUTPUT"
 
         git add -- "${changed[@]}"
-        git commit -q -m "$COMMIT_MESSAGE" -m "$body"
+        if [ -n "$body" ]; then
+          git commit -q -m "$subject" -m "$body"
+        else
+          git commit -q -m "$subject"
+        fi
         sha=$(git rev-parse HEAD)
         echo "sha=$sha" >> "$GITHUB_OUTPUT"
         echo "relocked=true" >> "$GITHUB_OUTPUT"
-        echo "$body" | sed '1s/^/- /' >> "$GITHUB_STEP_SUMMARY"
+        {
+          echo "- ${subject#*: } on \`$BRANCH\`"
+          [ -z "$body" ] || sed 's/^/  /' <<<"$body"
+        } >> "$GITHUB_STEP_SUMMARY"
 
         if [ "$DRY_RUN" = "true" ]; then
           echo "- Dry run, would push the re-lock to \`$BRANCH\` (${sha:0:7})." >> "$GITHUB_STEP_SUMMARY"
