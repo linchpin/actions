@@ -119,9 +119,14 @@ freeze() {
 	esac
 
 	# The updates the target does not have yet, without the merges from production.
+	# Commits with the same subject, such as two content-hash refreshes by
+	# composer-relock, share one line that counts them, in first-seen order.
 	local commits
+	# shellcheck disable=SC2016 # $s is jq's, not the shell's.
 	commits=$(gh api "repos/$GH_REPO/compare/$TARGET...$sha" \
-		--jq '[.commits[] | select((.parents | length) == 1) | "- " + (.commit.message | split("\n")[0])] | join("\n")')
+		--jq '[.commits[] | select((.parents | length) == 1) | .commit.message | split("\n")[0]]
+			| reduce .[] as $s ([]; if any(.[]; .s == $s) then map(if .s == $s then .n += 1 else . end) else . + [{s: $s, n: 1}] end)
+			| map("- " + .s + (if .n > 1 then " (\(.n) commits)" else "" end)) | join("\n")')
 	if [ -z "$commits" ]; then
 		note "\`$TARGET\` already has everything in $sha; nothing to promote."
 		exit 0
