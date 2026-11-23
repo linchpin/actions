@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.28.2](https://github.com/linchpin/actions/compare/v4.28.1...v4.28.2) (2026-11-23)
+
+
+### Bug Fixes
+
+* **LINCHPIN-6264:** Keep the WP Engine SSH session alive during long silent steps ([c05e912](https://github.com/linchpin/actions/commit/c05e912aca9f2b029d19aa0b3a66a5031641e9d8))
+* **LINCHPIN-6264:** Keep the WP Engine SSH session alive during long silent steps ([140b9bd](https://github.com/linchpin/actions/commit/140b9bdcdc48dcc4b2658711d26113b5559a918a))
+
 ## [4.28.1](https://github.com/linchpin/actions/compare/v4.28.0...v4.28.1) (2026-11-20)
 
 
