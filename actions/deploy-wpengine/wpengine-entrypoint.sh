@@ -31,6 +31,19 @@ echo "Releases: $RELEASES_DIR"
 echo "Release:  $RELEASE_DIR"
 echo "Public:   $PUBLIC_DIR"
 
+# Heartbeat: the SSH gateway drops a session that prints nothing for 10 minutes.
+# Removing the previous release and unzipping a large one are both silent and
+# can run that long on a slow disk, so print a line every minute until we exit.
+# sleep gets its own stdio so it doesn't hold the SSH channel open after the kill.
+(
+	while true; do
+		sleep 60 </dev/null >/dev/null 2>&1
+		echo "ℹ︎ Still working… $(date -u +%H:%M:%S)"
+	done
+) &
+HEARTBEAT_PID=$!
+trap 'kill "$HEARTBEAT_PID" 2>/dev/null' EXIT
+
 # ---------------------------------------------------------------------------
 # Symlink + protected-path handling
 #
