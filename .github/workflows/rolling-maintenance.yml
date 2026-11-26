@@ -196,6 +196,23 @@ jobs:
           php-version: ${{ vars.PHP_VERSION }}
           dry-run: ${{ inputs.dry_run }}
 
+      # Sisyphus opens a pull request into production for a plugin production
+      # runs outside the repository (Deploy to Dev's "Active but not on disk"),
+      # from sisyphus/adopt/<slug>, with composer.json alone: it has no
+      # Composer. Lock each such branch so the pull request's checks can pass.
+      # Runs even when the re-lock above failed, since the branches are others,
+      # and switches the checkout back when it is done. Composer runs with
+      # scripts and plugins off.
+      - name: Lock the plugins Sisyphus adopted
+        id: adopt
+        if: ${{ !cancelled() && inputs.relock && steps.lock-checkout.outcome == 'success' }}
+        uses: linchpin/actions/actions/adopt-relock@v4
+        with:
+          working-directory: lock
+          composer-auth: ${{ secrets.PACKAGIST_COMPOSER_AUTH_JSON }}
+          php-version: ${{ vars.PHP_VERSION }}
+          dry-run: ${{ inputs.dry_run }}
+
       # Runs even when a step above failed, so a release is never held up.
       - name: Merge green Governing bumps into production
         if: ${{ !cancelled() && inputs.governing_merge }}

@@ -317,6 +317,7 @@ jobs:
 | [governing-merge](actions/governing-merge)      | Merge Linchpin Governing's green, single-package release and security bumps into production |
 | [resolve-merge](actions/resolve-merge)          | Bring one branch into another when GitHub refuses, resolving manifest and lockfile conflicts deterministically — see [below](#resolving-merges) |
 | [composer-relock](actions/composer-relock)      | Re-lock a `composer.lock` that no longer agrees with its `composer.json`, moving only the packages Composer names, and push it |
+| [adopt-relock](actions/adopt-relock)            | Lock each `sisyphus/adopt/*` branch, where Sisyphus requires a plugin production runs outside the repo, and push it |
 
 ## Example Shared Workflow Usage
 
