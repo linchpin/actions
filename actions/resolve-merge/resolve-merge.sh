@@ -34,15 +34,20 @@
 #   composer.lock
 #       Keep this side's lock and re-apply each package the other side moved, at
 #       exactly the version it locked (`composer update <name> --with
-#       <name>:<version>`), then check nothing else moved. A package one side
-#       removed and the other moved stays removed when the merged composer.json
-#       no longer asks for it, as in the manifests: one site's main dropped a
-#       plugin while Renovate raised it on maintenance (November 2026). Then a
-#       package the merged composer.json pins where neither lock holds it, left
-#       by a commit that changed composer.json without its lock, is re-locked
-#       to what composer.json asks for and nothing else (composer-relock's
-#       relock.sh). Any other package both sides moved,
-#       or a dev branch, gives up.
+#       <name>:<version>`), then check nothing else moved. A package both sides
+#       moved to different releases takes the higher, as in package-lock.json:
+#       Renovate raises the same plugin on each side a few days apart (November
+#       2026). A package one side removed and the other moved stays removed
+#       when the merged composer.json no longer asks for it, as in the
+#       manifests: one site's main dropped a plugin while Renovate raised it on
+#       maintenance (November 2026). Then a package the merged composer.json
+#       pins where neither lock holds it, left by a commit that changed
+#       composer.json without its lock, is re-locked to what composer.json asks
+#       for and nothing else (composer-relock's relock.sh). A package both
+#       sides moved that is a dev branch, that one side removed while
+#       composer.json still asks for it, or whose two versions order the same
+#       (a release and its pre-release) gives up, as does a dev branch on the
+#       other side.
 #
 # Any other conflicted file is left to Sisyphus or a person (LINCHPIN-5903).
 # The two are handed over on branches named for the exact pair of commits, so
@@ -441,14 +446,29 @@ for dir in $(printf '%s\n' ${composer_dirs[@]+"${composer_dirs[@]}"} | sort -u);
 	# A package one side removed and the other moved, which the merged
 	# composer.json no longer names, stays removed: "remove" when the other side
 	# removed it, "kept" when this side did.
-	plan=$(jq -nr --argjson base "$base" --argjson theirs "$theirs" --argjson ours "$ours" --argjson required "$required" '
+	#
+	# A package both sides moved to different releases takes the higher, as an
+	# npm lock entry does: "take" when the other side's is higher, "keep" when
+	# this side's is. Renovate raises the same plugin on main and on
+	# `maintenance` a few days apart, and the later release supersedes the
+	# earlier. Giving up there held three sites at Update for days (November
+	# 2026) over a merge a person resolved by taking the newer version. A dev
+	# branch, a removal composer.json still asks for, or two versions that order
+	# the same (1.0.0 and v1.0.0, a release and its pre-release) still give up.
+	plan=$(jq -nr --argjson base "$base" --argjson theirs "$theirs" --argjson ours "$ours" --argjson required "$required" "$JQ_VERSION"'
 		($base + $theirs | keys)[] as $name
 		| select($base[$name] != $theirs[$name])
 		| (($ours[$name] == null or $theirs[$name] == null) and ($required | index($name)) == null) as $dropped
 		| if $ours[$name] == $theirs[$name] then empty
 		  elif $ours[$name] != $base[$name] and $dropped then
 			(if $theirs[$name] == null then "remove \($name) \($ours[$name])" else "kept \($name) \($theirs[$name])" end)
-		  elif $ours[$name] != $base[$name] then "differ \($name) \($ours[$name] // "absent") \($theirs[$name] // "absent")"
+		  elif $ours[$name] != $base[$name] then
+			(if $ours[$name] == null or $theirs[$name] == null
+				or ([$ours[$name], $theirs[$name]] | any(test("^dev-|-dev$")))
+				or ($ours[$name] | vkey) == ($theirs[$name] | vkey)
+			 then "differ \($name) \($ours[$name] // "absent") \($theirs[$name] // "absent")"
+			 elif ($theirs[$name] | vkey) > ($ours[$name] | vkey) then "take \($name) \($theirs[$name]) \($ours[$name])"
+			 else "keep \($name) \($ours[$name]) \($theirs[$name])" end)
 		  elif $theirs[$name] == null then "remove \($name)"
 		  elif ($theirs[$name] | startswith("dev-")) then "dev \($name) \($theirs[$name])"
 		  else "apply \($name) \($theirs[$name])" end')
@@ -456,12 +476,24 @@ for dir in $(printf '%s\n' ${composer_dirs[@]+"${composer_dirs[@]}"} | sort -u);
 	names=()
 	with=()
 	kept=()
+	higher_here=()
 	applied=""
 	noted=false
 	while read -r action name version extra; do
 		case "$action" in
 		"") ;;
 		differ) give_up "$lock: $name moved on both sides, $version in \`$BRANCH\` and $extra on \`$FROM\`." "$lock" ;;
+		take)
+			names+=("$name")
+			with+=(--with "$name:$version")
+			done_lines+=("$lock: $name moved on both sides; took $version from \`$FROM\` over $extra in \`$BRANCH\`, the higher.")
+			noted=true
+			;;
+		keep)
+			higher_here+=("$name")
+			done_lines+=("$lock: $name moved on both sides; kept $version in \`$BRANCH\` over $extra on \`$FROM\`, the higher.")
+			noted=true
+			;;
 		dev) give_up "$lock: $name is a dev branch ($version) on \`$FROM\`; its lock entry is not a version to re-apply." "$lock" ;;
 		remove)
 			names+=("$name")
@@ -495,12 +527,16 @@ for dir in $(printf '%s\n' ${composer_dirs[@]+"${composer_dirs[@]}"} | sort -u);
 		give_up "composer could not apply what \`$FROM\` moved in $lock." "$lock"
 
 	# This side's lock with the other side's packages applied, and nothing else
-	# moved. A package this side removed stays removed.
+	# moved. A package this side removed stays removed, and one both sides moved
+	# where this side's is higher stays as this side locked it.
 	resolved=$(versions <"$lock")
 	expected=$(jq -ncS --argjson ours "$ours" --argjson theirs "$theirs" --argjson base "$base" \
-		--argjson kept "$(printf '%s\n' ${kept[@]+"${kept[@]}"} | jq -Rcs 'split("\n") | map(select(length > 0))')" '
+		--argjson kept "$(printf '%s\n' ${kept[@]+"${kept[@]}"} | jq -Rcs 'split("\n") | map(select(length > 0))')" \
+		--argjson here "$(printf '%s\n' ${higher_here[@]+"${higher_here[@]}"} | jq -Rcs 'split("\n") | map(select(length > 0))')" '
 		reduce (($base + $theirs | keys)[] | select($base[.] != $theirs[.])) as $name ($ours;
-			if $theirs[$name] == null or ($kept | index($name)) != null then del(.[$name]) else .[$name] = $theirs[$name] end)')
+			if ($here | index($name)) != null then .
+			elif $theirs[$name] == null or ($kept | index($name)) != null then del(.[$name])
+			else .[$name] = $theirs[$name] end)')
 	if [ "$resolved" != "$expected" ]; then
 		give_up "$lock moved more than \`$FROM\` did: $(jq -nr --argjson r "$resolved" --argjson e "$expected" '
 			($r + $e | keys)[] as $n | select($r[$n] != $e[$n]) | "\($n) \($e[$n] // "absent") became \($r[$n] // "absent")"' | tr '\n' ' ')" "$lock"
