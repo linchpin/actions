@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.28.3](https://github.com/linchpin/actions/compare/v4.28.2...v4.28.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* **LINCHPIN-6315:** Take the higher version when composer.lock moved a package on both sides ([2cbf906](https://github.com/linchpin/actions/commit/2cbf906c5048c86bc94dc33f342ef9079a7baba0))
+* **LINCHPIN-6315:** Take the higher version when composer.lock moved a package on both sides ([154e003](https://github.com/linchpin/actions/commit/154e0038b196e442fd9c05d44fdf908ebe3acdd2))
+
 ## [4.28.2](https://github.com/linchpin/actions/compare/v4.28.1...v4.28.2) (2026-11-23)
 
 
