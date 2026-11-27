@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.29.0](https://github.com/linchpin/actions/compare/v4.28.3...v4.29.0) (2026-11-27)
+
+
+### Features
+
+* **LINCHPIN-6327:** Lock the plugins Sisyphus adopts on their pull request branches ([bb5ed8d](https://github.com/linchpin/actions/commit/bb5ed8dc68e832a442e6b62a44f42053e3d37005))
+* **LINCHPIN-6327:** Lock the plugins Sisyphus adopts on their pull request branches ([464ba48](https://github.com/linchpin/actions/commit/464ba48c5a031d81484fecdfc7f9f9830450b7ac))
+
 ## [4.28.3](https://github.com/linchpin/actions/compare/v4.28.2...v4.28.3) (2026-11-26)
 
 
