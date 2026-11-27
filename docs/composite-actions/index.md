@@ -33,6 +33,7 @@ The steps the reusable workflows are built from, each usable on its own as `uses
 | [snapshot](snapshot.md) | Freezes a snapshot of `maintenance` and opens its PR, or tidies snapshots, through the GitHub API alone | `snapshots.yml`, `rolling-maintenance.yml` |
 | [resolve-merge](resolve-merge.md) | Merges one branch into another when GitHub refuses, resolving manifest and lockfile conflicts deterministically | `rolling-maintenance.yml`, `snapshots.yml` |
 | [composer-relock](composer-relock.md) | Re-locks a `composer.lock` that no longer agrees with its `composer.json`, moving only the packages Composer names | `rolling-maintenance.yml`, resolve-merge |
+| [adopt-relock](adopt-relock.md) | Locks each `sisyphus/adopt/*` branch, where Sisyphus requires a plugin production runs outside the repo, so its pull request can pass | `rolling-maintenance.yml` |
 
 ## Repository upkeep
 
